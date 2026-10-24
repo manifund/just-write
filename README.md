@@ -8,11 +8,11 @@ Landing page for [justwrite.club](https://justwrite.club), a 4-week online writi
 ## Develop
 
 ```bash
-pnpm install
+bun install
 vercel link          # manifund team, just-write project
 vercel env pull .env.local
-pnpm db:migrate      # creates the `interest` table (safe to re-run)
-pnpm dev
+bun db:migrate       # creates the `interest` table (safe to re-run)
+bun dev
 ```
 
 Pushes to `main` deploy to production.

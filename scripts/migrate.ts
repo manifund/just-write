@@ -1,8 +1,8 @@
 // Creates the database table. Safe to re-run.
-// Usage: pnpm db:migrate   (reads DATABASE_URL from .env.local)
+// Usage: bun db:migrate   (bun loads DATABASE_URL from .env.local)
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = neon(process.env.DATABASE_URL!);
 
 await sql`
   CREATE TABLE IF NOT EXISTS interest (
