@@ -53,3 +53,12 @@
   font-style: italic;
   font-variation-settings: "SOFT" 100, "WONK" 1;
 }
+
+/* /tweaks: keep alternate body fonts at Garamond's apparent size */
+[data-tweaks] {
+  font-size-adjust: var(--body-size-adjust);
+}
+[data-tweaks] .font-display,
+[data-tweaks] .font-sans {
+  font-size-adjust: none;
+}
