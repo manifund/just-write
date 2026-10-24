@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cream: #f6f1e7;
-  --color-cream-deep: #ece5d5;
-  --color-ink: #1f2a55;
-  --color-ink-muted: #4b5583;
-  --color-wash: #8a97c2;
-  --color-wash-light: #c9cfe6;
-  --color-brass: #c9a46a;
-  --color-brass-light: #d6b67f;
-  --color-brass-numeral: #9a7740;
-  --color-brass-text: #85662f;
+  --color-cream: #f2f0e6;
+  --color-cream-deep: #e5e4d4;
+  --color-ink: #17392f;
+  --color-ink-muted: #4a625a;
+  --color-wash: #88ab9b;
+  --color-wash-light: #d0e1d6;
+  --color-brass: #e2a93c;
+  --color-brass-light: #ecbf5f;
+  --color-brass-numeral: #a67716;
+  --color-brass-text: #7c5a10;
 
-  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
-  --font-body: var(--font-garamond), Garamond, Georgia, serif;
+  --font-display: var(--font-cormorant), "Iowan Old Style", Georgia, serif;
+  --font-body: var(--font-atkinson), system-ui, sans-serif;
 }
 
 @layer base {
@@ -54,11 +54,15 @@
   font-variation-settings: "SOFT" 100, "WONK" 1;
 }
 
-/* /tweaks: keep alternate body fonts at Garamond's apparent size */
+/* Body sizes were tuned for EB Garamond's small x-height; match it.
+   /tweaks overrides this per body font. */
+body {
+  font-size-adjust: 0.42;
+}
 [data-tweaks] {
   font-size-adjust: var(--body-size-adjust);
 }
-[data-tweaks] .font-display,
-[data-tweaks] .font-sans {
+.font-display,
+.font-sans {
   font-size-adjust: none;
 }

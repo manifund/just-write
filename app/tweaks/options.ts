@@ -1,4 +1,4 @@
-// Choices offered on /tweaks. The first entry in each list is what the live site uses.
+// Choices offered on /tweaks. DEFAULTS (below) is what the live site uses.
 
 export type FontOption = {
   id: string;
@@ -10,17 +10,17 @@ export type FontOption = {
 };
 
 export const DISPLAY_FONTS: FontOption[] = [
-  { id: "fraunces", name: "Fraunces", cssVar: "--font-fraunces" },
+  { id: "fraunces", name: "Fraunces", cssVar: "--font-tw-fraunces" },
   { id: "instrument", name: "Instrument Serif", cssVar: "--font-tw-instrument" },
-  { id: "cormorant", name: "Cormorant", cssVar: "--font-tw-cormorant" },
+  { id: "cormorant", name: "Cormorant", cssVar: "--font-cormorant" },
   { id: "schibsted", name: "Schibsted Grotesk", cssVar: "--font-tw-schibsted" },
 ];
 
 export const BODY_FONTS: FontOption[] = [
-  { id: "garamond", name: "EB Garamond", cssVar: "--font-garamond" },
+  { id: "garamond", name: "EB Garamond", cssVar: "--font-tw-garamond" },
   { id: "newsreader", name: "Newsreader", cssVar: "--font-tw-newsreader", sizeAdjust: 0.42 },
   { id: "literata", name: "Literata", cssVar: "--font-tw-literata", sizeAdjust: 0.42 },
-  { id: "atkinson", name: "Atkinson Next", cssVar: "--font-tw-atkinson", sizeAdjust: 0.42 },
+  { id: "atkinson", name: "Atkinson Next", cssVar: "--font-atkinson", sizeAdjust: 0.42 },
 ];
 
 type Palette = {
@@ -107,19 +107,20 @@ export const PALETTES: PaletteOption[] = [
 
 export type Selection = { display: string; body: string; palette: string };
 
+// Keep in sync with app/layout.tsx and the @theme colors in globals.css.
 export const DEFAULTS: Selection = {
-  display: DISPLAY_FONTS[0].id,
-  body: BODY_FONTS[0].id,
-  palette: PALETTES[0].id,
+  display: "cormorant",
+  body: "atkinson",
+  palette: "pine",
 };
 
-const pick = <T extends { id: string }>(list: T[], id: unknown) =>
-  list.find((o) => o.id === id)?.id ?? list[0].id;
+const pick = <T extends { id: string }>(list: T[], id: unknown, fallback: string) =>
+  list.find((o) => o.id === id)?.id ?? fallback;
 
 export function parseSelection(params: Record<string, string | string[] | undefined>): Selection {
   return {
-    display: pick(DISPLAY_FONTS, params.display),
-    body: pick(BODY_FONTS, params.body),
-    palette: pick(PALETTES, params.palette),
+    display: pick(DISPLAY_FONTS, params.display, DEFAULTS.display),
+    body: pick(BODY_FONTS, params.body, DEFAULTS.body),
+    palette: pick(PALETTES, params.palette, DEFAULTS.palette),
   };
 }

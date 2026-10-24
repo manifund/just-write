@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
-import { EB_Garamond, Fraunces } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Cormorant } from "next/font/google";
 import "./globals.css";
 
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const cormorant = Cormorant({
+  variable: "--font-cormorant",
   subsets: ["latin"],
   style: ["normal", "italic"],
-  axes: ["opsz", "SOFT", "WONK"],
 });
 
-const garamond = EB_Garamond({
-  variable: "--font-garamond",
+const atkinson = Atkinson_Hyperlegible_Next({
+  variable: "--font-atkinson",
   subsets: ["latin"],
   style: ["normal", "italic"],
 });
@@ -26,7 +25,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${garamond.variable} antialiased`}
+      className={`${cormorant.variable} ${atkinson.variable} antialiased`}
     >
       <body>{children}</body>
     </html>
