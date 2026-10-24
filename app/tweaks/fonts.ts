@@ -1,7 +1,7 @@
 // Extra fonts for /tweaks only, so the live page doesn't download them.
 import {
+  Cormorant,
   EB_Garamond,
-  Fraunces,
   Instrument_Serif,
   Literata,
   Newsreader,
@@ -14,11 +14,10 @@ const instrument = Instrument_Serif({
   weight: "400",
   style: ["normal", "italic"],
 });
-const fraunces = Fraunces({
-  variable: "--font-tw-fraunces",
+const cormorant = Cormorant({
+  variable: "--font-tw-cormorant",
   subsets: ["latin"],
   style: ["normal", "italic"],
-  axes: ["opsz", "SOFT", "WONK"],
 });
 const schibsted = Schibsted_Grotesk({
   variable: "--font-tw-schibsted",
@@ -41,6 +40,6 @@ const garamond = EB_Garamond({
   style: ["normal", "italic"],
 });
 
-export const tweakFontVars = [fraunces, instrument, schibsted, garamond, newsreader, literata]
+export const tweakFontVars = [cormorant, instrument, schibsted, garamond, newsreader, literata]
   .map((f) => f.variable)
   .join(" ");

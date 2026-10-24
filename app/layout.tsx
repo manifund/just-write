@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Atkinson_Hyperlegible_Next, Cormorant } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
 import "./globals.css";
 
-const cormorant = Cormorant({
-  variable: "--font-cormorant",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
   style: ["normal", "italic"],
+  axes: ["opsz", "SOFT", "WONK"],
 });
 
 const atkinson = Atkinson_Hyperlegible_Next({
@@ -25,7 +26,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${cormorant.variable} ${atkinson.variable} antialiased`}
+      className={`${fraunces.variable} ${atkinson.variable} antialiased`}
     >
       <body>{children}</body>
     </html>

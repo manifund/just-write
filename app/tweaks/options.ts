@@ -10,9 +10,9 @@ export type FontOption = {
 };
 
 export const DISPLAY_FONTS: FontOption[] = [
-  { id: "fraunces", name: "Fraunces", cssVar: "--font-tw-fraunces" },
+  { id: "fraunces", name: "Fraunces", cssVar: "--font-fraunces" },
   { id: "instrument", name: "Instrument Serif", cssVar: "--font-tw-instrument" },
-  { id: "cormorant", name: "Cormorant", cssVar: "--font-cormorant" },
+  { id: "cormorant", name: "Cormorant", cssVar: "--font-tw-cormorant" },
   { id: "schibsted", name: "Schibsted Grotesk", cssVar: "--font-tw-schibsted" },
 ];
 
@@ -109,9 +109,9 @@ export type Selection = { display: string; body: string; palette: string };
 
 // Keep in sync with app/layout.tsx and the @theme colors in globals.css.
 export const DEFAULTS: Selection = {
-  display: "cormorant",
+  display: "fraunces",
   body: "atkinson",
-  palette: "pine",
+  palette: "aubergine",
 };
 
 const pick = <T extends { id: string }>(list: T[], id: unknown, fallback: string) =>
