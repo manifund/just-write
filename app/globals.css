@@ -21,6 +21,7 @@
     background: var(--color-cream);
     color: var(--color-ink);
     font-family: var(--font-body);
+    line-height: normal; /* reference uses browser-default line-height */
   }
 
   a {
