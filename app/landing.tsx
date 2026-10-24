@@ -61,7 +61,7 @@ export function Landing() {
             4-week online writing club
           </p>
           <h1 className="max-w-[8.5em] font-display text-[clamp(44px,min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            Everyone has a <em className="wonk text-brass-light">great essay</em> in them.
+            Everyone has a <span className="text-brass-light">great essay</span> in them.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
             We especially want to hear from people who aren’t “fulltime writers.” You
@@ -87,7 +87,7 @@ export function Landing() {
         <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
           {RULES.map((r) => (
             <li key={r.numeral} className="grid grid-cols-[52px_minmax(0,1fr)] items-baseline gap-3">
-              <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] text-brass-numeral">
+              <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] font-semibold text-brass-numeral">
                 {r.numeral}
               </span>
               <div className="flex flex-col gap-0.5">
@@ -106,7 +106,7 @@ export function Landing() {
             <a href="https://en.wikipedia.org/wiki/National_Novel_Writing_Month">NaNoWriMo</a>.
           </span>
           <span>
-            A <a href="https://manifund.org">Manifund</a> project · justwrite.club
+            by Austin of <a href="https://manifund.org">Manifund</a>
           </span>
         </footer>
       </section>

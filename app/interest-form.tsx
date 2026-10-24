@@ -22,7 +22,7 @@ export function InterestForm() {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1.5">
         <h2 className="font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]">
-          Express <em className="wonk">interest</em>
+          Express interest
         </h2>
         <p className="text-sm tracking-[0.12em] text-brass-text uppercase">
           Rolling admissions
