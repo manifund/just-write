@@ -4,23 +4,23 @@ import { InterestForm } from "./interest-form";
 const RULES = [
   {
     numeral: "i.",
-    title: "Publish 100+ words each day",
-    detail: "On X, LW, personal blog, etc. Deadline: noon PT. One “grace day” each week.",
+    title: "Write 100 words each day",
+    detail: "Post your snippet on X, LW, personal blog. One “grace day” each week.",
   },
   {
     numeral: "ii.",
-    title: "Publish 1000+ word essay each week",
+    title: "Publish a 1000 word essay each week",
     detail:
-      "Aiming for a timeless, high quality essay. Can reuse words from previous shortforms. Deadline: noon PT the following Monday.",
+      "Aiming for a timeless, high quality essay.",
   },
   {
     numeral: "iii.",
-    title: "$1k deposit required",
+    title: "$1,000 deposit required",
     detail: "Refunded if you succeed.",
   },
   {
     numeral: "iv.",
-    title: "Remote by default",
+    title: "Online, with meetups in SF",
     detail:
       "A Discord server for people to chat & get feedback; and weekly Saturday afternoon meetups at Mox dedicated to writing.",
   },
