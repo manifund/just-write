@@ -24,9 +24,6 @@ export function InterestForm() {
         <h2 className="font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]">
           Express interest
         </h2>
-        <p className="text-sm tracking-[0.12em] text-brass-text uppercase">
-          Rolling admissions
-        </p>
       </div>
 
       {state.status === "ok" ? (
@@ -67,9 +64,6 @@ export function InterestForm() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3.5">
-            <p className="text-base text-ink-muted">
-              Kickoff Nov 1. Wrap party Dec 1.
-            </p>
             <button
               type="submit"
               disabled={pending}

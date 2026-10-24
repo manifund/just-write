@@ -81,9 +81,6 @@ export function Landing() {
       </section>
 
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
-        <p className="text-[15px] tracking-[0.14em] text-brass-text uppercase">
-          Nov 1 – Dec 1, 2026 · Remote + SF
-        </p>
         <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
           {RULES.map((r) => (
             <li key={r.numeral} className="grid grid-cols-[52px_minmax(0,1fr)] items-baseline gap-3">
