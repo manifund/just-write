@@ -37,7 +37,7 @@ const label = "text-[13px] tracking-[0.1em] uppercase text-wash-light";
 
 export function Calendar() {
   return (
-    <div className="relative mt-auto flex max-w-[470px] flex-col gap-3.5">
+    <div className="relative mt-auto hidden max-w-[470px] flex-col gap-3 md:flex">
       <div role="grid" aria-label="November 2026 schedule" className="flex flex-col gap-1.5">
         <div role="row" className={`${row} ${label}`}>
           <span role="columnheader">Nov</span>
@@ -54,12 +54,12 @@ export function Calendar() {
             </span>
             {Array.from({ length: 7 }, (_, i) => {
               const day = w.days[i];
-              if (!day) return <div key={i} className="h-11" />;
+              if (!day) return <div key={i} className="h-[clamp(32px,4.8vh,44px)]" />;
               return (
                 <div
                   role="gridcell"
                   key={i}
-                  className={`flex h-11 flex-col items-center justify-center gap-[3px] border text-base text-cream ${
+                  className={`flex h-[clamp(32px,4.8vh,44px)] flex-col items-center justify-center gap-[3px] border text-base text-cream ${
                     day.milestone
                       ? "border-brass bg-brass/14"
                       : "border-cream/22"

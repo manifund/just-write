@@ -50,40 +50,49 @@ function InkWash() {
 
 export default function Home() {
   return (
-    <main className="grid min-h-[58.75rem] grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
-      <section className="relative flex flex-col gap-10 overflow-hidden bg-ink p-[clamp(28px,4vw,56px)] text-cream">
+    <main className="grid min-h-dvh grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
+      <section className="relative flex flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden bg-ink px-[clamp(24px,4vw,56px)] py-[clamp(28px,4.5vh,56px)] text-cream">
         <InkWash />
         <div className="relative font-display text-[25px] font-medium tracking-[-0.01em]">
           Just Write
         </div>
-        <div className="relative flex flex-col gap-[22px]">
+        <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
           <p className="text-sm tracking-[0.14em] text-brass-light uppercase">
             4-week online writing club
           </p>
-          <h1 className="max-w-[8.5em] font-display text-[clamp(48px,5.4vw,80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
+          <h1 className="max-w-[8.5em] font-display text-[clamp(44px,min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
             Everyone has a <em className="wonk text-brass-light">great essay</em> in them.
           </h1>
-          <p className="max-w-[28em] text-xl leading-[1.45] text-pretty text-wash-light">
+          <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
             We especially want to hear from people who aren’t “fulltime writers.” You
             shouldn’t have to quit your job to write.
           </p>
+          <a
+            href="#interest"
+            className="mt-2 flex min-h-[52px] items-center justify-center gap-3 bg-cream px-[26px] text-[19px] tracking-[0.02em] text-ink no-underline md:hidden"
+          >
+            Express interest
+            <svg aria-hidden="true" width="12" height="18" viewBox="0 0 12 18" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M6 0v16M1 11l5 5 5-5" />
+            </svg>
+          </a>
         </div>
         <Calendar />
       </section>
 
-      <section className="flex flex-col gap-9 px-[clamp(24px,5vw,72px)] py-[clamp(28px,4vw,56px)]">
+      <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
         <p className="text-[15px] tracking-[0.14em] text-brass-text uppercase">
           Nov 1 – Dec 1, 2026 · Remote + SF
         </p>
-        <ol aria-label="How it works" className="flex flex-col gap-5">
+        <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
           {RULES.map((r) => (
             <li key={r.numeral} className="grid grid-cols-[52px_minmax(0,1fr)] items-baseline gap-3">
-              <span aria-hidden="true" className="wonk font-display text-[32px] text-brass-numeral">
+              <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] text-brass-numeral">
                 {r.numeral}
               </span>
-              <div className="flex flex-col gap-1">
-                <h3 className="font-display text-[23px] font-[450]">{r.title}</h3>
-                <p className="text-[17px] leading-[1.45] text-ink-muted">{r.detail}</p>
+              <div className="flex flex-col gap-0.5">
+                <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450]">{r.title}</h3>
+                <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-ink-muted">{r.detail}</p>
               </div>
             </li>
           ))}

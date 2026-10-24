@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { submitInterest, type InterestState } from "./actions";
 
 const input =
-  "min-h-[50px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-3 font-body text-[19px] text-inherit";
+  "min-h-[46px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-3 font-body text-[19px] text-inherit";
 const fieldLabel = "text-[13px] tracking-[0.12em] uppercase text-ink-muted";
 
 export function InterestForm() {
@@ -18,10 +18,10 @@ export function InterestForm() {
       id="interest"
       action={action}
       aria-label="Express interest"
-      className="flex scroll-mt-6 flex-col gap-[22px] bg-cream-deep p-[clamp(22px,2.4vw,32px)]"
+      className="flex scroll-mt-6 flex-col gap-[clamp(14px,2.2vh,22px)] bg-cream-deep p-[clamp(20px,min(2.4vw,3.4vh),32px)]"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1.5">
-        <h2 className="font-display text-[36px] leading-[1.05] font-[340] tracking-[-0.015em]">
+        <h2 className="font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]">
           Express <em className="wonk">interest</em>
         </h2>
         <p className="text-sm tracking-[0.12em] text-brass-text uppercase">
@@ -35,7 +35,7 @@ export function InterestForm() {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-x-6 gap-y-4">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-x-6 gap-y-3.5">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="jw-name" className={fieldLabel}>
                 Name
@@ -73,7 +73,7 @@ export function InterestForm() {
             <button
               type="submit"
               disabled={pending}
-              className="flex min-h-[52px] cursor-pointer items-center gap-3 rounded-none bg-ink px-[26px] font-body text-[19px] tracking-[0.02em] text-cream disabled:cursor-wait disabled:opacity-70"
+              className="flex min-h-[50px] cursor-pointer items-center gap-3 rounded-none bg-ink px-[26px] font-body text-[19px] tracking-[0.02em] text-cream disabled:cursor-wait disabled:opacity-70"
             >
               {pending ? "Sending…" : "Express interest"}
               <svg
