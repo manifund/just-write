@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #f6f1e7;
+  --color-cream-deep: #ece5d5;
+  --color-ink: #1f2a55;
+  --color-ink-muted: #4b5583;
+  --color-wash: #8a97c2;
+  --color-wash-light: #c9cfe6;
+  --color-brass: #c9a46a;
+  --color-brass-light: #d6b67f;
+  --color-brass-numeral: #9a7740;
+  --color-brass-text: #85662f;
+
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --font-body: var(--font-garamond), Garamond, Georgia, serif;
+}
+
+@layer base {
+  body {
+    background: var(--color-cream);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+  }
+
+  a {
+    color: inherit;
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  input::placeholder {
+    color: currentColor;
+    opacity: 0.5;
+  }
+
+  a:focus-visible,
+  input:focus-visible,
+  button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+  }
+}
+
+/* Fraunces italic accents */
+@utility wonk {
+  font-style: italic;
+  font-variation-settings: "SOFT" 100, "WONK" 1;
+}
