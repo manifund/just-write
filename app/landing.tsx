@@ -60,21 +60,13 @@ export function Landing() {
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
 
-          <h1 className="max-w-[8.5em] font-display text-[clamp(44px,min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            Write 4 great essays <br /> in <span className="text-brass-light">4 weeks</span>.
+          <h1 className="max-w-[8.5em] font-display text-[clamp(min(44px,calc((100vw_-_48px)/9)),min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
+            <span className="whitespace-nowrap">Write 4 great essays</span> <br /> in <span className="text-brass-light">4 weeks</span>.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
             An online writing club & commitment to publish.
           </p>
-          <a
-            href="#interest"
-            className="mt-2 flex min-h-[52px] items-center justify-center gap-3 bg-cream px-[26px] text-[19px] tracking-[0.02em] text-ink no-underline md:hidden"
-          >
-            Express interest
-            <svg aria-hidden="true" width="12" height="18" viewBox="0 0 12 18" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M6 0v16M1 11l5 5 5-5" />
-            </svg>
-          </a>
+          <div aria-hidden="true" className="h-11 md:hidden" />
         </div>
         <Calendar />
       </section>
@@ -101,7 +93,7 @@ export function Landing() {
           ))}
         </ol>
 
-        <div className="md:mt-auto">
+        <div className="max-md:-mx-[clamp(24px,5vw,72px)] md:mt-auto">
           <InterestForm />
         </div>
 
