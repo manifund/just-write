@@ -57,15 +57,12 @@ export function Landing() {
           Just Write
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
-          <p className="text-sm tracking-[0.14em] text-brass-light uppercase">
-            4-week online writing club
-          </p>
+
           <h1 className="max-w-[8.5em] font-display text-[clamp(44px,min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            Write 4 great essays <span className="text-brass-light">in 4 weeks</span>.
+            Write 4 great essays <br /> in <span className="text-brass-light">4 weeks</span>.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
-            We especially want to hear from people who aren’t “fulltime writers.” You
-            shouldn’t have to quit your job to write.
+            An online writing club & commitment to publish.
           </p>
           <a
             href="#interest"
@@ -103,7 +100,7 @@ export function Landing() {
             <a href="https://en.wikipedia.org/wiki/National_Novel_Writing_Month">NaNoWriMo</a>.
           </span>
           <span>
-            by Austin of <a href="https://manifund.org">Manifund</a>
+            By Austin, of <a href="https://manifund.org">Manifund</a>.
           </span>
         </footer>
       </section>
