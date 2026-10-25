@@ -3,26 +3,26 @@ import { InterestForm } from "./interest-form";
 
 const RULES = [
   {
-    numeral: "i.",
+    numeral: "1.",
     title: "Write 100 words each day",
-    detail: "Post your snippet on X, LW, personal blog. One “grace day” each week.",
+    detail: "Post your snippet online; one “grace day” each week.",
   },
   {
-    numeral: "ii.",
-    title: "Publish a 1000 word essay each week",
+    numeral: "2.",
+    title: "Publish 1000 words each week",
     detail:
-      "Aiming for a timeless, high quality essay.",
+      "Write a timeless, important, ambitious essay.",
   },
   {
-    numeral: "iii.",
+    numeral: "3.",
     title: "$1,000 deposit required",
-    detail: "Refunded if you succeed.",
+    detail: "For accountability; refunded if you succeed.",
   },
   {
-    numeral: "iv.",
-    title: "Online, with meetups in SF",
+    numeral: "4.",
+    title: "Online community; optional meetups in SF",
     detail:
-      "A Discord server for people to chat & get feedback; and weekly Saturday afternoon meetups at Mox dedicated to writing.",
+      "Get feedback & chat on our Discord server; weekly Saturday afternoon meetups at Mox.",
   },
 ];
 
@@ -61,7 +61,7 @@ export function Landing() {
             4-week online writing club
           </p>
           <h1 className="max-w-[8.5em] font-display text-[clamp(44px,min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            Everyone has a <span className="text-brass-light">great essay</span> in them.
+            Write 4 great essays <span className="text-brass-light">in 4 weeks</span>.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
             We especially want to hear from people who aren’t “fulltime writers.” You
