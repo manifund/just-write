@@ -18,7 +18,7 @@ const fmt = new Intl.DateTimeFormat("en-US", {
 async function Submissions() {
   await connection(); // always read fresh rows at request time
   const rows = (await sql()`
-    SELECT id, name, email, created_at FROM interest ORDER BY created_at DESC
+    SELECT id, name, email, link, created_at FROM interest ORDER BY created_at DESC
   `) as Submission[];
 
   if (rows.length === 0) {
@@ -37,6 +37,7 @@ async function Submissions() {
             <tr className="border-b border-ink/28">
               <th className="py-2 pr-6 font-normal">Name</th>
               <th className="py-2 pr-6 font-normal">Email</th>
+              <th className="py-2 pr-6 font-normal">Website</th>
               <th className="py-2 font-normal">Submitted (PT)</th>
             </tr>
           </thead>
@@ -46,6 +47,15 @@ async function Submissions() {
                 <td className="py-2 pr-6">{r.name}</td>
                 <td className="py-2 pr-6">
                   <a href={`mailto:${r.email}`}>{r.email}</a>
+                </td>
+                <td className="py-2 pr-6">
+                  {r.link ? (
+                    <a href={r.link} target="_blank" rel="noopener noreferrer nofollow">
+                      {r.link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                    </a>
+                  ) : (
+                    <span className="text-ink-muted">—</span>
+                  )}
                 </td>
                 <td className="py-2 whitespace-nowrap text-ink-muted tabular-nums">
                   {fmt.format(new Date(r.created_at))}

@@ -16,5 +16,6 @@ export type Submission = {
   id: number;
   name: string;
   email: string;
+  link: string | null;
   created_at: string;
 };

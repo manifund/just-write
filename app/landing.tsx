@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { Calendar } from "./calendar";
 import { InterestForm } from "./interest-form";
+import { Interested } from "./interested";
 
 const RULES = [
   {
@@ -79,7 +81,7 @@ export function Landing() {
 
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
         <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
-          {RULES.map((r) => (
+          {RULES.map((r, i) => (
             <li key={r.numeral} className="grid grid-cols-[34px_minmax(0,1fr)] items-baseline gap-3 md:grid-cols-[52px_minmax(0,1fr)]">
               <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] font-semibold text-brass-numeral">
                 {r.numeral}
@@ -87,14 +89,23 @@ export function Landing() {
               <div className="flex flex-col gap-0.5">
                 <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450] text-pretty">{r.title}</h3>
                 <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-pretty text-ink-muted">{r.detail}</p>
+                {i === RULES.length - 1 && (
+                  <div className="mt-[clamp(6px,1.2vh,12px)]">
+                    <Suspense fallback={null}>
+                      <Interested />
+                    </Suspense>
+                  </div>
+                )}
               </div>
             </li>
           ))}
         </ol>
 
-        <InterestForm />
+        <div className="md:mt-auto">
+          <InterestForm />
+        </div>
 
-        <footer className="mt-auto flex flex-wrap justify-between gap-x-6 gap-y-2 text-[15px] text-ink-muted">
+        <footer className="flex flex-wrap justify-between gap-x-6 gap-y-2 text-[15px] text-ink-muted">
           <span>
             Inspired by <a href="https://www.inkhaven.blog/">Inkhaven</a> and{" "}
             <a href="https://en.wikipedia.org/wiki/National_Novel_Writing_Month">NaNoWriMo</a>.

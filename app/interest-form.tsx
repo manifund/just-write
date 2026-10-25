@@ -61,6 +61,23 @@ export function InterestForm() {
                 className={input}
               />
             </div>
+            <div className="col-span-full flex flex-col gap-1.5">
+              <label htmlFor="jw-website" className={fieldLabel}>
+                Website
+              </label>
+              <input
+                id="jw-website"
+                name="website"
+                type="text"
+                inputMode="url"
+                autoComplete="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                placeholder="kitwhen.com or x.com/kitwhen"
+                className={input}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3.5">
