@@ -89,9 +89,9 @@ const ease = "transition duration-150 motion-reduce:transition-none";
 export function Calendar() {
   return (
     // Legend sits beside the grid when there's room, otherwise in two columns below it.
-    <div className="group/cal @container relative mt-auto hidden cursor-default select-none md:block">
+    <div className="group/cal @container relative mt-auto cursor-default select-none max-md:mt-3">
       <div className="flex flex-col gap-6 @min-[580px]:flex-row @min-[580px]:items-end @min-[580px]:gap-[clamp(28px,3.5vw,48px)]">
-        <div className="flex w-full max-w-[370px] flex-col">
+        <div className="flex w-full flex-col md:max-w-[370px]">
           <h2 className="mb-[clamp(14px,2.4vh,22px)] flex items-baseline gap-3 font-display leading-none">
             <span className="text-[clamp(32px,4.6vh,42px)] font-semibold tracking-[-0.015em] text-cream">
               November

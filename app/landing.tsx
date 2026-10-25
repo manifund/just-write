@@ -20,9 +20,9 @@ const RULES = [
   },
   {
     numeral: "4.",
-    title: "Online community; optional meetups in SF",
+    title: "Write with friends",
     detail:
-      "Get feedback & chat on our Discord server; weekly Saturday afternoon meetups at Mox.",
+      "Get feedback & chat with others online; optionally, meet up in SF each Saturday",
   },
 ];
 
@@ -80,13 +80,13 @@ export function Landing() {
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
         <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
           {RULES.map((r) => (
-            <li key={r.numeral} className="grid grid-cols-[52px_minmax(0,1fr)] items-baseline gap-3">
+            <li key={r.numeral} className="grid grid-cols-[34px_minmax(0,1fr)] items-baseline gap-3 md:grid-cols-[52px_minmax(0,1fr)]">
               <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] font-semibold text-brass-numeral">
                 {r.numeral}
               </span>
               <div className="flex flex-col gap-0.5">
-                <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450]">{r.title}</h3>
-                <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-ink-muted">{r.detail}</p>
+                <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450] text-pretty">{r.title}</h3>
+                <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-pretty text-ink-muted">{r.detail}</p>
               </div>
             </li>
           ))}
