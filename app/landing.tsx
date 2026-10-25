@@ -28,43 +28,20 @@ const RULES = [
   },
 ];
 
-function InkWash() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 600 500"
-      className="pointer-events-none absolute -top-[190px] -right-[220px] h-[500px] w-[600px]"
-    >
-      <defs>
-        <filter id="jw-wash" x="-25%" y="-25%" width="150%" height="150%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="3" seed="4" result="noise" />
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="110" xChannelSelector="R" yChannelSelector="G" />
-          <feGaussianBlur stdDeviation="6" />
-        </filter>
-      </defs>
-      <g filter="url(#jw-wash)" className="fill-wash">
-        <ellipse cx="300" cy="250" rx="220" ry="170" opacity="0.16" />
-        <ellipse cx="360" cy="200" rx="140" ry="100" opacity="0.18" />
-      </g>
-    </svg>
-  );
-}
-
 export function Landing() {
   return (
     <main className="grid min-h-dvh grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
       <section className="relative flex flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden bg-ink px-[clamp(24px,4vw,56px)] py-[clamp(28px,4.5vh,56px)] text-cream">
-        <InkWash />
         <div className="relative font-display text-[25px] font-medium tracking-[-0.01em]">
-          Just Write
+          Just <span className="text-brass-light">Write</span>
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
 
           <h1 className="max-w-[8.5em] font-display text-[clamp(min(44px,calc((100vw_-_48px)/9)),min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            <span className="whitespace-nowrap">Write 4 great essays</span> <br /> in <span className="text-brass-light">4 weeks</span>.
+            <span className="whitespace-nowrap">Write 4 great essays</span> <br /> over 4 weeks.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
-            An online writing club & commitment to publish.
+            An online writing club with a commitment to publish.
           </p>
           <div aria-hidden="true" className="h-11 md:hidden" />
         </div>

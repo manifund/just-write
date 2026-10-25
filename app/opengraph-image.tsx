@@ -4,15 +4,14 @@ import { ImageResponse } from "next/og";
 import { LEGEND, WEEKDAYS, WEEKS, type Event } from "./calendar";
 
 export const alt =
-  "Just Write: write 4 great essays in 4 weeks. An online writing club running November 2026.";
+  "Just Write: write 4 great essays over 4 weeks. An online writing club running November 2026.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Same palette as globals.css (Aubergine & citron).
+// Same palette as globals.css (aubergine base, red accent).
 const c = {
   cream: "#f9eeec",
   ink: "#38213f",
-  wash: "#ab90b3",
   washLight: "#ded3e2",
   brass: "#f66e5e",
   brassLight: "#ff8878",
@@ -35,9 +34,9 @@ async function font(family: string, text: string) {
   return fetch(url).then((r) => r.arrayBuffer());
 }
 
-const HEADLINE = "Write 4 great essays in 4 weeks.";
+const HEADLINE = "Write 4 great essays over 4 weeks.";
 const URL_TEXT = "justwrite.club";
-const SUBHEAD = "An online writing club & commitment to publish.";
+const SUBHEAD = "An online writing club with a commitment to publish.";
 const DIGITS = "0123456789";
 
 const CELL = 50;
@@ -46,25 +45,6 @@ const CELL = 50;
 const NIB =
   "data:image/svg+xml;base64," +
   readFileSync(join(process.cwd(), "app/icon.svg")).toString("base64");
-
-// Same filter as InkWash in landing.tsx.
-const INK_WASH =
-  "data:image/svg+xml;base64," +
-  Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500" width="900" height="750">
-      <defs>
-        <filter id="w" x="-25%" y="-25%" width="150%" height="150%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="3" seed="4" result="noise"/>
-          <feDisplacementMap in="SourceGraphic" in2="noise" scale="110" xChannelSelector="R" yChannelSelector="G"/>
-          <feGaussianBlur stdDeviation="6"/>
-        </filter>
-      </defs>
-      <g filter="url(#w)" fill="${c.wash}">
-        <ellipse cx="300" cy="250" rx="220" ry="170" opacity="0.16"/>
-        <ellipse cx="360" cy="200" rx="140" ry="100" opacity="0.18"/>
-      </g>
-    </svg>`,
-  ).toString("base64");
 
 export default async function Image() {
   // Fraunces changes shape with optical size, so each text size gets the
@@ -92,21 +72,14 @@ export default async function Image() {
           fontFamily: "Fraunces",
         }}
       >
-        {/* The landing page's ink wash, rendered as an SVG image */}
-        <img
-          src={INK_WASH}
-          alt=""
-          width={900}
-          height={750}
-          style={{ position: "absolute", top: -300, right: -260 }}
-        />
-
         {/* Left: wordmark, headline */}
         <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: 56 }}>
           <div style={{ display: "flex", alignItems: "center" }}>
             <img src={NIB} alt="" width={48} height={48} style={{ marginRight: 16 }} />
-            <span style={{ fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>
-              Just Write
+            {/* Satori drops spaces between inline spans, so space with margin */}
+            <span style={{ fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>Just</span>
+            <span style={{ fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em", marginLeft: 9, color: c.brassLight }}>
+              Write
             </span>
             <div
               style={{ width: 1, height: 26, margin: "4px 18px 0", background: "rgba(171,141,181,0.6)" }}
@@ -136,12 +109,7 @@ export default async function Image() {
               }}
             >
               <span>Write 4 great essays</span>
-              {/* Satori drops spaces between inline spans, so space with margin */}
-              <div style={{ display: "flex" }}>
-                <span>in</span>
-                <span style={{ color: c.brassLight, marginLeft: 18 }}>4 weeks</span>
-                <span>.</span>
-              </div>
+              <span>over 4 weeks.</span>
             </div>
             <div
               style={{

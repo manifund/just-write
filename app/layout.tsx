@@ -15,7 +15,7 @@ const atkinson = Atkinson_Hyperlegible_Next({
   style: ["normal", "italic"],
 });
 
-const title = "Just Write: 4 essays in 4 weeks";
+const title = "Just Write: 4 essays over 4 weeks";
 const description =
   "An online writing club. Commit to a snippet every day & full essay every week in Nov 2026.";
 
