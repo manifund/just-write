@@ -1,5 +1,7 @@
 // Choices offered on /tweaks. DEFAULTS (below) is what the live site uses.
 
+import { derivePalette, normalizeHex } from "./derive";
+
 export type FontOption = {
   id: string;
   name: string;
@@ -23,7 +25,7 @@ export const BODY_FONTS: FontOption[] = [
   { id: "atkinson", name: "Atkinson Next", cssVar: "--font-atkinson", sizeAdjust: 0.42 },
 ];
 
-type Palette = {
+export type Palette = {
   cream: string;
   "cream-deep": string;
   ink: string;
@@ -105,22 +107,49 @@ export const PALETTES: PaletteOption[] = [
   },
 ];
 
-export type Selection = { display: string; body: string; palette: string };
+export const CUSTOM_PALETTE = "custom";
+
+export type Selection = {
+  display: string;
+  body: string;
+  /** A preset id, or CUSTOM_PALETTE to build one from `ink` and `accent`. */
+  palette: string;
+  /** Hex colors; only used when palette is CUSTOM_PALETTE. */
+  ink: string;
+  accent: string;
+};
 
 // Keep in sync with app/layout.tsx and the @theme colors in globals.css.
 export const DEFAULTS: Selection = {
   display: "fraunces",
   body: "atkinson",
-  palette: "aubergine",
+  palette: CUSTOM_PALETTE,
+  ink: "#38213f",
+  accent: "#ff0a0a",
 };
 
 const pick = <T extends { id: string }>(list: T[], id: unknown, fallback: string) =>
   list.find((o) => o.id === id)?.id ?? fallback;
 
 export function parseSelection(params: Record<string, string | string[] | undefined>): Selection {
+  // Anything missing from the URL means "same as DEFAULTS".
+  const requested = params.palette ?? DEFAULTS.palette;
+  const preset = PALETTES.find((p) => p.id === requested);
+  const custom = !preset && requested === CUSTOM_PALETTE;
   return {
     display: pick(DISPLAY_FONTS, params.display, DEFAULTS.display),
     body: pick(BODY_FONTS, params.body, DEFAULTS.body),
-    palette: pick(PALETTES, params.palette, DEFAULTS.palette),
+    palette: preset?.id ?? CUSTOM_PALETTE,
+    // A preset seeds the pickers with its own colors so editing starts there.
+    ink: (custom && normalizeHex(params.ink)) || (preset?.colors.ink ?? DEFAULTS.ink),
+    accent: (custom && normalizeHex(params.accent)) || (preset?.colors.brass ?? DEFAULTS.accent),
   };
+}
+
+/** The palette a selection resolves to, building it when it's custom. */
+export function resolvePalette(sel: Selection): PaletteOption {
+  if (sel.palette === CUSTOM_PALETTE) {
+    return { id: CUSTOM_PALETTE, name: "Custom", colors: derivePalette(sel.ink, sel.accent) };
+  }
+  return PALETTES.find((p) => p.id === sel.palette) ?? PALETTES[0];
 }

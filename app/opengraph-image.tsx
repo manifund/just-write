@@ -10,12 +10,12 @@ export const contentType = "image/png";
 
 // Same palette as globals.css (Aubergine & citron).
 const c = {
-  cream: "#f5f1ec",
+  cream: "#f9eeec",
   ink: "#38213f",
-  wash: "#ab8db5",
-  washLight: "#e3d6e6",
-  brass: "#cdb846",
-  brassLight: "#ddcc63",
+  wash: "#ab90b3",
+  washLight: "#ded3e2",
+  brass: "#f66e5e",
+  brassLight: "#ff8878",
 };
 
 const mark: Record<Event, React.CSSProperties> = {

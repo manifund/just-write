@@ -2,11 +2,11 @@
   <rect width="512" height="512" rx="96" fill="#38213f"/>
   <g transform="translate(256 256) scale(1.12) translate(-256 -256)">
     <g transform="translate(296 236) rotate(32) scale(0.82) translate(-256 -256)">
-      <path d="M256 392 L178 236 C166 210 176 158 198 112 L314 112 C336 158 346 210 334 236 Z" fill="#cdb846"/>
-      <rect x="190" y="96" width="132" height="22" rx="6" fill="#cdb846"/>
+      <path d="M256 392 L178 236 C166 210 176 158 198 112 L314 112 C336 158 346 210 334 236 Z" fill="#f66e5e"/>
+      <rect x="190" y="96" width="132" height="22" rx="6" fill="#f66e5e"/>
       <circle cx="256" cy="226" r="21" fill="#38213f"/>
       <path d="M249.5 236 H262.5 L257.5 392 H254.5 Z" fill="#38213f"/>
     </g>
-    <path d="M100 352 C 124 322, 148 322, 160 344 S 196 372, 236 333" fill="none" stroke="#f5f1ec" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M100 352 C 124 322, 148 322, 160 344 S 196 372, 236 333" fill="none" stroke="#f9eeec" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
