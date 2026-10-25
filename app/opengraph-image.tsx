@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { LEGEND, WEEKDAYS, WEEKS, type Event } from "./calendar";
 
@@ -39,6 +41,11 @@ const SUBHEAD = "An online writing club & commitment to publish.";
 const DIGITS = "0123456789";
 
 const CELL = 50;
+
+// The site icon, shown beside the wordmark.
+const NIB =
+  "data:image/svg+xml;base64," +
+  readFileSync(join(process.cwd(), "app/icon.svg")).toString("base64");
 
 // Same filter as InkWash in landing.tsx.
 const INK_WASH =
@@ -97,6 +104,7 @@ export default async function Image() {
         {/* Left: wordmark, headline */}
         <div style={{ display: "flex", flexDirection: "column", flex: 1, paddingRight: 56 }}>
           <div style={{ display: "flex", alignItems: "center" }}>
+            <img src={NIB} alt="" width={48} height={48} style={{ marginRight: 16 }} />
             <span style={{ fontSize: 34, fontWeight: 500, letterSpacing: "-0.01em" }}>
               Just Write
             </span>
