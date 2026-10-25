@@ -13,7 +13,7 @@ const RULES = [
     numeral: "2.",
     title: "Publish 1000 words each week",
     detail:
-      "Write a timeless, important, ambitious essay.",
+      "Work on timeless, ambitious essays.",
   },
   {
     numeral: "3.",
@@ -22,9 +22,9 @@ const RULES = [
   },
   {
     numeral: "4.",
-    title: "Write with friends",
+    title: "Write alongside friends",
     detail:
-      "Get feedback & chat with others online; optionally, meet up in SF each Saturday",
+      "Get feedback & chat online; optional IRL meetups in SF",
   },
 ];
 
