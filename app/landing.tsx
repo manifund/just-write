@@ -17,8 +17,8 @@ const RULES = [
   },
   {
     numeral: "3.",
-    title: "$1,000 deposit required",
-    detail: "For accountability; refunded if you succeed.",
+    title: "Deposit $1,000 for accountability",
+    detail: "Refunded if you publish all 4 essays on time.",
   },
   {
     numeral: "4.",
