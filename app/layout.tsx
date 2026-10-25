@@ -17,7 +17,7 @@ const atkinson = Atkinson_Hyperlegible_Next({
 
 const title = "Just Write: 4 essays in 4 weeks";
 const description =
-  "4-week online writing club. Publish a snippet every day, full essay every week.";
+  "An online writing club. Commit to a snippet every day & full essay every week in Nov 2026.";
 
 // The share image comes from app/opengraph-image.tsx.
 export const metadata: Metadata = {
