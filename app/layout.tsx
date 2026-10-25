@@ -15,11 +15,29 @@ const atkinson = Atkinson_Hyperlegible_Next({
   style: ["normal", "italic"],
 });
 
+const title = "Just Write: 4 essays in 4 weeks";
+const description =
+  "4-week online writing club. Publish a snippet every day, full essay every week.";
+
+// The share image comes from app/opengraph-image.tsx.
 export const metadata: Metadata = {
   metadataBase: new URL("https://justwrite.club"),
-  title: "Just Write",
-  description:
-    "4-week online writing club. Publish a snippet every day, full essay every week.",
+  title,
+  description,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title,
+    description,
+    url: "/",
+    siteName: "Just Write",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

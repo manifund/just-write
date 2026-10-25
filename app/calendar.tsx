@@ -1,7 +1,7 @@
 // November 2026 schedule. Nov 1, 2026 is a Sunday, so each row starts on a Sunday.
 // Edit WEEKS to change dates; the grid is generated from it.
 
-type Event = "kickoff" | "essay" | "circle" | "wrap";
+export type Event = "kickoff" | "essay" | "circle" | "wrap";
 
 type Day = {
   date: number;
@@ -18,7 +18,7 @@ const week = (start: number): Day[] =>
     return { date, event };
   });
 
-const WEEKS: Day[][] = [
+export const WEEKS: Day[][] = [
   week(1),
   week(8),
   week(15),
@@ -35,14 +35,14 @@ const WEEKS: Day[][] = [
 ];
 WEEKS[0][0].event = "kickoff";
 
-const LEGEND: { event: Event; title: string }[] = [
+export const LEGEND: { event: Event; title: string }[] = [
   { event: "kickoff", title: "Kickoff" },
   { event: "essay", title: "Essay due" },
   { event: "circle", title: "Writing circle" },
   { event: "wrap", title: "Wrap party" },
 ];
 
-const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
+export const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
 // Day styles key off the whole cell (group/day), so hover has no dead gaps.
 const mark: Record<Event, string> = {
