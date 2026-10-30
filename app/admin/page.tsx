@@ -18,8 +18,11 @@ const fmt = new Intl.DateTimeFormat("en-US", {
 async function Submissions() {
   await connection(); // always read fresh rows at request time
   const rows = (await sql()`
-    SELECT id, name, email, link, created_at FROM interest ORDER BY created_at DESC
+    SELECT id, name, email, link, status, signed_name, signed_at, committed_at, stripe_payment_intent, created_at
+    FROM interest ORDER BY created_at DESC
   `) as Submission[];
+
+  const committed = rows.filter((r) => r.status === "committed").length;
 
   if (rows.length === 0) {
     return <p className="text-ink-muted">No submissions yet.</p>;
@@ -28,7 +31,7 @@ async function Submissions() {
   return (
     <>
       <p className="text-ink-muted">
-        {rows.length} {rows.length === 1 ? "person" : "people"} ·{" "}
+        {rows.length} {rows.length === 1 ? "person" : "people"} ({committed} committed) ·{" "}
         <span className="select-all">{rows.map((r) => r.email).join(", ")}</span>
       </p>
       <div className="overflow-x-auto">
@@ -38,7 +41,8 @@ async function Submissions() {
               <th className="py-2 pr-6 font-normal">Name</th>
               <th className="py-2 pr-6 font-normal">Email</th>
               <th className="py-2 pr-6 font-normal">Website</th>
-              <th className="py-2 font-normal">Submitted (PT)</th>
+              <th className="py-2 pr-6 font-normal">Submitted (PT)</th>
+              <th className="py-2 font-normal">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -57,8 +61,37 @@ async function Submissions() {
                     <span className="text-ink-muted">—</span>
                   )}
                 </td>
-                <td className="py-2 whitespace-nowrap text-ink-muted tabular-nums">
+                <td className="py-2 pr-6 whitespace-nowrap text-ink-muted tabular-nums">
                   {fmt.format(new Date(r.created_at))}
+                </td>
+                <td className="py-2 whitespace-nowrap">
+                  {r.status === "committed" ? (
+                    <span title={r.committed_at ? `Paid ${fmt.format(new Date(r.committed_at))}` : undefined}>
+                      Committed
+                      {r.stripe_payment_intent && (
+                        <>
+                          {" · "}
+                          <a
+                            href={`https://dashboard.stripe.com/payments/${r.stripe_payment_intent}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ink-muted"
+                          >
+                            Stripe
+                          </a>
+                        </>
+                      )}
+                    </span>
+                  ) : r.status === "signed" ? (
+                    <span
+                      className="text-ink-muted"
+                      title={`Signed “${r.signed_name}”${r.signed_at ? ` ${fmt.format(new Date(r.signed_at))}` : ""}, not paid`}
+                    >
+                      Signed, unpaid
+                    </span>
+                  ) : (
+                    <span className="text-ink-muted">Interested</span>
+                  )}
                 </td>
               </tr>
             ))}

@@ -12,10 +12,18 @@ export function sql() {
   return _sql;
 }
 
+// interested → signed (agreed to terms, sent to Stripe) → committed (deposit paid)
+export type Status = "interested" | "signed" | "committed";
+
 export type Submission = {
   id: number;
   name: string;
   email: string;
   link: string | null;
+  status: Status;
+  signed_name: string | null;
+  signed_at: string | null;
+  committed_at: string | null;
+  stripe_payment_intent: string | null;
   created_at: string;
 };
