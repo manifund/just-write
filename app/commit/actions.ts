@@ -9,17 +9,6 @@ export type CommitState = { status: "idle" } | { status: "error"; message: strin
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function parseWebsite(raw: string): string | null {
-  if (!raw) return null;
-  try {
-    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
-    if (!url.hostname.includes(".")) return null;
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
 async function siteOrigin() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "justwrite.club";
@@ -31,13 +20,10 @@ async function siteOrigin() {
 // The Stripe webhook flips them to "committed" once payment succeeds.
 export async function startCommitment(_prev: CommitState, formData: FormData): Promise<CommitState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 320);
-  const rawWebsite = String(formData.get("website") ?? "").trim().slice(0, 500);
-  const link = parseWebsite(rawWebsite);
   const signature = String(formData.get("signature") ?? "").trim().replace(/\s+/g, " ").slice(0, 200);
   const agreed = formData.get("agree") === "on";
 
   if (!EMAIL_RE.test(email)) return { status: "error", message: "Please add a valid email." };
-  if (rawWebsite && !link) return { status: "error", message: "That website link doesn’t look right." };
   if (!agreed) return { status: "error", message: "Please check the box to agree to the terms." };
   if (!signature) return { status: "error", message: "Please type your full name to sign." };
 
@@ -45,10 +31,9 @@ export async function startCommitment(_prev: CommitState, formData: FormData): P
   try {
     // Matches an existing "interested" row by email, or adds a new one.
     const [row] = (await sql()`
-      INSERT INTO interest (name, email, link, status, signed_name, signed_at)
-      VALUES (${signature}, ${email}, ${link}, 'signed', ${signature}, now())
+      INSERT INTO interest (name, email, status, signed_name, signed_at)
+      VALUES (${signature}, ${email}, 'signed', ${signature}, now())
       ON CONFLICT (email) DO UPDATE SET
-        link = COALESCE(EXCLUDED.link, interest.link),
         signed_name = EXCLUDED.signed_name,
         signed_at = EXCLUDED.signed_at,
         status = CASE WHEN interest.status = 'committed' THEN 'committed' ELSE 'signed' END

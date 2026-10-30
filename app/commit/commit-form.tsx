@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useSyncExternalStore } from "react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { startCommitment, type CommitState } from "./actions";
 
 const input =
@@ -19,12 +19,17 @@ export function CommitForm() {
     () => new URLSearchParams(window.location.search).has("canceled"),
     () => false,
   );
+  // The button stays disabled until the box is checked, the email is valid, and the signature is filled in.
+  const [ready, setReady] = useState(false);
 
   return (
     <form
       id="sign"
       action={action}
       aria-label="Sign and commit"
+      onInput={(e) => setReady(e.currentTarget.checkValidity())}
+      onChange={(e) => setReady(e.currentTarget.checkValidity())}
+      onReset={() => setReady(false)}
       className="flex scroll-mt-6 flex-col gap-[clamp(18px,2.6vh,26px)] bg-cream-deep p-[clamp(20px,min(3vw,4vh),40px)]"
     >
       <div className="flex flex-col gap-1.5">
@@ -38,46 +43,25 @@ export function CommitForm() {
         )}
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] gap-x-6 gap-y-3.5">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="jw-email" className={fieldLabel}>
-            Email
-          </label>
-          <input
-            id="jw-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            placeholder="kit@justwrite.club"
-            className={input}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="jw-website" className={fieldLabel}>
-            Website <span className="tracking-normal normal-case">(optional)</span>
-          </label>
-          <input
-            id="jw-website"
-            name="website"
-            type="text"
-            inputMode="url"
-            autoComplete="url"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder="kitwhen.com"
-            className={input}
-          />
-        </div>
-      </div>
-
       <label className="flex cursor-pointer items-start gap-3 text-[17px] leading-[1.45] text-pretty">
         <input type="checkbox" name="agree" required className="mt-[3px] size-5 shrink-0 cursor-pointer accent-ink" />
-        <span>
-          I’ve read and agree to the terms above. I understand the $1,000 deposit is a donation to Manifund,
-          refunded if I publish all 4 essays on time.
-        </span>
+        <span>I’ve read and agree to the terms above.</span>
       </label>
+
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="jw-email" className={fieldLabel}>
+          Email
+        </label>
+        <input
+          id="jw-email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+          placeholder="kit@justwrite.club"
+          className={input}
+        />
+      </div>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-6 gap-y-1.5">
         <label htmlFor="jw-signature" className={fieldLabel}>
@@ -101,11 +85,21 @@ export function CommitForm() {
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3.5">
         <button
           type="submit"
-          disabled={pending}
-          className="flex min-h-[50px] cursor-pointer items-center gap-3 rounded-none bg-ink px-[26px] font-body text-[19px] tracking-[0.02em] text-cream disabled:cursor-wait disabled:opacity-70"
+          disabled={pending || !ready}
+          className="group flex min-h-[50px] cursor-pointer items-center gap-3 rounded-none bg-ink px-[26px] font-body text-[19px] tracking-[0.02em] text-cream transition-[background-color,opacity] duration-150 enabled:hover:bg-ink-muted enabled:active:bg-ink disabled:cursor-not-allowed disabled:opacity-45 aria-busy:cursor-wait aria-busy:opacity-70"
+          aria-busy={pending}
         >
           {pending ? "Opening checkout…" : "Sign & pay $1,000"}
-          <svg aria-hidden="true" width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            aria-hidden="true"
+            width="18"
+            height="12"
+            viewBox="0 0 18 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="transition-transform duration-150 motion-safe:group-enabled:group-hover:translate-x-1"
+          >
             <path d="M0 6h16M11 1l5 5-5 5" />
           </svg>
         </button>

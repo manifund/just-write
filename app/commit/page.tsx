@@ -36,11 +36,13 @@ const TERMS: Term[] = [
       "If you succeed at publishing 4 essays before their respective deadlines, Manifund will refund this credit card payment, on or around Dec 2, 2026. (Manifund will pay any associated refund fees.)",
       "If you miss any essay deadline, the $1000 becomes an unrestricted donation to Manifund. We’ll send you a receipt; check with your tax advisor on tax-deductibility. (You may continue in the program after this point, if you so wish.)",
     ],
-  },
-  {
-    title: "The spirit of the thing",
     outro: [
       "Austin (and his Claude) will adjudicate any edge cases.",
+    ],
+  },
+  {
+    title: "The spirit of the club",
+    outro: [
       "We encourage you to write evergreen, ambitious essays, which you will look back on with pride. But we can’t and won’t enforce that. If you fulfill your commitment via LLM slop, or the word “essay” repeated 1000 times, that will be between you and your conscience.",
     ],
   },
@@ -68,12 +70,9 @@ export default function CommitPage() {
           </Link>
           <div className="flex flex-col gap-3">
             <h1 className="font-display text-[clamp(40px,6vw,64px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-              Make it <em className="wonk text-brass-light">official</em>.
+              Commit to publish.
             </h1>
-            <p className="max-w-[30em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
-              Read the terms below. If you’re in, sign and put down your $1,000 deposit, refunded when you
-              publish all 4 essays.
-            </p>
+
           </div>
         </div>
       </header>
@@ -110,7 +109,7 @@ export default function CommitPage() {
 
           <p className="text-[19px] leading-[1.5] text-pretty md:pl-[64px]">
             If you have any questions, please contact Austin at{" "}
-            <a href="mailto:austin@manifund.org">austin@manifund.org</a>. We’re excited to see what you publish!
+            <a href="mailto:austin@manifund.org">austin@manifund.org</a>. We’re excited to read what you write!
           </p>
 
           <div className="max-md:-mx-[clamp(24px,5vw,72px)]">
@@ -118,10 +117,6 @@ export default function CommitPage() {
           </div>
 
           <footer className="flex flex-wrap justify-between gap-x-6 gap-y-2 text-[15px] text-ink-muted">
-            <span>
-              Payments are processed by Stripe as a donation to{" "}
-              <a href="https://manifund.org">Manifund</a>.
-            </span>
             <Link href="/">Back to Just Write</Link>
           </footer>
         </div>
