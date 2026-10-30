@@ -53,7 +53,7 @@ export async function startCommitment(_prev: CommitState, formData: FormData): P
       client_reference_id: String(row.id),
       metadata: { program: "just-write-nov-2026", interest_id: String(row.id), signed_name: signature },
       payment_intent_data: {
-        description: "Just Write Nov 2026: refundable commitment deposit (donation to Manifund)",
+        description: "$1,000 commitment deposit for Just Write (Nov 2026)",
         metadata: { program: "just-write-nov-2026", interest_id: String(row.id), email },
       },
       integration_identifier: "just_write_commit_qvhtmzkr",

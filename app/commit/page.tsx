@@ -43,7 +43,7 @@ const TERMS: Term[] = [
   {
     title: "The spirit of the club",
     outro: [
-      "We encourage you to write evergreen, ambitious essays, which you will look back on with pride. But we can’t and won’t enforce that. If you fulfill your commitment via LLM slop, or the word “essay” repeated 1000 times, that will be between you and your conscience.",
+      "We encourage you to write evergreen, ambitious essays, which you will look back on with pride. But we can’t and won’t enforce that. If you fulfill your commitment via LLM slop, or the word “essay” repeated 1000 times, that will be between you and your conscience. (Public shaming may also commence.)",
     ],
   },
   {
