@@ -27,17 +27,26 @@ const RULES = [
   },
 ];
 
+function NavLinks() {
+  return (
+    <>
+      <Link href="/members">Members</Link>
+      <Link href="/home">Sign in</Link>
+    </>
+  );
+}
+
 export function Landing() {
   return (
-    <main className="grid min-h-dvh grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
+    <main className="@container grid min-h-dvh grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
       <section className="relative flex flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden bg-ink px-[clamp(24px,4vw,56px)] py-[clamp(28px,4.5vh,56px)] text-cream">
         <div className="relative flex items-baseline justify-between gap-4">
           <div className="font-display text-[25px] font-medium tracking-[-0.01em]">
             Just <span className="text-brass-light">Write</span>
           </div>
-          <nav className="flex gap-5 text-[15px] text-wash-light">
-            <Link href="/members">Members</Link>
-            <Link href="/home">Sign in</Link>
+          {/* Two columns at 1120px (2 × 560px): the nav moves to the right column. */}
+          <nav className="flex gap-5 text-[15px] text-wash-light @min-[1120px]:hidden">
+            <NavLinks />
           </nav>
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
@@ -54,6 +63,9 @@ export function Landing() {
       </section>
 
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
+        <nav className="hidden justify-end gap-5 text-[15px] text-ink-muted @min-[1120px]:flex">
+          <NavLinks />
+        </nav>
         <ol
           aria-label="How it works"
           className="flex flex-col gap-[clamp(8px,1.8vh,20px)]"
