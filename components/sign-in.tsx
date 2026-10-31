@@ -20,13 +20,15 @@ export function SignInPanel({
   );
   const [error, setError] = useState<string | null>(null);
   const [googlePending, setGooglePending] = useState(false);
+  // Absolute, because Better Auth rejects relative paths with a #fragment.
+  const callbackURL = () => new URL(next, window.location.origin).href;
 
   async function google() {
     setGooglePending(true);
     setError(null);
     const { error } = await authClient.signIn.social({
       provider: "google",
-      callbackURL: next,
+      callbackURL: callbackURL(),
     });
     if (error) {
       setGooglePending(false);
@@ -43,7 +45,7 @@ export function SignInPanel({
     setError(null);
     const { error } = await authClient.signIn.magicLink({
       email: email.trim(),
-      callbackURL: next,
+      callbackURL: callbackURL(),
     });
     if (error) {
       setState("error");
