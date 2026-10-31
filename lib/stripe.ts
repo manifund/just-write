@@ -14,11 +14,11 @@ export function stripe() {
 }
 
 // Marks the signer as committed once Stripe confirms payment. Safe to call more than once.
-// Returns true if a row was updated.
-export async function markCommitted(session: Stripe.Checkout.Session): Promise<boolean> {
-  if (session.payment_status === "unpaid") return false;
+// Returns the row id if a row was updated, else null.
+export async function markCommitted(session: Stripe.Checkout.Session): Promise<number | null> {
+  if (session.payment_status === "unpaid") return null;
   const id = Number(session.client_reference_id);
-  if (!Number.isInteger(id)) return false;
+  if (!Number.isInteger(id)) return null;
 
   const paymentIntent =
     typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
@@ -33,5 +33,5 @@ export async function markCommitted(session: Stripe.Checkout.Session): Promise<b
     WHERE id = ${id}
     RETURNING id
   `;
-  return rows.length > 0;
+  return rows.length > 0 ? id : null;
 }

@@ -33,5 +33,6 @@ await sql`ALTER TABLE interest ADD COLUMN IF NOT EXISTS committed_at timestamptz
 await sql`ALTER TABLE interest ADD COLUMN IF NOT EXISTS stripe_session_id text`;
 await sql`ALTER TABLE interest ADD COLUMN IF NOT EXISTS stripe_payment_intent text`;
 await sql`ALTER TABLE interest ADD COLUMN IF NOT EXISTS amount_paid_cents integer`;
+await sql`ALTER TABLE interest ADD COLUMN IF NOT EXISTS terms_emailed_at timestamptz`; // signed-terms copy sent
 
 console.log("interest table ready");
