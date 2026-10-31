@@ -47,9 +47,10 @@ export function Message({
         animate ? "motion-safe:animate-[rise_220ms_ease-out]" : ""
       } ${pending ? "opacity-60" : ""} ${compact ? "py-0.5" : "pt-3 pb-0.5"}`}
     >
-      <div className="pt-0.5">
+      <div className="relative pt-0.5">
         {compact ? (
-          <time className="hidden pt-1 text-right text-[11px] text-ink-muted tabular-nums group-hover:block">
+          // Out of flow and only toggling visibility, so hovering never changes the row's height.
+          <time className="invisible absolute inset-x-0 top-1.5 text-right text-[11px] leading-none whitespace-nowrap text-ink-muted tabular-nums group-hover:visible">
             {clockTime(m._creationTime)}
           </time>
         ) : (
