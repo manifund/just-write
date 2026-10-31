@@ -17,12 +17,6 @@ export function Directory({ initial }: { initial: Row[] }) {
         <p className="text-[13px] tracking-[0.14em] text-brass-text uppercase">
           Nov 2026 · {members.length} writers
         </p>
-        <h1 className="font-display text-[clamp(38px,5.2vw,64px)] leading-none font-[340] tracking-[-0.025em]">
-          The <em className="wonk text-brass-numeral">writers</em>
-        </h1>
-        <p className="max-w-[34em] text-[clamp(17px,2.2vw,20px)] leading-[1.45] text-pretty text-ink-muted">
-          Each put down $1,000 to publish four essays this November.
-        </p>
       </header>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-4">
         {members.map((m) => (
