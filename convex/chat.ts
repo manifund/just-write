@@ -244,6 +244,8 @@ export const edit = mutation({
     const m = await ctx.db.get(args.messageId);
     if (!m || m.authorId !== member._id)
       throw new ConvexError("You can only edit your own messages.");
+    if (m.essayId || m.kind)
+      throw new ConvexError("This post can’t be edited.");
     const { body, text } = cleanBody(args.body);
     if (!text) throw new ConvexError("Write something first.");
     await ctx.db.patch(m._id, { body, text, editedAt: Date.now() });

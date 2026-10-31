@@ -94,6 +94,10 @@ export function Message({
           </div>
         ) : m.essay ? (
           <EssayPost essay={m.essay} />
+        ) : m.kind === "joined" ? (
+          <p className="py-1 text-[16px] text-ink-muted">
+            joined Just Write 👋
+          </p>
         ) : (
           <div className="text-[17px] leading-[1.5]">
             <RichText body={m.body} />
@@ -236,7 +240,7 @@ export function Message({
                   </svg>
                 </ActionButton>
               )}
-              {mine && !m.essay && (
+              {mine && !m.essay && !m.kind && (
                 <ActionButton label="Edit" onClick={() => setEditing(true)}>
                   <svg
                     aria-hidden="true"

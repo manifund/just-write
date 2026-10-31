@@ -350,6 +350,8 @@ function MessageRun({
       prev.authorId === m.authorId &&
       !prev.essay &&
       !m.essay &&
+      !prev.kind &&
+      !m.kind &&
       m._creationTime - prev._creationTime < GROUP_MS;
     return (
       <div key={m._id}>

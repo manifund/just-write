@@ -89,6 +89,7 @@ export default defineSchema({
     lastReplyAt: v.optional(v.number()),
     replierIds: v.optional(v.array(v.id("members"))), // last few repliers, for thread avatars
     essayId: v.optional(v.id("essays")), // set on "published an essay" posts
+    kind: v.optional(v.literal("joined")), // system posts, e.g. the #general welcome
     editedAt: v.optional(v.number()),
   })
     .index("by_channel_parent", ["channelId", "parentId"])

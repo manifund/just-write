@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { status } from "./schema";
+import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
 
 // client_reference_id is a Convex member id, or a numeric id from the old Neon table.
@@ -54,6 +55,21 @@ export const markCommitted = mutation({
       stripePaymentIntent: args.paymentIntent ?? undefined,
       amountPaidCents: args.amountCents ?? undefined,
     });
+    // Welcome them in #general the first time (Stripe may send the webhook twice).
+    if (member.status !== "committed") {
+      const general = await ctx.db
+        .query("channels")
+        .withIndex("by_slug", (q) => q.eq("slug", "general"))
+        .unique();
+      if (general)
+        await ctx.db.insert("messages", {
+          channelId: general._id,
+          authorId: member._id,
+          body: JSON.stringify(emptyDoc),
+          text: "joined Just Write",
+          kind: "joined",
+        });
+    }
     return member._id;
   },
 });
