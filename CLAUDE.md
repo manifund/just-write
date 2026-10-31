@@ -14,7 +14,7 @@ Site and member portal for [justwrite.club](https://justwrite.club), a November 
 
 ```bash
 bun install
-vercel env pull .env.local   # Stripe keys etc. (bun auto-loads .env.local); overwrites the Convex values, see README
+vercel env pull .env.local   # Stripe keys etc. (bun auto-loads .env.local); then `bun convex` to restore CONVEX_DEPLOYMENT
 bun convex                   # pushes convex/ to the dev deployment and watches; tails Convex logs
 bun dev                      # localhost:3000
 bunx tsc --noEmit            # typecheck (includes convex/)
@@ -52,4 +52,4 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Env vars (Convex deployment, `bunx convex env set`):** `SITE_URL`, `BETTER_AUTH_SECRET`, `CONVEX_SERVER_SECRET` (same value as in Vercel), `ADMIN_EMAILS` (comma-separated), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (Google Cloud project `just-write-513304`; copies kept in gitignored `.env`), `RESEND_API_KEY` (magic links; without it links are logged instead of sent), `OPENROUTER_API_KEY`. All are set on the dev deployment (`brilliant-starling-517`), which sends real email.
 
-**One Convex deployment:** there is no production Convex deployment; justwrite.club and localhost both use the dev deployment (`brilliant-starling-517`). So `bun convex` pushes go live immediately, and test data is visible to real members; don't seed fake members or post test messages there. Auth takes its base URL from the request host, limited to `ORIGINS` in `convex/auth.ts` (localhost:3000 and justwrite.club); add a host there (and to the Google OAuth redirect URIs) to serve auth anywhere else. To go live, Vercel Production needs `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, and `CONVEX_SERVER_SECRET` with the dev deployment's values; no deploy key or build command change.
+**One Convex deployment:** there is no production Convex deployment; justwrite.club and localhost both use the dev deployment (`brilliant-starling-517`). So `bun convex` pushes go live immediately, and test data is visible to real members; don't seed fake members or post test messages there. Auth takes its base URL from the request host, limited to `ORIGINS` in `convex/auth.ts` (localhost:3000 and justwrite.club); add a host there (and to the Google OAuth redirect URIs) to serve auth anywhere else. Vercel has `NEXT_PUBLIC_CONVEX_URL`/`NEXT_PUBLIC_CONVEX_SITE_URL` (all environments) and `CONVEX_SERVER_SECRET` (Production, Development) pointing at it; Vercel builds don't push Convex functions, so deploy backend changes with `bun convex` (or `bunx convex dev --once`) before or alongside merging to `main`.

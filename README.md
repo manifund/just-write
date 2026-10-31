@@ -15,7 +15,7 @@ bun convex             # in one terminal: pushes convex/ to the dev deployment a
 bun dev                # in another: localhost:3000
 ```
 
-`vercel env pull` overwrites `.env.local`, and the Convex values aren't in Vercel yet. After pulling, run `bun convex` (it restores `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL`) and re-add `NEXT_PUBLIC_CONVEX_SITE_URL`, `NEXT_PUBLIC_SITE_URL`, and `CONVEX_SERVER_SECRET` (must match the value on the Convex deployment).
+`vercel env pull` brings down the Convex URLs and `CONVEX_SERVER_SECRET` too. It overwrites `CONVEX_DEPLOYMENT`, so run `bun convex` afterward to restore it.
 
 Convex dev deployment: `brilliant-starling-517` (team `austin-chen`, project `just-write`). Its secrets live in Convex, not in `.env*`; manage them with `bunx convex env list` / `bunx convex env set`. It sends real sign-in emails through Resend, so test with real inboxes.
 
