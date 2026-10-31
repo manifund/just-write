@@ -51,3 +51,6 @@ next-env.d.ts
 .env
 .env.*
 !.env.example
+
+# Stripe Projects local state
+.projects/
