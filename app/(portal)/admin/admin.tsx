@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { usePortal } from "@/components/portal/context";
 import { hostOf } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
@@ -11,6 +11,65 @@ const fmt = new Intl.DateTimeFormat("en-US", {
   timeStyle: "short",
   timeZone: "America/Los_Angeles",
 });
+
+// `Name <email>`, quoting names with commas or other special characters.
+function address(r: { name?: string; email: string }) {
+  const name = r.name?.trim();
+  if (!name) return r.email;
+  const safe = /^[\p{L}\p{N} .'-]+$/u.test(name)
+    ? name
+    : `"${name.replace(/["\\]/g, "\\$&")}"`;
+  return `${safe} <${r.email}>`;
+}
+
+function Recipients({ list }: { list: string }) {
+  const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const text = useRef<HTMLSpanElement>(null);
+  // Show "See more" only when the clamped list is cut off.
+  useEffect(() => {
+    const el = text.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() =>
+      setOverflows(el.scrollHeight > el.clientHeight + 1),
+    );
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [list]);
+  return (
+    <div className="flex items-start gap-3 text-[15px]">
+      <button
+        type="button"
+        onClick={async () => {
+          await navigator.clipboard.writeText(list);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+        className="shrink-0 cursor-pointer border border-ink/25 px-3 py-1"
+      >
+        {copied ? "Copied" : "Copy emails"}
+      </button>
+      <div className="flex flex-col items-start gap-1 pt-1">
+        <span
+          ref={text}
+          className={`block text-ink-muted select-all ${open ? "" : "line-clamp-3"}`}
+        >
+          {list}
+        </span>
+        {(overflows || open) && (
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="cursor-pointer underline"
+          >
+            {open ? "See less" : "See more"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function Admin() {
   const { viewer } = usePortal();
@@ -45,10 +104,8 @@ function Overview() {
             {f} ({f === "all" ? rows.length : count(f)})
           </button>
         ))}
-        <span className="ml-2 text-ink-muted select-all">
-          {shown.map((r) => r.email).join(", ")}
-        </span>
       </div>
+      <Recipients list={shown.map(address).join(", ")} />
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-[16px]">
           <thead className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">
