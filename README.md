@@ -21,4 +21,4 @@ Convex dev deployment: `brilliant-starling-517` (team `austin-chen`, project `ju
 
 Google sign-in uses the OAuth client in Google Cloud project `just-write-513304`, with redirect URIs `http://localhost:3000/api/auth/callback/google` and `https://justwrite.club/api/auth/callback/google`. Its ID and secret are kept in the gitignored `.env` for reference.
 
-Pushes to `main` deploy to production. Production isn't on Convex yet: the portal currently runs only against the dev deployment.
+Pushes to `main` deploy to production. There is no separate production Convex deployment: justwrite.club also uses the dev deployment, so **anything `bun convex` pushes is live immediately**, and test data shows up for real members.

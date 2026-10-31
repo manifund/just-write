@@ -9,6 +9,10 @@ import { sendEmail } from "./lib/email";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
+// One Convex deployment serves both local dev and justwrite.club, so auth links and
+// redirects use whichever of these the request came from.
+const ORIGINS = ["http://localhost:3000", "https://justwrite.club"];
+
 export const createAuth = (ctx: GenericCtx<DataModel>) => {
   const google =
     process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -22,7 +26,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       : undefined;
 
   return betterAuth({
-    baseURL: process.env.SITE_URL,
+    baseURL: {
+      allowedHosts: ORIGINS.map((o) => new URL(o).host),
+      fallback: process.env.SITE_URL,
+      protocol: "auto",
+    },
+    trustedOrigins: ORIGINS,
     database: authComponent.adapter(ctx),
     account: {
       // Signing in with Google and with a magic link to the same address is one account.
