@@ -1,5 +1,8 @@
+import { fetchMutation } from "convex/nextjs";
 import { Resend } from "resend";
-import { sql } from "./db";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { serverSecret } from "./auth-server";
 import { runs, TERMS, type Rich } from "./terms";
 
 const FROM = process.env.RESEND_FROM ?? "Just Write <austin@manifund.org>";
@@ -11,21 +14,18 @@ function resend() {
   return _resend;
 }
 
-type Signed = { email: string; signed_name: string; signed_at: string; amount_paid_cents: number | null };
+type Signed = { email: string; signedName: string; signedAt: number; amountPaidCents: number | null };
 
 // Emails a committed writer a copy of the terms they signed. Sends at most once per writer:
 // the row is claimed before sending, and released if the send fails so a webhook retry can try again.
-export async function sendSignedTerms(id: number): Promise<void> {
+export async function sendSignedTerms(memberId: Id<"members">): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
     console.warn("RESEND_API_KEY is not set; skipping signed-terms email");
     return;
   }
 
-  const [row] = (await sql()`
-    UPDATE interest SET terms_emailed_at = now()
-    WHERE id = ${id} AND status = 'committed' AND terms_emailed_at IS NULL AND signed_name IS NOT NULL
-    RETURNING email, signed_name, signed_at, amount_paid_cents
-  `) as Signed[];
+  const secret = serverSecret();
+  const row = await fetchMutation(api.server.claimTermsEmail, { secret, memberId });
   if (!row) return; // already sent, or not committed
 
   const { error } = await resend().emails.send(
@@ -37,11 +37,11 @@ export async function sendSignedTerms(id: number): Promise<void> {
       html: renderHtml(row),
       text: renderText(row),
     },
-    { idempotencyKey: `signed-terms/${id}` },
+    { idempotencyKey: `signed-terms/${memberId}` },
   );
 
   if (error) {
-    await sql()`UPDATE interest SET terms_emailed_at = NULL WHERE id = ${id}`;
+    await fetchMutation(api.server.releaseTermsEmail, { secret, memberId });
     throw new Error(`Resend failed: ${error.message}`);
   }
 }
@@ -53,11 +53,11 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
 });
 
 function details(row: Signed) {
-  const amount = row.amount_paid_cents == null ? "$1,000" : `$${(row.amount_paid_cents / 100).toLocaleString("en-US")}`;
+  const amount = row.amountPaidCents == null ? "$1,000" : `$${(row.amountPaidCents / 100).toLocaleString("en-US")}`;
   return [
-    ["Signed by", row.signed_name],
+    ["Signed by", row.signedName],
     ["Email", row.email],
-    ["Signed on", `${dateFmt.format(new Date(row.signed_at))} PT`],
+    ["Signed on", `${dateFmt.format(new Date(row.signedAt))} PT`],
     ["Deposit paid", amount],
   ];
 }
@@ -105,7 +105,7 @@ function renderHtml(row: Signed) {
 <html><body style="margin:0;padding:0;background:#f9eeec">
 <div style="max-width:600px;margin:0 auto;padding:32px 24px;font-family:Georgia,'Times New Roman',serif;color:#38213f">
   <p style="margin:0 0 24px;font-size:22px;font-weight:600">Just <span style="color:#bf5548">Write</span></p>
-  <p style="${p}">Hi ${esc(row.signed_name)},</p>
+  <p style="${p}">Hi ${esc(row.signedName)},</p>
   <p style="${p}">Thanks for committing to Just Write! We got your deposit. Here’s a copy of the terms you signed, for your records.</p>
   <table style="margin:20px 0;border-collapse:collapse">${rows}</table>
   ${terms}
@@ -117,7 +117,7 @@ function renderHtml(row: Signed) {
 
 function renderText(row: Signed) {
   const lines = [
-    `Hi ${row.signed_name},`,
+    `Hi ${row.signedName},`,
     "",
     "Thanks for committing to Just Write! We got your deposit. Here’s a copy of the terms you signed, for your records.",
     "",

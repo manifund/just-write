@@ -30,8 +30,11 @@ async function Status({ searchParams }: { searchParams: PageProps<"/commit/thank
           You’re <em className="wonk text-brass-light">in</em>.
         </h1>
         <p className="text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
-          We got your deposit and Stripe has emailed you a receipt. See you on November 1.
+          We got your deposit and Stripe has emailed you a receipt. Come say hi in the member portal.
         </p>
+        <Link href="/home" className="self-start bg-cream px-6 py-3 text-[18px] text-ink no-underline">
+          Open the member portal →
+        </Link>
       </>
     );
   }

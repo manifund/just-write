@@ -1,20 +1,17 @@
+import { fetchQuery } from "convex/nextjs";
 import { cacheLife, cacheTag } from "next/cache";
-import { sql } from "@/lib/db";
+import { api } from "@/convex/_generated/api";
 
-type Person = { id: number; name: string; link: string | null; committed: boolean };
+type Person = { _id: string; name: string; link: string | null; committed: boolean };
 
 async function getPeople(): Promise<Person[]> {
   "use cache";
   cacheTag("interest");
   cacheLife("minutes");
   try {
-    return (await sql()`
-      SELECT id, name, link, status = 'committed' AS committed
-      FROM interest
-      ORDER BY COALESCE(committed_at, created_at)
-    `) as Person[];
+    return await fetchQuery(api.members.interestedList, {});
   } catch (err) {
-    // Missing DATABASE_URL (e.g. a local build) shouldn't break the page.
+    // A missing Convex URL (e.g. a local build) shouldn't break the page.
     console.error("getPeople failed", err);
     return [];
   }
@@ -30,7 +27,7 @@ function Row({ label, people }: { label: string; people: Person[] }) {
     <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.5] text-pretty text-ink-muted">
       <span className="mr-2 text-[13px] tracking-[0.12em] uppercase">{label}:</span>
       {people.map((p, i) => (
-        <span key={p.id}>
+        <span key={p._id}>
           {p.link ? (
             <a href={p.link} target="_blank" rel="noopener noreferrer nofollow ugc" className="text-ink">
               {firstName(p.name)}

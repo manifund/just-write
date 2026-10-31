@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     event.type === "checkout.session.completed" ||
     event.type === "checkout.session.async_payment_succeeded"
   ) {
-    let id: number | null;
+    let id: Awaited<ReturnType<typeof markCommitted>>;
     try {
       id = await markCommitted(event.data.object);
       if (id != null) revalidateTag("interest", { expire: 0 });

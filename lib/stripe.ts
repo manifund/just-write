@@ -1,5 +1,8 @@
+import { fetchMutation } from "convex/nextjs";
 import Stripe from "stripe";
-import { sql } from "./db";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+import { serverSecret } from "./auth-server";
 
 // Deposits are taken as a donation to Manifund and refunded on completion.
 let _stripe: Stripe | null = null;
@@ -14,24 +17,17 @@ export function stripe() {
 }
 
 // Marks the signer as committed once Stripe confirms payment. Safe to call more than once.
-// Returns the row id if a row was updated, else null.
-export async function markCommitted(session: Stripe.Checkout.Session): Promise<number | null> {
-  if (session.payment_status === "unpaid") return null;
-  const id = Number(session.client_reference_id);
-  if (!Number.isInteger(id)) return null;
-
+// Returns the member id if a row was updated, else null.
+export async function markCommitted(session: Stripe.Checkout.Session): Promise<Id<"members"> | null> {
+  if (session.payment_status === "unpaid" || !session.client_reference_id) return null;
   const paymentIntent =
     typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
 
-  const rows = await sql()`
-    UPDATE interest SET
-      status = 'committed',
-      committed_at = COALESCE(committed_at, now()),
-      stripe_session_id = ${session.id},
-      stripe_payment_intent = ${paymentIntent},
-      amount_paid_cents = ${session.amount_total}
-    WHERE id = ${id}
-    RETURNING id
-  `;
-  return rows.length > 0 ? id : null;
+  return await fetchMutation(api.server.markCommitted, {
+    secret: serverSecret(),
+    reference: session.client_reference_id,
+    sessionId: session.id,
+    paymentIntent,
+    amountCents: session.amount_total,
+  });
 }

@@ -1,0 +1,5 @@
+- Things to do next:
+  - Switching between channels should feel much faster, no flicker
+  - entering chat should show up faster (optimistic push)
+  - should track read/unread state per channel, per user
+  - set up in-app notifications

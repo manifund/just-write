@@ -1,20 +1,20 @@
 # Just Write
 
-Landing page for [justwrite.club](https://justwrite.club), a 4-week online writing club. Next.js (App Router) + Tailwind CSS, deployed on Vercel. Interest-form submissions are stored in Neon Postgres (via Vercel Marketplace) and listed at `/admin`.
+Site and member portal for [justwrite.club](https://justwrite.club), a 4-week online writing club. Next.js (App Router) + Tailwind CSS on Vercel, with Convex for data, auth (Better Auth), and realtime chat.
 
-- `just-write-handoff/` — approved design (`reference.html` + screenshots)
+- `just-write-handoff/` — approved landing page design (`reference.html` + screenshots)
 - `MUSINGS.md` — program notes and open questions
 
 ## Develop
 
 ```bash
 bun install
-vercel link          # manifund team, just-write project
+vercel link            # manifund team, just-write project
 vercel env pull .env.local
-bun db:migrate       # creates the `interest` table (safe to re-run)
-bun dev
+bun convex             # in one terminal: pushes convex/ to your dev deployment and watches
+bun dev                # in another: localhost:3000
 ```
 
-Pushes to `main` deploy to production.
+Without `RESEND_API_KEY` on the Convex dev deployment, sign-in links are printed in the `bun convex` logs instead of emailed.
 
-> `/admin` is not access-controlled yet. Anyone with the URL can see submissions.
+Pushes to `main` deploy to production.

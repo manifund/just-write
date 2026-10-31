@@ -66,3 +66,60 @@ body {
 .font-sans {
   font-size-adjust: none;
 }
+
+/* Portal micro-interactions */
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes rise {
+  from { transform: translateY(6px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Rendered chat messages and the composer share these styles. */
+.rich > * + * { margin-top: 0.4em; }
+.rich a { color: var(--color-brass-text); }
+.rich strong { font-weight: 700; }
+.rich code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: var(--color-cream-deep);
+  padding: 0.1em 0.3em;
+  font-size-adjust: none;
+}
+.rich pre {
+  background: var(--color-ink);
+  color: var(--color-cream);
+  padding: 0.7em 0.9em;
+  overflow-x: auto;
+  font-size: 0.9em;
+}
+.rich pre code { background: none; padding: 0; color: inherit; }
+.rich blockquote {
+  border-left: 3px solid var(--color-wash);
+  padding-left: 0.8em;
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
+.rich ul { list-style: disc; padding-left: 1.4em; }
+.rich ol { list-style: decimal; padding-left: 1.4em; }
+.rich h3, .rich h4 { font-family: var(--font-display); font-weight: 500; font-size-adjust: none; }
+.rich h3 { font-size: 1.35em; }
+.rich h4 { font-size: 1.15em; }
+.rich hr { border: 0; border-top: 1px solid rgb(56 33 63 / 0.2); }
+.rich .mention {
+  background: rgb(246 110 94 / 0.14);
+  color: var(--color-brass-text);
+  font-weight: 700;
+  padding: 0 0.2em;
+}
+.composer-input p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-ink-muted);
+  opacity: 0.7;
+}

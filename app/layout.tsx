@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
 import "./globals.css";
+import { Providers } from "./providers";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -46,7 +47,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${fraunces.variable} ${atkinson.variable} antialiased`}
     >
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

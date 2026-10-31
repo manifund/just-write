@@ -1,16 +1,54 @@
 "use client";
 
+import { useQuery } from "convex/react";
+import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
+import { SignInPanel } from "@/components/sign-in";
+import { api } from "@/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
 import { startCommitment, type CommitState } from "./actions";
 
-const input =
-  "min-h-[46px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-3 font-body text-[19px] text-inherit";
 const fieldLabel = "text-[13px] tracking-[0.12em] uppercase text-ink-muted";
 
 const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 const noop = () => () => {};
 
+const heading = "font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]";
+
+// Signing is tied to the signed-in account, so sign in first.
 export function CommitForm() {
+  const viewer = useQuery(api.members.viewer);
+  if (viewer === undefined) {
+    return <div className="min-h-[320px] bg-cream-deep" aria-busy="true" />;
+  }
+  if (viewer === null) {
+    return (
+      <div className="flex flex-col gap-5 bg-cream-deep p-[clamp(20px,min(3vw,4vh),40px)]">
+        <div className="flex flex-col gap-1.5">
+          <h2 className={heading}>Sign in to commit</h2>
+          <p className="text-[17px] text-ink-muted">Your commitment is tied to your Just Write account.</p>
+        </div>
+        <SignInPanel next="/commit#sign" />
+      </div>
+    );
+  }
+  if (viewer.member?.status === "committed") {
+    return (
+      <div className="flex flex-col gap-4 bg-cream-deep p-[clamp(20px,min(3vw,4vh),40px)]">
+        <h2 className={heading}>
+          You’re <em className="wonk text-brass-numeral">in</em>.
+        </h2>
+        <p className="text-[17px] text-ink-muted">You’ve already committed. Thank you!</p>
+        <Link href="/home" className="self-start bg-ink px-6 py-3 text-[18px] text-cream no-underline">
+          Open the member portal →
+        </Link>
+      </div>
+    );
+  }
+  return <SignForm email={viewer.user.email} />;
+}
+
+function SignForm({ email }: { email: string }) {
   const [state, action, pending] = useActionState<CommitState, FormData>(startCommitment, { status: "idle" });
   // Read on the client so the date is the signer's today, not the build date.
   const today = useSyncExternalStore(noop, () => dateFmt.format(new Date()), () => null);
@@ -19,7 +57,7 @@ export function CommitForm() {
     () => new URLSearchParams(window.location.search).has("canceled"),
     () => false,
   );
-  // The button stays disabled until the box is checked, the email is valid, and the signature is filled in.
+  // The button stays disabled until the box is checked and the signature is filled in.
   const [ready, setReady] = useState(false);
 
   return (
@@ -48,20 +86,16 @@ export function CommitForm() {
         <span>I’ve read and agree to the terms above.</span>
       </label>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="jw-email" className={fieldLabel}>
-          Email
-        </label>
-        <input
-          id="jw-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          placeholder="kit@justwrite.club"
-          className={input}
-        />
-      </div>
+      <p className="text-[17px] text-ink-muted">
+        Signing as <strong className="text-ink">{email}</strong>.{" "}
+        <button
+          type="button"
+          className="cursor-pointer underline"
+          onClick={() => authClient.signOut().then(() => window.location.reload())}
+        >
+          Not you?
+        </button>
+      </p>
 
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-x-6 gap-y-1.5">
         <label htmlFor="jw-signature" className={fieldLabel}>

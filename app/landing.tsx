@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 import { Calendar } from "./calendar";
 import { InterestForm } from "./interest-form";
@@ -32,8 +33,14 @@ export function Landing() {
   return (
     <main className="grid min-h-dvh grid-cols-[repeat(auto-fit,minmax(min(560px,100%),1fr))]">
       <section className="relative flex flex-col gap-[clamp(24px,4vh,40px)] overflow-hidden bg-ink px-[clamp(24px,4vw,56px)] py-[clamp(28px,4.5vh,56px)] text-cream">
-        <div className="relative font-display text-[25px] font-medium tracking-[-0.01em]">
-          Just <span className="text-brass-light">Write</span>
+        <div className="relative flex items-baseline justify-between gap-4">
+          <div className="font-display text-[25px] font-medium tracking-[-0.01em]">
+            Just <span className="text-brass-light">Write</span>
+          </div>
+          <nav className="flex gap-5 text-[15px] text-wash-light">
+            <Link href="/members">Members</Link>
+            <Link href="/home">Sign in</Link>
+          </nav>
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
 
