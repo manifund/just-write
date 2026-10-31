@@ -18,7 +18,7 @@ async function votesFor(
   };
 }
 
-// The viewer's own ideas, private and shared.
+// The viewer's own ideas.
 export const mine = query({
   args: {},
   handler: async (ctx) => {
@@ -38,7 +38,7 @@ export const mine = query({
   },
 });
 
-// A member's shared ideas, for their profile page.
+// A member's ideas, for their profile page.
 export const forMember = query({
   args: { memberId: v.id("members") },
   handler: async (ctx, { memberId }) => {
@@ -49,7 +49,6 @@ export const forMember = query({
       .collect();
     return await Promise.all(
       rows
-        .filter((i) => i.shared)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .map(async (i) => ({
           ...i,
@@ -59,14 +58,12 @@ export const forMember = query({
   },
 });
 
-// Everyone's shared ideas, newest first.
+// Everyone's ideas, newest first.
 export const board = query({
   args: {},
   handler: async (ctx) => {
     const { member } = await requireMember(ctx);
-    const rows = (await ctx.db.query("ideas").order("desc").take(300)).filter(
-      (i) => i.shared,
-    );
+    const rows = await ctx.db.query("ideas").order("desc").take(300);
     const out = await Promise.all(
       rows.map(async (i) => {
         const author = await ctx.db.get(i.memberId);
@@ -91,13 +88,12 @@ function clean(title: string, notes: string) {
 }
 
 export const create = mutation({
-  args: { title: v.string(), notes: v.string(), shared: v.boolean() },
+  args: { title: v.string(), notes: v.string() },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
     return await ctx.db.insert("ideas", {
       memberId: member._id,
       ...clean(args.title, args.notes),
-      shared: args.shared,
       updatedAt: Date.now(),
     });
   },
@@ -108,7 +104,6 @@ export const update = mutation({
     ideaId: v.id("ideas"),
     title: v.string(),
     notes: v.string(),
-    shared: v.boolean(),
   },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
@@ -117,7 +112,6 @@ export const update = mutation({
       throw new ConvexError("Not your idea.");
     await ctx.db.patch(idea._id, {
       ...clean(args.title, args.notes),
-      shared: args.shared,
       updatedAt: Date.now(),
     });
   },
@@ -145,7 +139,7 @@ export const toggleVote = mutation({
   handler: async (ctx, { ideaId }) => {
     const { member } = await requireMember(ctx);
     const idea = await ctx.db.get(ideaId);
-    if (!idea || !idea.shared) throw new ConvexError("That idea isn’t shared.");
+    if (!idea) throw new ConvexError("That idea was deleted.");
     const existing = await ctx.db
       .query("ideaVotes")
       .withIndex("by_idea_member", (q) =>

@@ -20,11 +20,11 @@ export function Ideas() {
     <main className="mx-auto flex max-w-[76rem] flex-col gap-[clamp(28px,5vh,48px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
       <header className="flex flex-col gap-3">
         <h1 className="font-display text-[clamp(38px,5.2vw,64px)] leading-none font-[340] tracking-[-0.025em]">
-          Essay <em className="wonk text-brass-numeral">ideas</em>
+          Drafts & <em className="wonk text-brass-numeral">ideas</em>
         </h1>
         <p className="max-w-[36em] text-[clamp(17px,2.2vw,20px)] leading-[1.45] text-pretty text-ink-muted">
-          Keep a list of essay ideas. Shared ideas are visible to other members,
-          who can mark the ones they’d read.
+          Not sure what to focus on? Share essay titles and outlines here, and
+          see what others vote for.
         </p>
       </header>
       <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
@@ -41,18 +41,13 @@ function IdeaForm({
   onCancel,
   submitLabel,
 }: {
-  initial?: { title: string; notes: string; shared: boolean };
-  onSave: (v: {
-    title: string;
-    notes: string;
-    shared: boolean;
-  }) => Promise<void>;
+  initial?: { title: string; notes: string };
+  onSave: (v: { title: string; notes: string }) => Promise<void>;
   onCancel?: () => void;
   submitLabel: string;
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
-  const [shared, setShared] = useState(initial?.shared ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +59,7 @@ function IdeaForm({
         setSaving(true);
         setError(null);
         try {
-          await onSave({ title, notes, shared });
+          await onSave({ title, notes });
           if (!initial) {
             setTitle("");
             setNotes("");
@@ -93,15 +88,6 @@ function IdeaForm({
         className={`${input} resize-y text-[16px] leading-[1.45]`}
       />
       <div className="flex flex-wrap items-center gap-4">
-        <label className="flex cursor-pointer items-center gap-2 text-[16px]">
-          <input
-            type="checkbox"
-            checked={shared}
-            onChange={(e) => setShared(e.target.checked)}
-            className="size-4 accent-ink"
-          />
-          Share with members
-        </label>
         <span className="ml-auto flex gap-3">
           {onCancel && (
             <button
@@ -155,7 +141,6 @@ function Notebook() {
                 initial={{
                   title: i.title,
                   notes: i.notes ?? "",
-                  shared: i.shared,
                 }}
                 onCancel={() => setEditing(null)}
                 onSave={async (v) => {
@@ -170,11 +155,11 @@ function Notebook() {
                 <p className="font-display text-[19px] leading-[1.25] font-[450] text-pretty">
                   {i.title}
                 </p>
-                <span className="ml-auto shrink-0 text-[13px] tracking-[0.08em] text-ink-muted uppercase">
-                  {i.shared
-                    ? `Shared${i.votes ? ` · ${i.votes} ★` : ""}`
-                    : "Private"}
-                </span>
+                {i.votes > 0 && (
+                  <span className="ml-auto shrink-0 text-[14px] text-ink-muted tabular-nums">
+                    {i.votes} ★
+                  </span>
+                )}
               </div>
               {i.notes && (
                 <p className="text-[15px] leading-[1.45] whitespace-pre-line text-ink-muted">
@@ -188,20 +173,6 @@ function Notebook() {
                   onClick={() => setEditing(i._id)}
                 >
                   Edit
-                </button>
-                <button
-                  type="button"
-                  className="cursor-pointer underline"
-                  onClick={() =>
-                    update({
-                      ideaId: i._id,
-                      title: i.title,
-                      notes: i.notes ?? "",
-                      shared: !i.shared,
-                    })
-                  }
-                >
-                  {i.shared ? "Make private" : "Share"}
                 </button>
                 <button
                   type="button"
@@ -231,11 +202,11 @@ function Board() {
   return (
     <section aria-labelledby="board" className="flex flex-col gap-4">
       <h2 id="board" className={h2}>
-        Shared ideas
+        Everyone’s ideas
       </h2>
       {ideas?.length === 0 && (
         <p className="text-[16px] text-ink-muted">
-          Ideas that members share show up here.
+          Members’ ideas show up here.
         </p>
       )}
       <ul className="columns-1 gap-4 sm:columns-2">

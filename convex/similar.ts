@@ -12,7 +12,7 @@ import { publicMember, requireMember } from "./lib/viewer";
 
 const TTL = 24 * 60 * 60 * 1000;
 
-// What the model sees about each writer: bio, essay titles, shared ideas.
+// What the model sees about each writer: bio, essay titles, ideas.
 async function profiles(ctx: QueryCtx) {
   const members = await ctx.db
     .query("members")
@@ -36,11 +36,9 @@ async function profiles(ctx: QueryCtx) {
         essays: essays
           .filter((e) => e.review !== "rejected")
           .map((e) => e.title),
-        ideas: ideas
-          .filter((i) => i.shared)
-          .map((i) =>
-            i.notes ? `${i.title}: ${i.notes.slice(0, 200)}` : i.title,
-          ),
+        ideas: ideas.map((i) =>
+          i.notes ? `${i.title}: ${i.notes.slice(0, 200)}` : i.title,
+        ),
       };
     }),
   );

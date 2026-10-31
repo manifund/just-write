@@ -54,12 +54,11 @@ export default defineSchema({
     .index("by_member", ["memberId"])
     .index("by_url", ["url"]),
 
-  // Essay ideas. Shared ideas show on the ideas board; private ones only to their author.
+  // Essay ideas. Every member can see them on the ideas board.
   ideas: defineTable({
     memberId: v.id("members"),
     title: v.string(),
     notes: v.optional(v.string()),
-    shared: v.boolean(),
     updatedAt: v.number(),
   }).index("by_member", ["memberId"]),
 
