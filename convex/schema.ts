@@ -20,6 +20,7 @@ export default defineSchema({
     handle: v.optional(v.string()), // URL slug for /members/[handle]
     bio: v.optional(v.string()),
     image: v.optional(v.string()),
+    imageStorageId: v.optional(v.id("_storage")), // set when the image was uploaded here, not from Google
     // Commitment
     signedName: v.optional(v.string()),
     signedAt: v.optional(v.number()),

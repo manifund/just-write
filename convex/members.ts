@@ -264,3 +264,35 @@ export const roster = query({
     return [...rows, ...admins].map(publicMember);
   },
 });
+
+// Profile photo upload: the client gets a URL, uploads a resized image, then calls setAvatar.
+export const avatarUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireMember(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
+export const setAvatar = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const { member } = await requireMember(ctx);
+    const file = await ctx.db.system.get(storageId);
+    if (
+      !file ||
+      !file.contentType?.startsWith("image/") ||
+      file.size > MAX_AVATAR_BYTES
+    ) {
+      if (file) await ctx.storage.delete(storageId);
+      throw new ConvexError("Please upload an image under 2 MB.");
+    }
+    const url = await ctx.storage.getUrl(storageId);
+    if (!url) throw new ConvexError("Upload failed. Please try again.");
+    if (member.imageStorageId && member.imageStorageId !== storageId)
+      await ctx.storage.delete(member.imageStorageId);
+    await ctx.db.patch(member._id, { image: url, imageStorageId: storageId });
+  },
+});
