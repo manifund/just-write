@@ -48,7 +48,7 @@ export const TERMS: Term[] = [
     title: "What we’ll offer",
     intro: "Just Write also plans to offer the following (optional) features:",
     bullets: [
-      "An online platform to chat with other participants (eg Discord, or a new internal forum)",
+      "An online platform to chat with other participants",
       "Daily check-ins, where you share 100 words of your recent writing",
       "Weekly writing circles, online & in SF on Saturday",
       "A wrap party in SF, on the evening of Wed Dec 2",
