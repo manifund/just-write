@@ -21,9 +21,9 @@ export function InterestForm() {
       className="flex scroll-mt-6 flex-col gap-[clamp(14px,2.2vh,22px)] bg-cream-deep p-[clamp(20px,min(2.4vw,3.4vh),32px)]"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1.5">
-        <h2 className="font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]">
+        {/* <h2 className="font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]">
           Want to join?
-        </h2>
+        </h2> */}
       </div>
 
       {state.status === "ok" ? (
