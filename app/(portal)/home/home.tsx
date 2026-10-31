@@ -102,7 +102,7 @@ export function Home() {
         </div>
 
         <div className="flex flex-col gap-[clamp(32px,5vh,48px)]">
-          <SimilarWriters />
+          {SHOW_SIMILAR && <SimilarWriters />}
           <RecentEssays now={now} />
         </div>
       </div>
@@ -374,6 +374,9 @@ function MyEssays({ essays }: { essays: Mine["essays"] }) {
     </details>
   );
 }
+
+// Similar writers is hidden for now; flip this to bring it back.
+const SHOW_SIMILAR = false;
 
 function SimilarWriters() {
   const data = useQuery(api.similar.forViewer);

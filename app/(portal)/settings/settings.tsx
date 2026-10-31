@@ -103,8 +103,7 @@ export function Settings() {
             className={`${input} resize-y leading-[1.45]`}
           />
           <span className="text-[14px] text-ink-muted">
-            Shown on your public profile. It also helps us match you with
-            similar writers.
+            Shown on your public profile.
           </span>
         </label>
         <div className="flex items-center gap-4">
