@@ -18,7 +18,7 @@ const TERMS: Term[] = [
     bullets: [
       "Essays are due on or before Mondays, 9pm PT: Nov 9, 16, 23, and 30.",
       "Essays must be 1000 words or more.",
-      "Essays must be posted on the public internet (eg personal website, company blog, Substack, X, or anywhere with a public URL).",
+      "Essays must be posted on the public internet (personal website, company blog, Substack, X, LessWrong, etc).",
       "Essay URLs must be registered through the Just Write portal.",
       "Essays may be featured on the Just Write public website.",
     ],
@@ -43,12 +43,12 @@ const TERMS: Term[] = [
   {
     title: "The spirit of the club",
     outro: [
-      "We encourage you to write evergreen, ambitious essays, which you will look back on with pride. But we can’t and won’t enforce that. If you fulfill your commitment via LLM slop, or the word “essay” repeated 1000 times, that will be between you and your conscience. (Public shaming may also commence.)",
+      "We encourage you to write evergreen, ambitious essays, which you will look back on with pride. But we can’t and won’t enforce that. If you fulfill your commitment via LLM slop, or the word “essay” repeated 1000 times, that will be between you and your reputation.",
     ],
   },
   {
     title: "What we’ll offer",
-    intro: "Just Write also plans to offer, on a best-effort basis:",
+    intro: "Just Write also plans to offer the following (optional) features:",
     bullets: [
       "An online platform to chat with other participants (eg Discord, or a new internal forum)",
       "Daily check-ins, where you share 100 words of your recent writing",
