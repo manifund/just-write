@@ -14,6 +14,9 @@ export function useNow(ms = 30_000) {
   );
 }
 
+// Optimistic chat messages get an id starting with this until the server saves them.
+export const PENDING = "pending:";
+
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const dayFmt = new Intl.DateTimeFormat("en-US", {
   month: "short",

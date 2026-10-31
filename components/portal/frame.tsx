@@ -1,9 +1,9 @@
 "use client";
 
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQueries, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Avatar } from "./avatar";
@@ -225,6 +225,20 @@ function Sidebar() {
   const pathname = usePathname();
   const channels = useQuery(api.chat.channels);
   const online = useRoom("portal");
+  // Keep each channel's latest messages loaded, so opening a channel shows them immediately.
+  // (useQueries needs the same object between renders, so it's keyed on the slugs.)
+  const slugs = channels?.map((c) => c.slug).join(",") ?? "";
+  const warm = useMemo(
+    () =>
+      Object.fromEntries(
+        (slugs ? slugs.split(",") : []).map((slug) => [
+          slug,
+          { query: api.chat.recent, args: { slug } },
+        ]),
+      ),
+    [slugs],
+  );
+  useQueries(warm);
 
   const active = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);

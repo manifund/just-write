@@ -8,7 +8,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { DEFAULT_CHANNELS } from "./lib/channels";
+import { DEFAULT_CHANNELS, PAGE_SIZE } from "./lib/channels";
 import { REACTIONS } from "./lib/reactions";
 import { cleanBody } from "./lib/richtext";
 import { requireAdmin, requireMember } from "./lib/viewer";
@@ -155,6 +155,27 @@ export const messages = query({
       .order("desc")
       .paginate(paginationOpts);
     return { ...result, page: await hydrate(ctx, result.page) };
+  },
+});
+
+// The newest page of a channel, newest first. The sidebar keeps this subscribed for every
+// channel so switching channels can show messages right away, before `messages` loads.
+export const recent = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    await requireMember(ctx);
+    const c = await channelBySlug(ctx, slug);
+    const rows = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent", (q) =>
+        q.eq("channelId", c._id).eq("parentId", undefined),
+      )
+      .order("desc")
+      .take(PAGE_SIZE + 1);
+    return {
+      messages: await hydrate(ctx, rows.slice(0, PAGE_SIZE)),
+      more: rows.length > PAGE_SIZE,
+    };
   },
 });
 

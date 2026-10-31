@@ -11,18 +11,20 @@ import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { useMember, usePortal } from "./context";
 import { RichText } from "./rich-text";
-import { clockTime, hostOf, timeAgo } from "./util";
+import { clockTime, hostOf, PENDING, timeAgo } from "./util";
 
 export function Message({
   m,
   compact,
   now,
+  animate,
   onOpenThread,
   inThread,
 }: {
   m: ChatMessage;
   compact: boolean; // same author as the previous message, shortly after
   now: number | null;
+  animate?: boolean; // slide in, for messages that arrive while you're watching
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
 }) {
@@ -35,13 +37,15 @@ export function Message({
   const [picker, setPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const mine = m.authorId === me._id;
+  // Sent but not yet saved (an optimistic update); it has no real id to act on yet.
+  const pending = m._id.startsWith(PENDING);
   const profileHref = author?.handle ? `/members/${author.handle}` : "/members";
 
   return (
     <article
-      className={`group relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 px-[clamp(16px,3vw,32px)] transition-colors hover:bg-cream-deep/45 motion-safe:animate-[rise_220ms_ease-out] ${
-        compact ? "py-0.5" : "pt-3 pb-0.5"
-      }`}
+      className={`group relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 px-[clamp(16px,3vw,32px)] transition-colors hover:bg-cream-deep/45 ${
+        animate ? "motion-safe:animate-[rise_220ms_ease-out]" : ""
+      } ${pending ? "opacity-60" : ""} ${compact ? "py-0.5" : "pt-3 pb-0.5"}`}
     >
       <div className="pt-0.5">
         {compact ? (
@@ -135,7 +139,7 @@ export function Message({
       </div>
 
       {/* Hover actions */}
-      {!editing && (
+      {!editing && !pending && (
         <div
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
             picker || confirmDelete

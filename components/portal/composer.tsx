@@ -47,7 +47,6 @@ export function Composer({
 }) {
   const { roster, me } = usePortal();
   const [mention, setMention] = useState<MentionState>(null);
-  const [sending, setSending] = useState(false);
   // Tiptap's callbacks are set up once, when the editor is created, so they read
   // the latest props and state through these refs (kept current by the effect below).
   const rosterRef = useRef(roster);
@@ -57,7 +56,9 @@ export function Composer({
   const typingRef = useRef(onTyping);
 
   const editor = useEditor({
-    immediatelyRender: false,
+    // The portal only renders in the browser, so the editor can render on the first
+    // pass instead of popping in after mount.
+    immediatelyRender: true,
     autofocus: autoFocus ? "end" : false,
     content: initial ? JSON.parse(initial) : undefined,
     extensions: [
@@ -174,20 +175,19 @@ export function Composer({
     },
   });
 
+  // Clears right away and doesn't wait for the server, so you can keep sending.
   const send = async () => {
-    if (!editor || editor.isEmpty || sending) return;
+    if (!editor || editor.isEmpty) return;
     const json: JSONContent = editor.getJSON();
     const body = JSON.stringify(json);
-    setSending(true);
     editor.commands.clearContent(true);
     try {
       await onSend(body);
     } catch (err) {
-      // Put the draft back so nothing is lost.
-      editor.commands.setContent(json);
+      // Put the draft back so nothing is lost, unless you've started a new one.
+      if (!editor.isDestroyed && editor.isEmpty)
+        editor.commands.setContent(json);
       throw err;
-    } finally {
-      setSending(false);
     }
   };
 
@@ -232,7 +232,7 @@ export function Composer({
           <button
             type="button"
             onClick={() => void send()}
-            disabled={isEmpty || sending}
+            disabled={isEmpty}
             className="cursor-pointer bg-ink px-4 py-1.5 text-[15px] text-cream transition-[background-color,opacity] enabled:hover:bg-ink-muted disabled:cursor-default disabled:opacity-35"
           >
             {submitLabel}

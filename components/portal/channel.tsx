@@ -1,6 +1,13 @@
 "use client";
 
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import type { OptimisticLocalStore } from "convex/browser";
+import {
+  insertAtTop,
+  useMutation,
+  usePaginatedQuery,
+  useQuery,
+} from "convex/react";
+import { useParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -11,18 +18,75 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ChatMessage } from "@/convex/chat";
+import { PAGE_SIZE } from "@/convex/lib/channels";
+import { cleanBody } from "@/convex/lib/richtext";
 import { errorMessage } from "@/lib/convex";
 import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { usePortal } from "./context";
 import { Message } from "./message";
 import { useRoom } from "./presence";
-import { dayLabel, useNow } from "./util";
+import { dayLabel, PENDING, useNow } from "./util";
 
 const GROUP_MS = 5 * 60 * 1000;
 
+export function ChannelFromUrl() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Channel slug={slug} />;
+}
+
+// What a message will look like once the server saves it, shown while it's sending.
+function pendingMessage(
+  args: { body: string; parentId?: Id<"messages"> },
+  authorId: Id<"members">,
+  channelId: Id<"channels">,
+): ChatMessage | null {
+  try {
+    const { body, text } = cleanBody(args.body);
+    if (!text) return null;
+    return {
+      _id: `${PENDING}${crypto.randomUUID()}` as Id<"messages">,
+      _creationTime: Date.now(),
+      channelId,
+      authorId,
+      body,
+      text,
+      parentId: args.parentId,
+      reactions: [],
+      essay: null,
+    };
+  } catch {
+    return null; // the server will reject it with a proper error
+  }
+}
+
+function addToChannel(
+  store: OptimisticLocalStore,
+  slug: string,
+  item: ChatMessage,
+) {
+  insertAtTop({
+    paginatedQuery: api.chat.messages,
+    argsToMatch: { slug },
+    localQueryStore: store,
+    item,
+  });
+  const recent = store.getQuery(api.chat.recent, { slug });
+  if (recent)
+    store.setQuery(
+      api.chat.recent,
+      { slug },
+      { ...recent, messages: [item, ...recent.messages] },
+    );
+}
+
 export function Channel({ slug }: { slug: string }) {
-  const channel = useQuery(api.chat.channel, { slug });
+  // The sidebar already subscribes to the channel list, so this is usually ready immediately.
+  const channels = useQuery(api.chat.channels);
+  const channel =
+    channels === undefined
+      ? undefined
+      : (channels.find((c) => c.slug === slug) ?? null);
   const [threadId, setThreadId] = useState<Id<"messages"> | null>(null);
   const here = useRoom(`channel:${slug}`);
 
@@ -69,7 +133,12 @@ export function Channel({ slug }: { slug: string }) {
             </div>
           )}
         </header>
-        <MessageList key={slug} slug={slug} onOpenThread={setThreadId} />
+        <MessageList
+          key={slug}
+          slug={slug}
+          channelId={channel._id}
+          onOpenThread={setThreadId}
+        />
       </div>
       {threadId && (
         <Thread
@@ -136,17 +205,32 @@ function TypingIndicator({
 
 function MessageList({
   slug,
+  channelId,
   onOpenThread,
 }: {
   slug: string;
+  channelId: Id<"channels">;
   onOpenThread: (id: Id<"messages">) => void;
 }) {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { me } = usePortal();
+  const paged = usePaginatedQuery(
     api.chat.messages,
     { slug },
-    { initialNumItems: 50 },
+    { initialNumItems: PAGE_SIZE },
   );
-  const send = useMutation(api.chat.send);
+  // Kept warm by the sidebar, so it fills in while the paginated query loads.
+  const recent = useQuery(api.chat.recent, { slug });
+  const firstLoad = paged.status === "LoadingFirstPage";
+  const results = firstLoad ? (recent?.messages ?? []) : paged.results;
+  const { status, loadMore } = paged;
+  const exhausted =
+    status === "Exhausted" || (firstLoad && recent?.more === false);
+  const send = useMutation(api.chat.send).withOptimisticUpdate(
+    (store, args) => {
+      const item = pendingMessage(args, me._id, channelId);
+      if (item) addToChannel(store, slug, item);
+    },
+  );
   const markRead = useMutation(api.chat.markRead);
   const onTyping = useTyping(slug);
   const now = useNow();
@@ -155,6 +239,8 @@ function MessageList({
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
   const prevHeight = useRef<number | null>(null);
+  // Only messages that arrive after the channel opens get the entrance animation.
+  const [openedAt] = useState(() => Date.now());
   const messages = [...results].reverse();
   const newest = results[0]?._id;
 
@@ -195,7 +281,7 @@ function MessageList({
       >
         {/* Anchors a short conversation to the bottom, next to the composer. */}
         <div className="flex min-h-full flex-col justify-end pb-2">
-          {status === "Exhausted" && (
+          {exhausted && (
             <ChannelStart slug={slug} empty={messages.length === 0} />
           )}
           {status === "LoadingMore" && (
@@ -206,6 +292,7 @@ function MessageList({
           <MessageRun
             messages={messages}
             now={now}
+            animateAfter={openedAt}
             onOpenThread={onOpenThread}
           />
         </div>
@@ -240,14 +327,17 @@ function MessageList({
 function MessageRun({
   messages,
   now,
+  animateAfter,
   onOpenThread,
   inThread,
 }: {
   messages: ChatMessage[];
   now: number | null;
+  animateAfter: number;
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
 }) {
+  const { me } = usePortal();
   return messages.map((m, i) => {
     const prev = messages[i - 1];
     const newDay =
@@ -274,6 +364,9 @@ function MessageRun({
           m={m}
           compact={compact}
           now={now}
+          // Your own messages appear without animating: the optimistic copy is
+          // swapped for the saved one, and animating both would look like a flicker.
+          animate={m.authorId !== me._id && m._creationTime > animateAfter}
           onOpenThread={onOpenThread}
           inThread={inThread}
         />
@@ -317,10 +410,27 @@ function Thread({
   parentId: Id<"messages">;
   onClose: () => void;
 }) {
+  const { me } = usePortal();
   const data = useQuery(api.chat.thread, { parentId });
-  const send = useMutation(api.chat.send);
+  const send = useMutation(api.chat.send).withOptimisticUpdate(
+    (store, args) => {
+      const thread = store.getQuery(api.chat.thread, { parentId });
+      if (!thread) return;
+      const item = pendingMessage(args, me._id, thread.parent.channelId);
+      if (!item) return;
+      store.setQuery(
+        api.chat.thread,
+        { parentId },
+        {
+          parent: { ...thread.parent, replyCount: thread.replies.length + 1 },
+          replies: [...thread.replies, item],
+        },
+      );
+    },
+  );
   const onTyping = useTyping(slug, parentId);
   const now = useNow();
+  const [openedAt] = useState(() => Date.now());
   const end = useRef<HTMLDivElement>(null);
   const count = data?.replies.length ?? 0;
 
@@ -367,7 +477,12 @@ function Thread({
               {count} {count === 1 ? "reply" : "replies"}{" "}
               <span className="h-px flex-1 bg-ink/12" />
             </div>
-            <MessageRun messages={data.replies} now={now} inThread />
+            <MessageRun
+              messages={data.replies}
+              now={now}
+              animateAfter={openedAt}
+              inThread
+            />
           </>
         )}
         <div ref={end} />

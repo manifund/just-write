@@ -29,3 +29,6 @@ export const DEFAULT_CHANNELS = [
   },
   { slug: "random", name: "random", description: "Anything else." },
 ];
+
+// How many messages the channel view loads at a time.
+export const PAGE_SIZE = 50;
