@@ -9,7 +9,11 @@ export function RichText({ body }: { body: string }) {
   } catch {
     return null;
   }
-  return <div className="rich">{(doc.content ?? []).map((n, i) => renderNode(n, i))}</div>;
+  return (
+    <div className="rich">
+      {(doc.content ?? []).map((n, i) => renderNode(n, i))}
+    </div>
+  );
 }
 
 function renderNode(n: RichNode, key: number): ReactNode {
@@ -22,14 +26,21 @@ function renderNode(n: RichNode, key: number): ReactNode {
     case "hardBreak":
       return <br key={key} />;
     case "heading":
-      return n.attrs?.level === 1 ? <h3 key={key}>{kids}</h3> : <h4 key={key}>{kids}</h4>;
+      return n.attrs?.level === 1 ? (
+        <h3 key={key}>{kids}</h3>
+      ) : (
+        <h4 key={key}>{kids}</h4>
+      );
     case "blockquote":
       return <blockquote key={key}>{kids}</blockquote>;
     case "bulletList":
       return <ul key={key}>{kids}</ul>;
     case "orderedList":
       return (
-        <ol key={key} start={typeof n.attrs?.start === "number" ? n.attrs.start : undefined}>
+        <ol
+          key={key}
+          start={typeof n.attrs?.start === "number" ? n.attrs.start : undefined}
+        >
           {kids}
         </ol>
       );
@@ -77,7 +88,11 @@ function renderMarks(n: RichNode, key: number): ReactNode {
         const href = String(m.attrs?.href ?? "");
         if (/^(https?:|mailto:)/i.test(href)) {
           out = (
-            <a href={href} target="_blank" rel="noopener noreferrer nofollow ugc">
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer nofollow ugc"
+            >
               {out}
             </a>
           );

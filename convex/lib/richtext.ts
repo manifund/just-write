@@ -12,10 +12,27 @@ export type RichNode = {
 export const emptyDoc: RichNode = { type: "doc", content: [] };
 
 const NODES = new Set([
-  "doc", "paragraph", "text", "hardBreak", "heading", "blockquote",
-  "bulletList", "orderedList", "listItem", "codeBlock", "horizontalRule", "mention",
+  "doc",
+  "paragraph",
+  "text",
+  "hardBreak",
+  "heading",
+  "blockquote",
+  "bulletList",
+  "orderedList",
+  "listItem",
+  "codeBlock",
+  "horizontalRule",
+  "mention",
 ]);
-const MARKS = new Set(["bold", "italic", "strike", "code", "link", "underline"]);
+const MARKS = new Set([
+  "bold",
+  "italic",
+  "strike",
+  "code",
+  "link",
+  "underline",
+]);
 const MAX_BODY = 40_000;
 
 function isSafeHref(href: unknown) {
@@ -43,7 +60,11 @@ export function cleanBody(raw: string): { body: string; text: string } {
       const marks = (n.marks ?? [])
         .filter((m) => MARKS.has(m.type))
         .filter((m) => m.type !== "link" || isSafeHref(m.attrs?.href))
-        .map((m) => (m.type === "link" ? { type: "link", attrs: { href: m.attrs!.href } } : { type: m.type }));
+        .map((m) =>
+          m.type === "link"
+            ? { type: "link", attrs: { href: m.attrs!.href } }
+            : { type: m.type },
+        );
       if (marks.length) out.marks = marks;
       return out;
     }
@@ -51,12 +72,19 @@ export function cleanBody(raw: string): { body: string; text: string } {
       const level = Number(n.attrs?.level);
       out.attrs = { level: level >= 1 && level <= 3 ? level : 3 };
     }
-    if (n.type === "orderedList" && typeof n.attrs?.start === "number") out.attrs = { start: n.attrs.start };
+    if (n.type === "orderedList" && typeof n.attrs?.start === "number")
+      out.attrs = { start: n.attrs.start };
     if (n.type === "mention") {
-      out.attrs = { id: String(n.attrs?.id ?? ""), label: String(n.attrs?.label ?? "") };
+      out.attrs = {
+        id: String(n.attrs?.id ?? ""),
+        label: String(n.attrs?.label ?? ""),
+      };
       return out;
     }
-    if (n.content) out.content = n.content.map(walk).filter((c): c is RichNode => c !== null);
+    if (n.content)
+      out.content = n.content
+        .map(walk)
+        .filter((c): c is RichNode => c !== null);
     return out;
   };
 
@@ -69,7 +97,9 @@ export function plainText(n: RichNode): string {
   if (n.type === "text") return n.text ?? "";
   if (n.type === "hardBreak") return "\n";
   if (n.type === "mention") return `@${n.attrs?.label ?? ""}`;
-  const inner = (n.content ?? []).map(plainText).join(n.type === "doc" || n.type.endsWith("List") ? "\n" : "");
+  const inner = (n.content ?? [])
+    .map(plainText)
+    .join(n.type === "doc" || n.type.endsWith("List") ? "\n" : "");
   return inner;
 }
 

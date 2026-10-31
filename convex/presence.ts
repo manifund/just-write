@@ -8,10 +8,16 @@ export const presence = new Presence(components.presence);
 
 // Rooms are "portal" (anywhere in the portal) or "channel:<slug>". userId is the member id.
 export const heartbeat = mutation({
-  args: { roomId: v.string(), userId: v.string(), sessionId: v.string(), interval: v.number() },
+  args: {
+    roomId: v.string(),
+    userId: v.string(),
+    sessionId: v.string(),
+    interval: v.number(),
+  },
   handler: async (ctx, { roomId, userId, sessionId, interval }) => {
     const { member } = await requireMember(ctx);
-    if (userId !== member._id) throw new ConvexError("Presence is only for yourself.");
+    if (userId !== member._id)
+      throw new ConvexError("Presence is only for yourself.");
     return await presence.heartbeat(ctx, roomId, userId, sessionId, interval);
   },
 });

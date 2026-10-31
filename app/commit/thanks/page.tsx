@@ -9,7 +9,11 @@ export const metadata: Metadata = {
 };
 
 // The webhook is what marks someone committed; this page only reports what Stripe says.
-async function Status({ searchParams }: { searchParams: PageProps<"/commit/thanks">["searchParams"] }) {
+async function Status({
+  searchParams,
+}: {
+  searchParams: PageProps<"/commit/thanks">["searchParams"];
+}) {
   const { session_id } = await searchParams;
   let paid = false;
   let processing = false;
@@ -30,9 +34,13 @@ async function Status({ searchParams }: { searchParams: PageProps<"/commit/thank
           You’re <em className="wonk text-brass-light">in</em>.
         </h1>
         <p className="text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
-          We got your deposit and Stripe has emailed you a receipt. Come say hi in the member portal.
+          We got your deposit and Stripe has emailed you a receipt. Come say hi
+          in the member portal.
         </p>
-        <Link href="/home" className="self-start bg-cream px-6 py-3 text-[18px] text-ink no-underline">
+        <Link
+          href="/home"
+          className="self-start bg-cream px-6 py-3 text-[18px] text-ink no-underline"
+        >
           Open the member portal →
         </Link>
       </>
@@ -52,15 +60,22 @@ async function Status({ searchParams }: { searchParams: PageProps<"/commit/thank
   );
 }
 
-export default function ThanksPage({ searchParams }: PageProps<"/commit/thanks">) {
+export default function ThanksPage({
+  searchParams,
+}: PageProps<"/commit/thanks">) {
   return (
     <main className="flex min-h-dvh flex-col bg-ink px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)] text-cream">
       <div className="mx-auto flex w-full max-w-[44rem] flex-1 flex-col gap-[clamp(28px,6vh,56px)]">
-        <Link href="/" className="font-display text-[25px] font-medium tracking-[-0.01em] no-underline">
+        <Link
+          href="/"
+          className="font-display text-[25px] font-medium tracking-[-0.01em] no-underline"
+        >
           Just <span className="text-brass-light">Write</span>
         </Link>
         <div className="flex flex-col gap-4">
-          <Suspense fallback={<p className="text-wash-light">Checking your payment…</p>}>
+          <Suspense
+            fallback={<p className="text-wash-light">Checking your payment…</p>}
+          >
             <Status searchParams={searchParams} />
           </Suspense>
         </div>

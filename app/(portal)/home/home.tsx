@@ -13,10 +13,17 @@ import { errorMessage } from "@/lib/convex";
 
 const NUMERALS = ["i.", "ii.", "iii.", "iv."];
 const eyebrow = "text-[13px] tracking-[0.14em] text-brass-text uppercase";
-const h2 = "font-display text-[clamp(26px,3vw,32px)] leading-[1.1] font-[380] tracking-[-0.015em]";
+const h2 =
+  "font-display text-[clamp(26px,3vw,32px)] leading-[1.1] font-[380] tracking-[-0.015em]";
 
 function greeting(now: number) {
-  const h = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "America/Los_Angeles" }).format(now));
+  const h = Number(
+    new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "America/Los_Angeles",
+    }).format(now),
+  );
   if (h < 5) return "Up late";
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
@@ -28,7 +35,8 @@ function until(t: number, now: number) {
   const d = Math.floor(mins / 1440);
   const h = Math.floor((mins % 1440) / 60);
   const m = mins % 60;
-  if (d > 0) return `${d} day${d === 1 ? "" : "s"}, ${h} hr${h === 1 ? "" : "s"}`;
+  if (d > 0)
+    return `${d} day${d === 1 ? "" : "s"}, ${h} hr${h === 1 ? "" : "s"}`;
   if (h > 0) return `${h} hr${h === 1 ? "" : "s"}, ${m} min`;
   return `${m} min`;
 }
@@ -46,19 +54,23 @@ export function Home() {
     <main className="mx-auto flex max-w-[76rem] flex-col gap-[clamp(32px,5vh,56px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
       <header className="flex flex-col gap-3">
         <h1 className="font-display text-[clamp(38px,5.2vw,64px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-          {now ? greeting(now) : "Hello"}, <em className="wonk text-brass-numeral">{firstName}</em>.
+          {now ? greeting(now) : "Hello"},{" "}
+          <em className="wonk text-brass-numeral">{firstName}</em>.
         </h1>
         {now !== null && (
           <p className="text-[clamp(17px,2.2vw,20px)] leading-[1.45] text-pretty text-ink-muted">
             {now < kickoff ? (
               <>
-                Kickoff is <strong className="text-ink">Sunday, Nov 1</strong>, in {until(kickoff, now)}.
+                Kickoff is <strong className="text-ink">Sunday, Nov 1</strong>,
+                in {until(kickoff, now)}.
               </>
             ) : nextIdx >= 0 ? (
               <>
                 Essay {NUMERALS[nextIdx].replace(".", "")} is due{" "}
-                <strong className="text-ink">Mon {["Nov 9", "Nov 16", "Nov 23", "Nov 30"][nextIdx]}, 9pm PT</strong>,{" "}
-                {until(DEADLINES[nextIdx], now)} from now.
+                <strong className="text-ink">
+                  Mon {["Nov 9", "Nov 16", "Nov 23", "Nov 30"][nextIdx]}, 9pm PT
+                </strong>
+                , {until(DEADLINES[nextIdx], now)} from now.
               </>
             ) : (
               <>November is over. The wrap party is Dec 2.</>
@@ -82,7 +94,9 @@ export function Home() {
             </div>
             <Slots mine={mine} now={now} />
             <RegisterEssay />
-            {mine && mine.essays.length > 0 && <MyEssays essays={mine.essays} />}
+            {mine && mine.essays.length > 0 && (
+              <MyEssays essays={mine.essays} />
+            )}
           </section>
           <Board />
         </div>
@@ -102,37 +116,71 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
   const essays = new Map((mine?.essays ?? []).map((e) => [e._id as string, e]));
   return (
     <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {(mine?.slots ?? DEADLINES.map((deadline, i) => ({ week: i + 1, deadline, label: "", essayId: null }))).map((s, i) => {
+      {(
+        mine?.slots ??
+        DEADLINES.map((deadline, i) => ({
+          week: i + 1,
+          deadline,
+          label: "",
+          essayId: null,
+        }))
+      ).map((s, i) => {
         const e = s.essayId ? essays.get(s.essayId) : null;
         const missed = !e && now !== null && now > s.deadline;
-        const current = !e && !missed && now !== null && DEADLINES.findIndex((d) => d > now) === i;
+        const current =
+          !e &&
+          !missed &&
+          now !== null &&
+          DEADLINES.findIndex((d) => d > now) === i;
         return (
           <li
             key={s.week}
             className={`relative flex min-h-[148px] flex-col gap-2 p-4 transition-colors ${
-              e ? "bg-ink text-cream" : current ? "border-2 border-brass bg-cream-deep" : "border border-ink/15 bg-cream-deep/50"
+              e
+                ? "bg-ink text-cream"
+                : current
+                  ? "border-2 border-brass bg-cream-deep"
+                  : "border border-ink/15 bg-cream-deep/50"
             }`}
           >
             <div className="flex items-baseline justify-between">
-              <span className={`wonk font-display text-[30px] leading-none font-semibold ${e ? "text-brass-light" : "text-brass-numeral"}`}>
+              <span
+                className={`wonk font-display text-[30px] leading-none font-semibold ${e ? "text-brass-light" : "text-brass-numeral"}`}
+              >
                 {NUMERALS[i]}
               </span>
               {e && (
-                <span aria-label="done" className="text-[18px] text-brass-light motion-safe:animate-[pop_400ms_ease-out]">
+                <span
+                  aria-label="done"
+                  className="text-[18px] text-brass-light motion-safe:animate-[pop_400ms_ease-out]"
+                >
                   ✓
                 </span>
               )}
             </div>
             {e ? (
-              <a href={e.url} target="_blank" rel="noopener noreferrer" className="line-clamp-3 font-display text-[17px] leading-[1.25] font-[450] no-underline hover:underline">
+              <a
+                href={e.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="line-clamp-3 font-display text-[17px] leading-[1.25] font-[450] no-underline hover:underline"
+              >
                 {e.title}
               </a>
             ) : (
-              <p className={`text-[15px] leading-[1.35] ${missed ? "text-brass-text" : "text-ink-muted"}`}>
-                {missed ? "Missed" : current ? `Due in ${until(s.deadline, now!)}` : null}
+              <p
+                className={`text-[15px] leading-[1.35] ${missed ? "text-brass-text" : "text-ink-muted"}`}
+              >
+                {missed
+                  ? "Missed"
+                  : current
+                    ? `Due in ${until(s.deadline, now!)}`
+                    : null}
               </p>
             )}
-            <p className={`mt-auto text-[13px] tracking-[0.1em] uppercase ${e ? "text-wash-light" : "text-ink-muted"}`}>
+            <p
+              className={`mt-auto text-[13px] tracking-[0.1em] uppercase ${e ? "text-wash-light" : "text-ink-muted"}`}
+            >
               Due {["Nov 9", "Nov 16", "Nov 23", "Nov 30"][i]}
             </p>
           </li>
@@ -191,10 +239,14 @@ function RegisterEssay() {
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-3 bg-cream-deep p-5">
-      <p className="font-display text-[21px] font-[450]">Register a published essay</p>
+      <p className="font-display text-[21px] font-[450]">
+        Register a published essay
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">Link</span>
+          <span className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">
+            Link
+          </span>
           <input
             type="text"
             inputMode="url"
@@ -214,7 +266,10 @@ function RegisterEssay() {
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">
-            Title {checking && <span className="normal-case tracking-normal">· fetching…</span>}
+            Title{" "}
+            {checking && (
+              <span className="normal-case tracking-normal">· fetching…</span>
+            )}
           </span>
           <input
             type="text"
@@ -233,7 +288,8 @@ function RegisterEssay() {
               <>About {words.toLocaleString()} words.</>
             ) : (
               <>
-                About {words.toLocaleString()} words. Essays need 1,000+ (this count is approximate).
+                About {words.toLocaleString()} words. Essays need 1,000+ (this
+                count is approximate).
               </>
             ))}
         </p>
@@ -260,24 +316,46 @@ function MyEssays({ essays }: { essays: Mine["essays"] }) {
   const [confirming, setConfirming] = useState<Id<"essays"> | null>(null);
   return (
     <details className="group text-[16px]">
-      <summary className="cursor-pointer text-ink-muted select-none">All your registered essays ({essays.length})</summary>
+      <summary className="cursor-pointer text-ink-muted select-none">
+        All your registered essays ({essays.length})
+      </summary>
       <ul className="mt-3 flex flex-col divide-y divide-ink/10">
         {essays.map((e) => (
-          <li key={e._id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2">
-            <a href={e.url} target="_blank" rel="noopener noreferrer" className="font-[600]">
+          <li
+            key={e._id}
+            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2"
+          >
+            <a
+              href={e.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-[600]"
+            >
               {e.title}
             </a>
             <span className="text-[14px] text-ink-muted">
               {hostOf(e.url)}
               {e.wordCount ? ` · ~${e.wordCount.toLocaleString()} words` : ""}
-              {e.review === "verified" ? " · verified ✓" : e.review === "rejected" ? " · not counted" : ""}
+              {e.review === "verified"
+                ? " · verified ✓"
+                : e.review === "rejected"
+                  ? " · not counted"
+                  : ""}
             </span>
             {confirming === e._id ? (
               <span className="ml-auto flex gap-3 text-[14px]">
-                <button type="button" className="cursor-pointer text-brass-text underline" onClick={() => remove({ essayId: e._id })}>
+                <button
+                  type="button"
+                  className="cursor-pointer text-brass-text underline"
+                  onClick={() => remove({ essayId: e._id })}
+                >
                   Remove it
                 </button>
-                <button type="button" className="cursor-pointer underline" onClick={() => setConfirming(null)}>
+                <button
+                  type="button"
+                  className="cursor-pointer underline"
+                  onClick={() => setConfirming(null)}
+                >
                   Keep
                 </button>
               </span>
@@ -322,25 +400,35 @@ function SimilarWriters() {
       {data === undefined || thinking ? (
         <ul className="flex flex-col gap-3" aria-busy="true">
           {[0, 1, 2].map((i) => (
-            <li key={i} className="h-[72px] bg-cream-deep/70 motion-safe:animate-pulse" />
+            <li
+              key={i}
+              className="h-[72px] bg-cream-deep/70 motion-safe:animate-pulse"
+            />
           ))}
         </ul>
       ) : data.picks.length === 0 ? (
         <p className="text-[16px] leading-[1.5] text-ink-muted">
-          Add a bio to your <Link href="/settings">profile</Link> and a few ideas to get matched with similar writers.
+          Add a bio to your <Link href="/settings">profile</Link> and a few
+          ideas to get matched with similar writers.
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {data.picks.map((p) => (
             <li key={p.member._id}>
               <Link
-                href={p.member.handle ? `/members/${p.member.handle}` : "/members"}
+                href={
+                  p.member.handle ? `/members/${p.member.handle}` : "/members"
+                }
                 className="flex gap-3 bg-cream-deep p-3.5 no-underline transition-colors hover:bg-[#ecd5d1]"
               >
                 <Avatar member={p.member} size={42} />
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="font-display text-[18px] font-[500]">{p.member.name}</span>
-                  <span className="text-[15px] leading-[1.4] text-pretty text-ink-muted">{p.reason}</span>
+                  <span className="font-display text-[18px] font-[500]">
+                    {p.member.name}
+                  </span>
+                  <span className="text-[15px] leading-[1.4] text-pretty text-ink-muted">
+                    {p.reason}
+                  </span>
                 </span>
               </Link>
             </li>
@@ -364,14 +452,21 @@ function RecentEssays({ now }: { now: number | null }) {
         </Link>
       </div>
       {essays && essays.length === 0 && (
-        <p className="text-[16px] leading-[1.5] text-ink-muted">No essays yet.</p>
+        <p className="text-[16px] leading-[1.5] text-ink-muted">
+          No essays yet.
+        </p>
       )}
       <ul className="flex flex-col divide-y divide-ink/10">
         {essays?.map((e) => (
           <li key={e._id} className="flex gap-3 py-3">
             <Avatar member={e.author} size={32} />
             <div className="flex min-w-0 flex-col gap-0.5">
-              <a href={e.url} target="_blank" rel="noopener noreferrer" className="font-display text-[18px] leading-[1.25] font-[450] no-underline hover:underline">
+              <a
+                href={e.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-display text-[18px] leading-[1.25] font-[450] no-underline hover:underline"
+              >
                 {e.title}
               </a>
               <span className="text-[14px] text-ink-muted">
@@ -390,7 +485,10 @@ function Board() {
   const rows = useQuery(api.essays.board);
   if (!rows || rows.length === 0) return null;
   const sorted = [...rows].sort(
-    (a, b) => b.slots.filter((s) => s.essay).length - a.slots.filter((s) => s.essay).length || a.member.name.localeCompare(b.member.name),
+    (a, b) =>
+      b.slots.filter((s) => s.essay).length -
+        a.slots.filter((s) => s.essay).length ||
+      a.member.name.localeCompare(b.member.name),
   );
   return (
     <section aria-labelledby="board" className="flex flex-col gap-4">
@@ -404,12 +502,17 @@ function Board() {
           <li key={r.member._id} className="flex items-center gap-3 py-1.5">
             <Avatar member={r.member} size={28} />
             <Link
-              href={r.member.handle ? `/members/${r.member.handle}` : "/members"}
+              href={
+                r.member.handle ? `/members/${r.member.handle}` : "/members"
+              }
               className="min-w-0 flex-1 truncate text-[16px] no-underline hover:underline"
             >
               {r.member.name}
             </Link>
-            <span className="flex gap-1" aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays`}>
+            <span
+              className="flex gap-1"
+              aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays`}
+            >
               {r.slots.map((s) =>
                 s.essay ? (
                   <a
@@ -421,7 +524,10 @@ function Board() {
                     className="size-3.5 bg-brass transition-transform hover:scale-125"
                   />
                 ) : (
-                  <span key={s.week} className="size-3.5 border border-ink/25" />
+                  <span
+                    key={s.week}
+                    className="size-3.5 border border-ink/25"
+                  />
                 ),
               )}
             </span>

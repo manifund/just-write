@@ -14,7 +14,12 @@ function resend() {
   return _resend;
 }
 
-type Signed = { email: string; signedName: string; signedAt: number; amountPaidCents: number | null };
+type Signed = {
+  email: string;
+  signedName: string;
+  signedAt: number;
+  amountPaidCents: number | null;
+};
 
 // Emails a committed writer a copy of the terms they signed. Sends at most once per writer:
 // the row is claimed before sending, and released if the send fails so a webhook retry can try again.
@@ -25,7 +30,10 @@ export async function sendSignedTerms(memberId: Id<"members">): Promise<void> {
   }
 
   const secret = serverSecret();
-  const row = await fetchMutation(api.server.claimTermsEmail, { secret, memberId });
+  const row = await fetchMutation(api.server.claimTermsEmail, {
+    secret,
+    memberId,
+  });
   if (!row) return; // already sent, or not committed
 
   const { error } = await resend().emails.send(
@@ -53,7 +61,10 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
 });
 
 function details(row: Signed) {
-  const amount = row.amountPaidCents == null ? "$1,000" : `$${(row.amountPaidCents / 100).toLocaleString("en-US")}`;
+  const amount =
+    row.amountPaidCents == null
+      ? "$1,000"
+      : `$${(row.amountPaidCents / 100).toLocaleString("en-US")}`;
   return [
     ["Signed by", row.signedName],
     ["Email", row.email],
@@ -63,12 +74,20 @@ function details(row: Signed) {
 }
 
 function esc(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function richHtml(rich: Rich) {
   return runs(rich)
-    .map((r) => (typeof r === "string" ? esc(r) : `<a href="${esc(r.href)}" style="color:#38213f">${esc(r.text)}</a>`))
+    .map((r) =>
+      typeof r === "string"
+        ? esc(r)
+        : `<a href="${esc(r.href)}" style="color:#38213f">${esc(r.text)}</a>`,
+    )
     .join("");
 }
 
@@ -81,7 +100,9 @@ function richText(rich: Rich) {
 function renderHtml(row: Signed) {
   const p = "margin:0 0 12px;font-size:16px;line-height:1.55;color:#644f6b";
   const terms = TERMS.map((t, i) => {
-    const parts = [`<h2 style="margin:28px 0 8px;font-size:19px;font-weight:600;color:#38213f">${i + 1}. ${esc(t.title)}</h2>`];
+    const parts = [
+      `<h2 style="margin:28px 0 8px;font-size:19px;font-weight:600;color:#38213f">${i + 1}. ${esc(t.title)}</h2>`,
+    ];
     if (t.intro) parts.push(`<p style="${p}">${richHtml(t.intro)}</p>`);
     if (t.bullets) {
       parts.push(
@@ -90,7 +111,8 @@ function renderHtml(row: Signed) {
           .join("")}</ul>`,
       );
     }
-    for (const o of t.outro ?? []) parts.push(`<p style="${p}">${richHtml(o)}</p>`);
+    for (const o of t.outro ?? [])
+      parts.push(`<p style="${p}">${richHtml(o)}</p>`);
     return parts.join("");
   }).join("");
 
@@ -129,6 +151,11 @@ function renderText(row: Signed) {
     for (const b of t.bullets ?? []) lines.push(`  - ${richText(b)}`);
     for (const o of t.outro ?? []) lines.push(richText(o));
   });
-  lines.push("", "Questions? Just reply to this email. We’re excited to read what you write!", "", "— Austin, Just Write");
+  lines.push(
+    "",
+    "Questions? Just reply to this email. We’re excited to read what you write!",
+    "",
+    "— Austin, Just Write",
+  );
   return lines.join("\n");
 }

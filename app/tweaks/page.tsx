@@ -12,7 +12,9 @@ export const metadata: Metadata = {
   robots: { index: false },
 };
 
-export default async function TweaksPage({ searchParams }: PageProps<"/tweaks">) {
+export default async function TweaksPage({
+  searchParams,
+}: PageProps<"/tweaks">) {
   const initial = parseSelection(await searchParams);
   return (
     <Tweaks initial={initial} fontVars={tweakFontVars}>

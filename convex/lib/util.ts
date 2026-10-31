@@ -6,7 +6,8 @@ export function parseWebsite(raw: string): string | null {
   if (!s) return null;
   try {
     const url = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
-    if (!/^https?:$/.test(url.protocol) || !url.hostname.includes(".")) return null;
+    if (!/^https?:$/.test(url.protocol) || !url.hostname.includes("."))
+      return null;
     return url.toString();
   } catch {
     return null;

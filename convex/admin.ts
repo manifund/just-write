@@ -11,9 +11,15 @@ export const overview = query({
     const members = await ctx.db.query("members").collect();
     const essays = await ctx.db.query("essays").collect();
     return members
-      .sort((a, b) => (b.legacyCreatedAt ?? b._creationTime) - (a.legacyCreatedAt ?? a._creationTime))
+      .sort(
+        (a, b) =>
+          (b.legacyCreatedAt ?? b._creationTime) -
+          (a.legacyCreatedAt ?? a._creationTime),
+      )
       .map((m) => {
-        const mine = essays.filter((e) => e.memberId === m._id).sort((a, b) => a.submittedAt - b.submittedAt);
+        const mine = essays
+          .filter((e) => e.memberId === m._id)
+          .sort((a, b) => a.submittedAt - b.submittedAt);
         return {
           ...m,
           createdAt: m.legacyCreatedAt ?? m._creationTime,
@@ -27,7 +33,11 @@ export const overview = query({
 export const setEssayReview = mutation({
   args: {
     essayId: v.id("essays"),
-    review: v.union(v.literal("pending"), v.literal("verified"), v.literal("rejected")),
+    review: v.union(
+      v.literal("pending"),
+      v.literal("verified"),
+      v.literal("rejected"),
+    ),
   },
   handler: async (ctx, { essayId, review }) => {
     await requireAdmin(ctx);

@@ -1,7 +1,13 @@
 "use client";
 
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ChatMessage } from "@/convex/chat";
@@ -22,7 +28,11 @@ export function Channel({ slug }: { slug: string }) {
 
   if (channel === undefined) return <div className="h-full" aria-busy="true" />;
   if (channel === null) {
-    return <p className="p-10 text-[18px] text-ink-muted">That channel doesn’t exist.</p>;
+    return (
+      <p className="p-10 text-[18px] text-ink-muted">
+        That channel doesn’t exist.
+      </p>
+    );
   }
 
   return (
@@ -34,22 +44,41 @@ export function Channel({ slug }: { slug: string }) {
             <h1 className="font-display text-[24px] leading-tight font-[450]">
               <span className="text-brass-numeral">#</span> {channel.name}
             </h1>
-            <p className="truncate text-[15px] text-ink-muted">{channel.description}</p>
+            <p className="truncate text-[15px] text-ink-muted">
+              {channel.description}
+            </p>
           </div>
           {here.length > 0 && (
-            <div className="ml-auto flex shrink-0 items-center gap-2" title={here.map((m) => m.name).join(", ")}>
+            <div
+              className="ml-auto flex shrink-0 items-center gap-2"
+              title={here.map((m) => m.name).join(", ")}
+            >
               <span className="flex -space-x-2">
                 {here.slice(0, 5).map((m) => (
-                  <Avatar key={m._id} member={m} size={28} className="rounded-full ring-2 ring-cream" />
+                  <Avatar
+                    key={m._id}
+                    member={m}
+                    size={28}
+                    className="rounded-full ring-2 ring-cream"
+                  />
                 ))}
               </span>
-              <span className="hidden text-[14px] text-ink-muted sm:inline">{here.length} here</span>
+              <span className="hidden text-[14px] text-ink-muted sm:inline">
+                {here.length} here
+              </span>
             </div>
           )}
         </header>
         <MessageList key={slug} slug={slug} onOpenThread={setThreadId} />
       </div>
-      {threadId && <Thread key={threadId} slug={slug} parentId={threadId} onClose={() => setThreadId(null)} />}
+      {threadId && (
+        <Thread
+          key={threadId}
+          slug={slug}
+          parentId={threadId}
+          onClose={() => setThreadId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -65,7 +94,13 @@ function useTyping(slug: string, parentId?: Id<"messages">) {
   }, [setTyping, slug, parentId]);
 }
 
-function TypingIndicator({ slug, parentId }: { slug: string; parentId: Id<"messages"> | null }) {
+function TypingIndicator({
+  slug,
+  parentId,
+}: {
+  slug: string;
+  parentId: Id<"messages"> | null;
+}) {
   const rows = useQuery(api.chat.typing, { slug });
   const { roster } = usePortal();
   const now = useNow(1000);
@@ -76,7 +111,10 @@ function TypingIndicator({ slug, parentId }: { slug: string; parentId: Id<"messa
     <p className="h-6 px-1 text-[14px] text-ink-muted" aria-live="polite">
       {names.length > 0 && (
         <>
-          <span className="mr-1.5 inline-flex gap-0.5 align-middle" aria-hidden="true">
+          <span
+            className="mr-1.5 inline-flex gap-0.5 align-middle"
+            aria-hidden="true"
+          >
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
@@ -96,8 +134,18 @@ function TypingIndicator({ slug, parentId }: { slug: string; parentId: Id<"messa
   );
 }
 
-function MessageList({ slug, onOpenThread }: { slug: string; onOpenThread: (id: Id<"messages">) => void }) {
-  const { results, status, loadMore } = usePaginatedQuery(api.chat.messages, { slug }, { initialNumItems: 50 });
+function MessageList({
+  slug,
+  onOpenThread,
+}: {
+  slug: string;
+  onOpenThread: (id: Id<"messages">) => void;
+}) {
+  const { results, status, loadMore } = usePaginatedQuery(
+    api.chat.messages,
+    { slug },
+    { initialNumItems: 50 },
+  );
   const send = useMutation(api.chat.send);
   const markRead = useMutation(api.chat.markRead);
   const onTyping = useTyping(slug);
@@ -124,7 +172,8 @@ function MessageList({ slug, onOpenThread }: { slug: string; onOpenThread: (id: 
   }, [results]);
 
   useEffect(() => {
-    if (newest && document.visibilityState === "visible") void markRead({ slug });
+    if (newest && document.visibilityState === "visible")
+      void markRead({ slug });
   }, [newest, slug, markRead]);
 
   function onScroll() {
@@ -139,12 +188,26 @@ function MessageList({ slug, onOpenThread }: { slug: string; onOpenThread: (id: 
 
   return (
     <>
-      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scroller}
+        onScroll={onScroll}
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
         {/* Anchors a short conversation to the bottom, next to the composer. */}
         <div className="flex min-h-full flex-col justify-end pb-2">
-          {status === "Exhausted" && <ChannelStart slug={slug} empty={messages.length === 0} />}
-          {status === "LoadingMore" && <p className="py-3 text-center text-[14px] text-ink-muted">Loading earlier messages…</p>}
-          <MessageRun messages={messages} now={now} onOpenThread={onOpenThread} />
+          {status === "Exhausted" && (
+            <ChannelStart slug={slug} empty={messages.length === 0} />
+          )}
+          {status === "LoadingMore" && (
+            <p className="py-3 text-center text-[14px] text-ink-muted">
+              Loading earlier messages…
+            </p>
+          )}
+          <MessageRun
+            messages={messages}
+            now={now}
+            onOpenThread={onOpenThread}
+          />
         </div>
       </div>
       <div className="px-[clamp(16px,3vw,32px)] pb-[max(12px,env(safe-area-inset-bottom))]">
@@ -187,9 +250,17 @@ function MessageRun({
 }) {
   return messages.map((m, i) => {
     const prev = messages[i - 1];
-    const newDay = !prev || new Date(prev._creationTime).toDateString() !== new Date(m._creationTime).toDateString();
+    const newDay =
+      !prev ||
+      new Date(prev._creationTime).toDateString() !==
+        new Date(m._creationTime).toDateString();
     const compact =
-      !!prev && !newDay && prev.authorId === m.authorId && !prev.essay && !m.essay && m._creationTime - prev._creationTime < GROUP_MS;
+      !!prev &&
+      !newDay &&
+      prev.authorId === m.authorId &&
+      !prev.essay &&
+      !m.essay &&
+      m._creationTime - prev._creationTime < GROUP_MS;
     return (
       <div key={m._id}>
         {newDay && now !== null && (
@@ -199,7 +270,13 @@ function MessageRun({
             <span className="h-px flex-1 bg-ink/12" />
           </div>
         )}
-        <Message m={m} compact={compact} now={now} onOpenThread={onOpenThread} inThread={inThread} />
+        <Message
+          m={m}
+          compact={compact}
+          now={now}
+          onOpenThread={onOpenThread}
+          inThread={inThread}
+        />
       </div>
     );
   });
@@ -223,13 +300,23 @@ function ChannelStart({ slug, empty }: { slug: string; empty: boolean }) {
         <em className="wonk">{slug}</em>
       </p>
       <p className="text-[17px] text-ink-muted">
-        {empty ? STARTERS[slug] ?? "This is the very beginning." : "This is the very beginning of the channel."}
+        {empty
+          ? (STARTERS[slug] ?? "This is the very beginning.")
+          : "This is the very beginning of the channel."}
       </p>
     </div>
   );
 }
 
-function Thread({ slug, parentId, onClose }: { slug: string; parentId: Id<"messages">; onClose: () => void }) {
+function Thread({
+  slug,
+  parentId,
+  onClose,
+}: {
+  slug: string;
+  parentId: Id<"messages">;
+  onClose: () => void;
+}) {
   const data = useQuery(api.chat.thread, { parentId });
   const send = useMutation(api.chat.send);
   const onTyping = useTyping(slug, parentId);
@@ -242,7 +329,8 @@ function Thread({ slug, parentId, onClose }: { slug: string; parentId: Id<"messa
   }, [count]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && onClose();
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && !e.defaultPrevented && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -254,19 +342,30 @@ function Thread({ slug, parentId, onClose }: { slug: string; parentId: Id<"messa
     >
       <header className="flex items-center justify-between border-b border-ink/10 px-5 py-3.5">
         <h2 className="font-display text-[22px] font-[450]">
-          Thread <span className="text-[15px] font-normal text-ink-muted">in #{slug}</span>
+          Thread{" "}
+          <span className="text-[15px] font-normal text-ink-muted">
+            in #{slug}
+          </span>
         </h2>
-        <button type="button" onClick={onClose} aria-label="Close thread" className="-m-2 cursor-pointer p-2 text-[22px] leading-none text-ink-muted hover:text-ink">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close thread"
+          className="-m-2 cursor-pointer p-2 text-[22px] leading-none text-ink-muted hover:text-ink"
+        >
           ×
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto pb-3">
-        {data === null && <p className="p-5 text-ink-muted">This message was deleted.</p>}
+        {data === null && (
+          <p className="p-5 text-ink-muted">This message was deleted.</p>
+        )}
         {data && (
           <>
             <Message m={data.parent} compact={false} now={now} inThread />
             <div className="flex items-center gap-3 px-8 py-2 text-[13px] text-ink-muted">
-              {count} {count === 1 ? "reply" : "replies"} <span className="h-px flex-1 bg-ink/12" />
+              {count} {count === 1 ? "reply" : "replies"}{" "}
+              <span className="h-px flex-1 bg-ink/12" />
             </div>
             <MessageRun messages={data.replies} now={now} inThread />
           </>
@@ -276,7 +375,13 @@ function Thread({ slug, parentId, onClose }: { slug: string; parentId: Id<"messa
       {data && (
         <div className="px-4 pb-[max(12px,env(safe-area-inset-bottom))]">
           <TypingIndicator slug={slug} parentId={parentId} />
-          <Composer compact autoFocus placeholder="Reply…" onTyping={onTyping} onSend={async (body) => void (await send({ slug, body, parentId }))} />
+          <Composer
+            compact
+            autoFocus
+            placeholder="Reply…"
+            onTyping={onTyping}
+            onSend={async (body) => void (await send({ slug, body, parentId }))}
+          />
         </div>
       )}
     </aside>

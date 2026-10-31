@@ -13,8 +13,7 @@ const RULES = [
   {
     numeral: "2.",
     title: "Publish 1000 words each week",
-    detail:
-      "Work on timeless, ambitious essays.",
+    detail: "Work on timeless, ambitious essays.",
   },
   {
     numeral: "3.",
@@ -24,8 +23,7 @@ const RULES = [
   {
     numeral: "4.",
     title: "Write alongside friends",
-    detail:
-      "Get feedback & chat online; optional IRL meetups in SF",
+    detail: "Get feedback & chat online; optional IRL meetups in SF",
   },
 ];
 
@@ -43,9 +41,9 @@ export function Landing() {
           </nav>
         </div>
         <div className="relative flex flex-col gap-[clamp(14px,2.4vh,22px)]">
-
           <h1 className="max-w-[8.5em] font-display text-[clamp(min(44px,calc((100vw_-_48px)/9)),min(5.4vw,7.6vh),80px)] leading-none font-[340] tracking-[-0.025em] text-balance">
-            <span className="whitespace-nowrap">Write 4 great essays</span> <br /> over 4 weeks.
+            <span className="whitespace-nowrap">Write 4 great essays</span>{" "}
+            <br /> over 4 weeks.
           </h1>
           <p className="max-w-[28em] text-[clamp(18px,2.6vh,20px)] leading-[1.45] text-pretty text-wash-light">
             An online writing club with a commitment to publish.
@@ -56,15 +54,28 @@ export function Landing() {
       </section>
 
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">
-        <ol aria-label="How it works" className="flex flex-col gap-[clamp(8px,1.8vh,20px)]">
+        <ol
+          aria-label="How it works"
+          className="flex flex-col gap-[clamp(8px,1.8vh,20px)]"
+        >
           {RULES.map((r, i) => (
-            <li key={r.numeral} className="grid grid-cols-[34px_minmax(0,1fr)] items-baseline gap-3 md:grid-cols-[52px_minmax(0,1fr)]">
-              <span aria-hidden="true" className="wonk font-display text-[clamp(26px,4.4vh,32px)] font-semibold text-brass-numeral">
+            <li
+              key={r.numeral}
+              className="grid grid-cols-[34px_minmax(0,1fr)] items-baseline gap-3 md:grid-cols-[52px_minmax(0,1fr)]"
+            >
+              <span
+                aria-hidden="true"
+                className="wonk font-display text-[clamp(26px,4.4vh,32px)] font-semibold text-brass-numeral"
+              >
                 {r.numeral}
               </span>
               <div className="flex flex-col gap-0.5">
-                <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450] text-pretty">{r.title}</h3>
-                <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-pretty text-ink-muted">{r.detail}</p>
+                <h3 className="font-display text-[clamp(19px,3.1vh,22px)] font-[450] text-pretty">
+                  {r.title}
+                </h3>
+                <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.4] text-pretty text-ink-muted">
+                  {r.detail}
+                </p>
                 {i === RULES.length - 1 && (
                   <div className="mt-[clamp(6px,1.2vh,12px)]">
                     <Suspense fallback={null}>
@@ -84,7 +95,10 @@ export function Landing() {
         <footer className="flex flex-wrap justify-between gap-x-6 gap-y-2 text-[15px] text-ink-muted">
           <span>
             Inspired by <a href="https://www.inkhaven.blog/">Inkhaven</a> and{" "}
-            <a href="https://en.wikipedia.org/wiki/National_Novel_Writing_Month">NaNoWriMo</a>.
+            <a href="https://en.wikipedia.org/wiki/National_Novel_Writing_Month">
+              NaNoWriMo
+            </a>
+            .
           </span>
           <span>
             By Austin, of <a href="https://manifund.org">Manifund</a>.

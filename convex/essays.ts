@@ -13,7 +13,10 @@ export const preview = action({
     if (!url) return { url: null, title: null, wordCount: null };
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)" },
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)",
+        },
         redirect: "follow",
         signal: AbortSignal.timeout(8000),
       });
@@ -39,17 +42,28 @@ function decode(s: string) {
 }
 
 function extractTitle(html: string) {
-  const og = html.match(/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
-    ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+  const og =
+    html.match(
+      /<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']+)["']/i,
+    ) ??
+    html.match(
+      /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:title["']/i,
+    );
   const t = og?.[1] ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1];
   return t ? decode(t).slice(0, 200) || null : null;
 }
 
 // Rough word count of the main text: prefers <article>, ignores scripts, styles, and nav chrome.
 function countWords(html: string) {
-  const body = html.match(/<article[\s\S]*?<\/article>/i)?.[0] ?? html.match(/<body[\s\S]*<\/body>/i)?.[0] ?? html;
+  const body =
+    html.match(/<article[\s\S]*?<\/article>/i)?.[0] ??
+    html.match(/<body[\s\S]*<\/body>/i)?.[0] ??
+    html;
   const text = body
-    .replace(/<(script|style|noscript|svg|nav|header|footer|form)[\s\S]*?<\/\1>/gi, " ")
+    .replace(
+      /<(script|style|noscript|svg|nav|header|footer|form)[\s\S]*?<\/\1>/gi,
+      " ",
+    )
     .replace(/<[^>]+>/g, " ");
   const words = decode(text).match(/[\p{L}\p{N}][\p{L}\p{N}'’-]*/gu);
   const n = words?.length ?? 0;
@@ -57,7 +71,11 @@ function countWords(html: string) {
 }
 
 export const submit = mutation({
-  args: { url: v.string(), title: v.string(), wordCount: v.union(v.number(), v.null()) },
+  args: {
+    url: v.string(),
+    title: v.string(),
+    wordCount: v.union(v.number(), v.null()),
+  },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
     const url = parseWebsite(args.url);
@@ -103,7 +121,8 @@ export const remove = mutation({
   handler: async (ctx, { essayId }) => {
     const { member } = await requireMember(ctx);
     const essay = await ctx.db.get(essayId);
-    if (!essay || essay.memberId !== member._id) throw new ConvexError("Not your essay.");
+    if (!essay || essay.memberId !== member._id)
+      throw new ConvexError("Not your essay.");
     await ctx.db.delete(essayId);
     // Remove the #published announcement (and its replies and reactions) too.
     const channel = await ctx.db
@@ -113,13 +132,21 @@ export const remove = mutation({
     if (!channel) return;
     const posts = await ctx.db
       .query("messages")
-      .withIndex("by_channel_parent", (q) => q.eq("channelId", channel._id).eq("parentId", undefined))
+      .withIndex("by_channel_parent", (q) =>
+        q.eq("channelId", channel._id).eq("parentId", undefined),
+      )
       .filter((q) => q.eq(q.field("essayId"), essayId))
       .collect();
     for (const p of posts) {
-      const replies = await ctx.db.query("messages").withIndex("by_parent", (q) => q.eq("parentId", p._id)).collect();
+      const replies = await ctx.db
+        .query("messages")
+        .withIndex("by_parent", (q) => q.eq("parentId", p._id))
+        .collect();
       for (const m of [p, ...replies]) {
-        const reacts = await ctx.db.query("reactions").withIndex("by_message", (q) => q.eq("messageId", m._id)).collect();
+        const reacts = await ctx.db
+          .query("reactions")
+          .withIndex("by_message", (q) => q.eq("messageId", m._id))
+          .collect();
         for (const r of reacts) await ctx.db.delete(r._id);
         await ctx.db.delete(m._id);
       }
@@ -162,7 +189,10 @@ export const board = query({
           member: publicMember(m),
           slots: fillSlots(essays).map((s) => {
             const e = s.essayId ? byId.get(s.essayId) : undefined;
-            return { week: s.week, essay: e ? { title: e.title, url: e.url } : null };
+            return {
+              week: s.week,
+              essay: e ? { title: e.title, url: e.url } : null,
+            };
           }),
         };
       }),
@@ -174,7 +204,10 @@ export const board = query({
 export const recent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const rows = await ctx.db.query("essays").order("desc").take(Math.min(limit ?? 12, 50));
+    const rows = await ctx.db
+      .query("essays")
+      .order("desc")
+      .take(Math.min(limit ?? 12, 50));
     const out = await Promise.all(
       rows
         .filter((e) => e.review !== "rejected")

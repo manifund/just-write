@@ -31,7 +31,10 @@ export function Settings() {
             Your <em className="wonk text-brass-numeral">profile</em>
           </h1>
           {me.handle && (
-            <Link href={`/members/${me.handle}`} className="text-[16px] text-ink-muted">
+            <Link
+              href={`/members/${me.handle}`}
+              className="text-[16px] text-ink-muted"
+            >
               justwrite.club/members/{me.handle}
             </Link>
           )}
@@ -57,7 +60,13 @@ export function Settings() {
         <div className="grid gap-5 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5">
             <span className={label}>Name</span>
-            <input required value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" className={input} />
+            <input
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              className={input}
+            />
           </label>
           <label className="flex flex-col gap-1.5">
             <span className={label}>Handle</span>
@@ -94,7 +103,8 @@ export function Settings() {
             className={`${input} resize-y leading-[1.45]`}
           />
           <span className="text-[14px] text-ink-muted">
-            Shown on your public profile. It also helps us match you with similar writers.
+            Shown on your public profile. It also helps us match you with
+            similar writers.
           </span>
         </label>
         <div className="flex items-center gap-4">
@@ -106,7 +116,10 @@ export function Settings() {
             {state === "saving" ? "Saving…" : "Save profile"}
           </button>
           {state === "saved" && (
-            <span role="status" className="text-[16px] text-ink-muted motion-safe:animate-[rise_220ms_ease-out]">
+            <span
+              role="status"
+              className="text-[16px] text-ink-muted motion-safe:animate-[rise_220ms_ease-out]"
+            >
               Saved ✓
             </span>
           )}

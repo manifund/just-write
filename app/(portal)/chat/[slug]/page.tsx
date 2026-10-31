@@ -17,7 +17,11 @@ export default function ChatPage({ params }: PageProps<"/chat/[slug]">) {
   );
 }
 
-async function ChannelFromParams({ params }: { params: PageProps<"/chat/[slug]">["params"] }) {
+async function ChannelFromParams({
+  params,
+}: {
+  params: PageProps<"/chat/[slug]">["params"];
+}) {
   const { slug } = await params;
   return <Channel slug={slug} />;
 }

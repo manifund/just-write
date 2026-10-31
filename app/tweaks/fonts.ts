@@ -40,6 +40,13 @@ const garamond = EB_Garamond({
   style: ["normal", "italic"],
 });
 
-export const tweakFontVars = [cormorant, instrument, schibsted, garamond, newsreader, literata]
+export const tweakFontVars = [
+  cormorant,
+  instrument,
+  schibsted,
+  garamond,
+  newsreader,
+  literata,
+]
   .map((f) => f.variable)
   .join(" ");

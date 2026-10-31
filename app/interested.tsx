@@ -2,7 +2,12 @@ import { fetchQuery } from "convex/nextjs";
 import { cacheLife, cacheTag } from "next/cache";
 import { api } from "@/convex/_generated/api";
 
-type Person = { _id: string; name: string; link: string | null; committed: boolean };
+type Person = {
+  _id: string;
+  name: string;
+  link: string | null;
+  committed: boolean;
+};
 
 async function getPeople(): Promise<Person[]> {
   "use cache";
@@ -25,11 +30,18 @@ function Row({ label, people }: { label: string; people: Person[] }) {
   if (people.length === 0) return null;
   return (
     <p className="text-[clamp(15px,2.4vh,17px)] leading-[1.5] text-pretty text-ink-muted">
-      <span className="mr-2 text-[13px] tracking-[0.12em] uppercase">{label}:</span>
+      <span className="mr-2 text-[13px] tracking-[0.12em] uppercase">
+        {label}:
+      </span>
       {people.map((p, i) => (
         <span key={p._id}>
           {p.link ? (
-            <a href={p.link} target="_blank" rel="noopener noreferrer nofollow ugc" className="text-ink">
+            <a
+              href={p.link}
+              target="_blank"
+              rel="noopener noreferrer nofollow ugc"
+              className="text-ink"
+            >
               {firstName(p.name)}
             </a>
           ) : (

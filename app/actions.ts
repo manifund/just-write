@@ -10,7 +10,10 @@ export type InterestState =
   | { status: "ok"; name: string }
   | { status: "error"; message: string };
 
-export async function submitInterest(_prev: InterestState, formData: FormData): Promise<InterestState> {
+export async function submitInterest(
+  _prev: InterestState,
+  formData: FormData,
+): Promise<InterestState> {
   try {
     const { name } = await fetchMutation(api.members.expressInterest, {
       name: String(formData.get("name") ?? ""),

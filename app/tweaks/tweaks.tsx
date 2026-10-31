@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { normalizeHex } from "./derive";
 import {
   BODY_FONTS,
@@ -53,7 +59,13 @@ export function Tweaks({
     const t = setTimeout(() => {
       const url = new URL(window.location.href);
       const custom = sel.palette === CUSTOM_PALETTE;
-      for (const key of ["display", "body", "palette", "ink", "accent"] as const) {
+      for (const key of [
+        "display",
+        "body",
+        "palette",
+        "ink",
+        "accent",
+      ] as const) {
         // A preset brings its own colors, so the custom picks only matter for custom.
         const skip = (key === "ink" || key === "accent") && !custom;
         if (skip || sel[key] === DEFAULTS[key]) url.searchParams.delete(key);
@@ -64,15 +76,23 @@ export function Tweaks({
     return () => clearTimeout(t);
   }, [sel]);
 
-  const set = (key: "display" | "body") => (id: string) => setSel((s) => ({ ...s, [key]: id }));
+  const set = (key: "display" | "body") => (id: string) =>
+    setSel((s) => ({ ...s, [key]: id }));
   const pickPreset = (id: string) => {
     const preset = byId(PALETTES, id);
-    setSel((s) => ({ ...s, palette: id, ink: preset.colors.ink, accent: preset.colors.brass }));
+    setSel((s) => ({
+      ...s,
+      palette: id,
+      ink: preset.colors.ink,
+      accent: preset.colors.brass,
+    }));
   };
   const pickColor = (key: "ink" | "accent") => (hex: string) =>
     setSel((s) => ({ ...s, palette: CUSTOM_PALETTE, [key]: hex }));
   const palette = resolvePalette(sel);
-  const isDefault = (Object.keys(DEFAULTS) as (keyof Selection)[]).every((k) => sel[k] === DEFAULTS[k]);
+  const isDefault = (Object.keys(DEFAULTS) as (keyof Selection)[]).every(
+    (k) => sel[k] === DEFAULTS[k],
+  );
 
   return (
     <div
@@ -97,8 +117,19 @@ export function Tweaks({
                 Reset
               </HeaderButton>
               <CopyLink />
-              <HeaderButton onClick={() => setOpen(false)} aria-label="Hide tweaks">
-                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <HeaderButton
+                onClick={() => setOpen(false)}
+                aria-label="Hide tweaks"
+              >
+                <svg
+                  aria-hidden="true"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
                   <path d="M2 6h8" />
                 </svg>
               </HeaderButton>
@@ -183,7 +214,9 @@ const tile =
 function Group({ legend, children }: { legend: string; children: ReactNode }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 text-[12px] font-medium text-[#1d1d1f]/60">{legend}</legend>
+      <legend className="mb-2 text-[12px] font-medium text-[#1d1d1f]/60">
+        {legend}
+      </legend>
       <div className="grid grid-cols-2 gap-2">{children}</div>
     </fieldset>
   );
@@ -216,18 +249,29 @@ function FontGroup({
           <span
             aria-hidden="true"
             className="text-[30px] leading-none text-[#1d1d1f]"
-            style={{ fontFamily: `var(${o.cssVar})`, fontSizeAdjust: o.sizeAdjust }}
+            style={{
+              fontFamily: `var(${o.cssVar})`,
+              fontSizeAdjust: o.sizeAdjust,
+            }}
           >
             Aa<em className="italic">g</em>
           </span>
-          <span className="truncate text-[12px] text-[#1d1d1f]/75">{o.name}</span>
+          <span className="truncate text-[12px] text-[#1d1d1f]/75">
+            {o.name}
+          </span>
         </label>
       ))}
     </Group>
   );
 }
 
-function PaletteGroup({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+function PaletteGroup({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
   const name = useId();
   return (
     <Group legend="Colors">
@@ -242,7 +286,9 @@ function PaletteGroup({ value, onChange }: { value: string; onChange: (id: strin
             className="sr-only"
           />
           <Swatch palette={p} />
-          <span className="truncate text-[12px] text-[#1d1d1f]/75">{p.name}</span>
+          <span className="truncate text-[12px] text-[#1d1d1f]/75">
+            {p.name}
+          </span>
         </label>
       ))}
     </Group>
@@ -250,7 +296,13 @@ function PaletteGroup({ value, onChange }: { value: string; onChange: (id: strin
 }
 
 /** A miniature of the page: ink panel with its accent, beside the paper side. */
-function Swatch({ palette, size = "md" }: { palette: PaletteOption; size?: "sm" | "md" }) {
+function Swatch({
+  palette,
+  size = "md",
+}: {
+  palette: PaletteOption;
+  size?: "sm" | "md";
+}) {
   const c = palette.colors;
   const sm = size === "sm";
   return (
@@ -259,10 +311,21 @@ function Swatch({ palette, size = "md" }: { palette: PaletteOption; size?: "sm" 
       className={`flex overflow-hidden rounded-[4px] ring-1 ring-black/10 ${sm ? "h-5 w-8" : "h-[30px] w-full"}`}
     >
       <span className="flex flex-1 items-end p-1" style={{ background: c.ink }}>
-        <span className={`rounded-full ${sm ? "size-1.5" : "h-1 w-1/2"}`} style={{ background: c["brass-light"] }} />
+        <span
+          className={`rounded-full ${sm ? "size-1.5" : "h-1 w-1/2"}`}
+          style={{ background: c["brass-light"] }}
+        />
       </span>
-      <span className="flex flex-1 items-end p-1" style={{ background: c.cream }}>
-        {!sm && <span className="h-1 w-2/3 rounded-full" style={{ background: c["ink-muted"] }} />}
+      <span
+        className="flex flex-1 items-end p-1"
+        style={{ background: c.cream }}
+      >
+        {!sm && (
+          <span
+            className="h-1 w-2/3 rounded-full"
+            style={{ background: c["ink-muted"] }}
+          />
+        )}
       </span>
     </span>
   );
@@ -290,12 +353,17 @@ function CustomColors({
   return (
     <fieldset
       className={`-mt-2 flex flex-col gap-2.5 rounded-lg border bg-white p-2.5 transition-[border-color,box-shadow] duration-150 ${
-        active ? "border-[#1d1d1f] shadow-[inset_0_0_0_1px_#1d1d1f]" : "border-black/10"
+        active
+          ? "border-[#1d1d1f] shadow-[inset_0_0_0_1px_#1d1d1f]"
+          : "border-black/10"
       }`}
     >
       <legend className="sr-only">Custom colors</legend>
       <div className="flex items-baseline justify-between">
-        <span aria-hidden="true" className="text-[12px] font-medium text-[#1d1d1f]/75">
+        <span
+          aria-hidden="true"
+          className="text-[12px] font-medium text-[#1d1d1f]/75"
+        >
           Custom
         </span>
         <span className="text-[11px] text-[#1d1d1f]/45">
@@ -331,7 +399,10 @@ function ColorField({
         {label}
       </label>
       <div className="flex h-8 items-center gap-1.5 rounded-md border border-black/10 bg-[#fbfbfa] pr-1.5 pl-1 has-focus-visible:outline-2 has-focus-visible:outline-offset-1 has-focus-visible:outline-[#1d1d1f]">
-        <span className="relative size-6 shrink-0 overflow-hidden rounded-[4px] ring-1 ring-black/15 ring-inset" style={{ background: value }}>
+        <span
+          className="relative size-6 shrink-0 overflow-hidden rounded-[4px] ring-1 ring-black/15 ring-inset"
+          style={{ background: value }}
+        >
           <input
             type="color"
             aria-label={`${label} color`}
@@ -389,9 +460,18 @@ function Ramp({ colors, dimmed }: { colors: Palette; dimmed: boolean }) {
       className={`flex gap-1 transition-opacity duration-150 ${dimmed ? "opacity-50" : ""}`}
     >
       {RAMP.map((group, i) => (
-        <span key={i} className="flex overflow-hidden rounded-[3px] ring-1 ring-black/10" style={{ flex: group.length }}>
+        <span
+          key={i}
+          className="flex overflow-hidden rounded-[3px] ring-1 ring-black/10"
+          style={{ flex: group.length }}
+        >
           {group.map((r) => (
-            <span key={r.key} title={`${r.role} ${colors[r.key]}`} className="h-3.5 flex-1" style={{ background: colors[r.key] }} />
+            <span
+              key={r.key}
+              title={`${r.role} ${colors[r.key]}`}
+              className="h-3.5 flex-1"
+              style={{ background: colors[r.key] }}
+            />
           ))}
         </span>
       ))}

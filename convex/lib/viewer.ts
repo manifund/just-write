@@ -49,7 +49,8 @@ export async function requireAdmin(ctx: Ctx) {
 // Checks the shared secret that Next.js server code passes to server-only functions.
 export function checkServerSecret(secret: string) {
   const expected = process.env.CONVEX_SERVER_SECRET;
-  if (!expected || secret !== expected) throw new ConvexError("Bad server secret.");
+  if (!expected || secret !== expected)
+    throw new ConvexError("Bad server secret.");
 }
 
 // Public-safe fields of a member, for directories, chat authors, etc.

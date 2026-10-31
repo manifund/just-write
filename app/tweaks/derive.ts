@@ -7,8 +7,10 @@ import type { Palette } from "./options";
 
 type Oklch = { l: number; c: number; h: number };
 
-const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-const fromLinear = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+const toLinear = (c: number) =>
+  c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+const fromLinear = (c: number) =>
+  c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
 
 export const HEX_RE = /^#?([0-9a-f]{6})$/i;
 
@@ -29,7 +31,11 @@ function hexToOklch(hex: string): Oklch {
   const L = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_;
   const A = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_;
   const B = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_;
-  return { l: L, c: Math.hypot(A, B), h: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360 };
+  return {
+    l: L,
+    c: Math.hypot(A, B),
+    h: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360,
+  };
 }
 
 function oklchToRgb({ l, c, h }: Oklch): [number, number, number] {
@@ -45,7 +51,8 @@ function oklchToRgb({ l, c, h }: Oklch): [number, number, number] {
   ];
 }
 
-const inGamut = (rgb: number[]) => rgb.every((v) => v >= -1e-4 && v <= 1 + 1e-4);
+const inGamut = (rgb: number[]) =>
+  rgb.every((v) => v >= -1e-4 && v <= 1 + 1e-4);
 
 /** Converts to hex, lowering chroma (not lightness) until it fits in sRGB. */
 function toHex(color: Oklch): string {
@@ -63,12 +70,17 @@ function toHex(color: Oklch): string {
   return (
     "#" +
     oklchToRgb({ ...color, c })
-      .map((v) => Math.round(Math.min(1, Math.max(0, fromLinear(v))) * 255).toString(16).padStart(2, "0"))
+      .map((v) =>
+        Math.round(Math.min(1, Math.max(0, fromLinear(v))) * 255)
+          .toString(16)
+          .padStart(2, "0"),
+      )
       .join("")
   );
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
 
 export function derivePalette(baseHex: string, accentHex: string): Palette {
   const base = hexToOklch(baseHex);

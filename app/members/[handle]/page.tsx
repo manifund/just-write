@@ -17,13 +17,17 @@ async function getProfile(handle: string) {
   }
 }
 
-export async function generateMetadata({ params }: PageProps<"/members/[handle]">): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: PageProps<"/members/[handle]">): Promise<Metadata> {
   const { handle } = await params;
   const data = await getProfile(handle);
   if (!data) return { title: "Member · Just Write" };
   return {
     title: `${data.member.name} · Just Write`,
-    description: data.member.bio ?? `${data.member.name} is writing 4 essays in November with Just Write.`,
+    description:
+      data.member.bio ??
+      `${data.member.name} is writing 4 essays in November with Just Write.`,
   };
 }
 
@@ -35,7 +39,11 @@ export default function MemberPage({ params }: PageProps<"/members/[handle]">) {
   );
 }
 
-async function ProfileFromParams({ params }: { params: PageProps<"/members/[handle]">["params"] }) {
+async function ProfileFromParams({
+  params,
+}: {
+  params: PageProps<"/members/[handle]">["params"];
+}) {
   const { handle } = await params;
   const data = await getProfile(handle);
   if (!data) notFound();

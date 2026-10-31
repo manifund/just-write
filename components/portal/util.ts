@@ -15,8 +15,14 @@ export function useNow(ms = 30_000) {
 }
 
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-const dayFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
-const timeFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+const dayFmt = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+});
+const timeFmt = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 export function timeAgo(t: number, now: number) {
   const s = Math.round((t - now) / 1000);
@@ -40,7 +46,11 @@ export function dayLabel(t: number, now: number) {
   const yesterday = new Date(now - 86_400_000);
   if (d.toDateString() === today.toDateString()) return "Today";
   if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(d);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(d);
 }
 
 export function hostOf(url: string) {
@@ -53,7 +63,8 @@ export function hostOf(url: string) {
 
 // A little burst of confetti from an element, in the site's colors. Skipped for reduced motion.
 export function confetti(from: Element | null) {
-  if (!from || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!from || window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    return;
   const r = from.getBoundingClientRect();
   const colors = ["#f66e5e", "#ff8878", "#ab90b3", "#38213f", "#e7a46a"];
   for (let i = 0; i < 36; i++) {
@@ -86,7 +97,10 @@ export function confetti(from: Element | null) {
           opacity: 0,
         },
       ],
-      { duration: 1100 + Math.random() * 500, easing: "cubic-bezier(.2,.7,.3,1)" },
+      {
+        duration: 1100 + Math.random() * 500,
+        easing: "cubic-bezier(.2,.7,.3,1)",
+      },
     ).onfinish = () => el.remove();
   }
 }

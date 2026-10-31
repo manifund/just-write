@@ -1,7 +1,13 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, mutation, query, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  type QueryCtx,
+} from "./_generated/server";
 import { publicMember, requireMember } from "./lib/viewer";
 
 const TTL = 24 * 60 * 60 * 1000;
@@ -14,15 +20,27 @@ async function profiles(ctx: QueryCtx) {
     .collect();
   return await Promise.all(
     members.map(async (m) => {
-      const essays = await ctx.db.query("essays").withIndex("by_member", (q) => q.eq("memberId", m._id)).collect();
-      const ideas = await ctx.db.query("ideas").withIndex("by_member", (q) => q.eq("memberId", m._id)).collect();
+      const essays = await ctx.db
+        .query("essays")
+        .withIndex("by_member", (q) => q.eq("memberId", m._id))
+        .collect();
+      const ideas = await ctx.db
+        .query("ideas")
+        .withIndex("by_member", (q) => q.eq("memberId", m._id))
+        .collect();
       return {
         id: m._id,
         name: m.name,
         website: m.link ?? "",
         bio: m.bio ?? "",
-        essays: essays.filter((e) => e.review !== "rejected").map((e) => e.title),
-        ideas: ideas.filter((i) => i.shared).map((i) => (i.notes ? `${i.title}: ${i.notes.slice(0, 200)}` : i.title)),
+        essays: essays
+          .filter((e) => e.review !== "rejected")
+          .map((e) => e.title),
+        ideas: ideas
+          .filter((i) => i.shared)
+          .map((i) =>
+            i.notes ? `${i.title}: ${i.notes.slice(0, 200)}` : i.title,
+          ),
       };
     }),
   );
@@ -57,7 +75,10 @@ export const forViewer = query({
           )
         ).filter((p) => p !== null)
       : [];
-    const stale = !row || Date.now() - row.computedAt > TTL || row.inputHash !== (await currentHash(ctx));
+    const stale =
+      !row ||
+      Date.now() - row.computedAt > TTL ||
+      row.inputHash !== (await currentHash(ctx));
     return { picks, stale, computedAt: row?.computedAt ?? null };
   },
 });
@@ -74,7 +95,9 @@ export const request = mutation({
     if (row && Date.now() - row.computedAt < 2 * 60 * 1000) return;
     // Bump computedAt first so concurrent requests don't schedule twice.
     if (row) await ctx.db.patch(row._id, { computedAt: Date.now() });
-    await ctx.scheduler.runAfter(0, internal.similarAction.compute, { memberId: member._id });
+    await ctx.scheduler.runAfter(0, internal.similarAction.compute, {
+      memberId: member._id,
+    });
   },
 });
 
@@ -82,7 +105,11 @@ export const inputs = internalQuery({
   args: { memberId: v.id("members") },
   handler: async (ctx, { memberId }) => {
     const all = await profiles(ctx);
-    return { self: all.find((p) => p.id === memberId) ?? null, others: all.filter((p) => p.id !== memberId), hash: hash(JSON.stringify(all)) };
+    return {
+      self: all.find((p) => p.id === memberId) ?? null,
+      others: all.filter((p) => p.id !== memberId),
+      hash: hash(JSON.stringify(all)),
+    };
   },
 });
 

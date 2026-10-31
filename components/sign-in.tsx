@@ -7,19 +7,33 @@ const input =
   "min-h-[46px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-3 font-body text-[19px] text-inherit";
 
 // Google sign-in plus an emailed magic link, returning to `next` afterward.
-export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "light" | "deep" }) {
+export function SignInPanel({
+  next,
+  tone = "light",
+}: {
+  next: string;
+  tone?: "light" | "deep";
+}) {
   const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle",
+  );
   const [error, setError] = useState<string | null>(null);
   const [googlePending, setGooglePending] = useState(false);
 
   async function google() {
     setGooglePending(true);
     setError(null);
-    const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next });
+    const { error } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: next,
+    });
     if (error) {
       setGooglePending(false);
-      setError(error.message ?? "Google sign-in isn’t available right now. Try an email link instead.");
+      setError(
+        error.message ??
+          "Google sign-in isn’t available right now. Try an email link instead.",
+      );
     }
   }
 
@@ -27,7 +41,10 @@ export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "li
     e.preventDefault();
     setState("sending");
     setError(null);
-    const { error } = await authClient.signIn.magicLink({ email: email.trim(), callbackURL: next });
+    const { error } = await authClient.signIn.magicLink({
+      email: email.trim(),
+      callbackURL: next,
+    });
     if (error) {
       setState("error");
       setError(error.message ?? "Couldn’t send that link. Please try again.");
@@ -35,7 +52,9 @@ export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "li
   }
 
   return (
-    <div className={`flex flex-col gap-5 ${tone === "deep" ? "bg-cream-deep p-[clamp(20px,3vw,36px)]" : ""}`}>
+    <div
+      className={`flex flex-col gap-5 ${tone === "deep" ? "bg-cream-deep p-[clamp(20px,3vw,36px)]" : ""}`}
+    >
       <button
         type="button"
         onClick={google}
@@ -47,19 +66,28 @@ export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "li
       </button>
 
       <div className="flex items-center gap-3 text-[13px] tracking-[0.12em] text-ink-muted uppercase">
-        <span className="h-px flex-1 bg-ink/20" /> or <span className="h-px flex-1 bg-ink/20" />
+        <span className="h-px flex-1 bg-ink/20" /> or{" "}
+        <span className="h-px flex-1 bg-ink/20" />
       </div>
 
       {state === "sent" ? (
         <p role="status" className="text-[18px] leading-[1.5] text-pretty">
-          Check <strong>{email}</strong> for a sign-in link. It expires in 15 minutes.{" "}
-          <button type="button" className="cursor-pointer underline" onClick={() => setState("idle")}>
+          Check <strong>{email}</strong> for a sign-in link. It expires in 15
+          minutes.{" "}
+          <button
+            type="button"
+            className="cursor-pointer underline"
+            onClick={() => setState("idle")}
+          >
             Use a different email
           </button>
         </p>
       ) : (
         <form onSubmit={sendLink} className="flex flex-col gap-3">
-          <label htmlFor="signin-email" className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">
+          <label
+            htmlFor="signin-email"
+            className="text-[13px] tracking-[0.12em] text-ink-muted uppercase"
+          >
             Email me a sign-in link
           </label>
           <div className="flex flex-wrap gap-3">
@@ -81,7 +109,9 @@ export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "li
               {state === "sending" ? "Sending…" : "Send link"}
             </button>
           </div>
-          <p className="text-[15px] text-ink-muted">Use the email you signed up with.</p>
+          <p className="text-[15px] text-ink-muted">
+            Use the email you signed up with.
+          </p>
         </form>
       )}
       {error && (
@@ -96,10 +126,22 @@ export function SignInPanel({ next, tone = "light" }: { next: string; tone?: "li
 function GoogleIcon() {
   return (
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 48 48">
-      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z" />
-      <path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z" />
-      <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.8-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.4 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z" />
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.6 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 48c6.5 0 11.9-2.1 15.8-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.4 2.3-6.2 0-11.5-4.2-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"
+      />
     </svg>
   );
 }

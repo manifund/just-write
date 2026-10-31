@@ -1,11 +1,21 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
-import { canEnter, getViewer, isAdminEmail, publicMember, requireMember } from "./lib/viewer";
+import {
+  canEnter,
+  getViewer,
+  isAdminEmail,
+  publicMember,
+  requireMember,
+} from "./lib/viewer";
 import { EMAIL_RE, HANDLE_RE, parseWebsite, slugify } from "./lib/util";
 
 // Picks an unused handle based on the name: "kit-when", then "kit-when-2", ...
-async function uniqueHandle(ctx: MutationCtx, name: string, self?: Id<"members">) {
+async function uniqueHandle(
+  ctx: MutationCtx,
+  name: string,
+  self?: Id<"members">,
+) {
   const base = slugify(name);
   for (let i = 1; ; i++) {
     const candidate = i === 1 ? base : `${base}-${i}`;
@@ -27,7 +37,11 @@ export const viewer = query({
     return {
       user: { name: user.name, email: viewer.email, image: user.image ?? null },
       member: member
-        ? { ...publicMember(member), status: member.status, email: member.email }
+        ? {
+            ...publicMember(member),
+            status: member.status,
+            email: member.email,
+          }
         : null,
       isAdmin,
       canEnter: canEnter(member, isAdmin),
@@ -54,7 +68,8 @@ export const syncProfile = mutation({
     }
     const patch: { image?: string; handle?: string } = {};
     if (!member.image && viewer.user.image) patch.image = viewer.user.image;
-    if (!member.handle) patch.handle = await uniqueHandle(ctx, member.name, member._id);
+    if (!member.handle)
+      patch.handle = await uniqueHandle(ctx, member.name, member._id);
     if (Object.keys(patch).length) await ctx.db.patch(member._id, patch);
     return member._id;
   },
@@ -68,7 +83,8 @@ export const expressInterest = mutation({
     const email = args.email.trim().toLowerCase().slice(0, 320);
     const link = parseWebsite(args.website);
     if (!name) throw new ConvexError("Please add your name.");
-    if (!EMAIL_RE.test(email)) throw new ConvexError("Please add a valid email.");
+    if (!EMAIL_RE.test(email))
+      throw new ConvexError("Please add a valid email.");
     if (!link) throw new ConvexError("Please add a valid website link.");
 
     const existing = await ctx.db
@@ -76,7 +92,13 @@ export const expressInterest = mutation({
       .withIndex("by_email", (q) => q.eq("email", email))
       .unique();
     if (existing) await ctx.db.patch(existing._id, { name, link });
-    else await ctx.db.insert("members", { name, email, link, status: "interested" });
+    else
+      await ctx.db.insert("members", {
+        name,
+        email,
+        link,
+        status: "interested",
+      });
     return { name };
   },
 });
@@ -105,7 +127,8 @@ export const signTerms = mutation({
     const viewer = await getViewer(ctx);
     if (!viewer) throw new ConvexError("Please sign in first.");
     const signature = args.signature.trim().replace(/\s+/g, " ").slice(0, 200);
-    if (!signature) throw new ConvexError("Please type your full name to sign.");
+    if (!signature)
+      throw new ConvexError("Please type your full name to sign.");
 
     const { member, email } = viewer;
     if (member?.status === "committed") {
@@ -113,7 +136,11 @@ export const signTerms = mutation({
     }
     const now = Date.now();
     if (member) {
-      await ctx.db.patch(member._id, { signedName: signature, signedAt: now, status: "signed" });
+      await ctx.db.patch(member._id, {
+        signedName: signature,
+        signedAt: now,
+        status: "signed",
+      });
       return { memberId: member._id, email, alreadyCommitted: false };
     }
     const memberId = await ctx.db.insert("members", {
@@ -184,25 +211,39 @@ export const profile = query({
 });
 
 export const updateProfile = mutation({
-  args: { name: v.string(), link: v.string(), bio: v.string(), handle: v.string() },
+  args: {
+    name: v.string(),
+    link: v.string(),
+    bio: v.string(),
+    handle: v.string(),
+  },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
     const name = args.name.trim().slice(0, 120);
     if (!name) throw new ConvexError("Please add your name.");
     const link = args.link.trim() ? parseWebsite(args.link) : null;
-    if (args.link.trim() && !link) throw new ConvexError("That website link doesn’t look right.");
+    if (args.link.trim() && !link)
+      throw new ConvexError("That website link doesn’t look right.");
     const bio = args.bio.trim().slice(0, 600);
     const handle = args.handle.trim().toLowerCase();
     if (!HANDLE_RE.test(handle)) {
-      throw new ConvexError("Handles use lowercase letters, numbers, and dashes (up to 40).");
+      throw new ConvexError(
+        "Handles use lowercase letters, numbers, and dashes (up to 40).",
+      );
     }
     const taken = await ctx.db
       .query("members")
       .withIndex("by_handle", (q) => q.eq("handle", handle))
       .first();
-    if (taken && taken._id !== member._id) throw new ConvexError("That handle is taken.");
+    if (taken && taken._id !== member._id)
+      throw new ConvexError("That handle is taken.");
 
-    await ctx.db.patch(member._id, { name, link: link ?? undefined, bio: bio || undefined, handle });
+    await ctx.db.patch(member._id, {
+      name,
+      link: link ?? undefined,
+      bio: bio || undefined,
+      handle,
+    });
     return handle;
   },
 });
@@ -223,4 +264,3 @@ export const roster = query({
     return [...rows, ...admins].map(publicMember);
   },
 });
-

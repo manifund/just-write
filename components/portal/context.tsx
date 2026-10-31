@@ -18,14 +18,26 @@ type Portal = {
 
 const PortalContext = createContext<Portal | null>(null);
 
-export function PortalProvider({ viewer, me, children }: { viewer: Viewer; me: Me; children: ReactNode }) {
+export function PortalProvider({
+  viewer,
+  me,
+  children,
+}: {
+  viewer: Viewer;
+  me: Me;
+  children: ReactNode;
+}) {
   const rows = useQuery(api.members.roster);
   const roster = useMemo(() => {
-    const map = new Map<string, PublicMember>((rows ?? []).map((m) => [m._id, m]));
+    const map = new Map<string, PublicMember>(
+      (rows ?? []).map((m) => [m._id, m]),
+    );
     if (!map.has(me._id)) map.set(me._id, me);
     return map;
   }, [rows, me]);
-  return <PortalContext value={{ viewer, me, roster }}>{children}</PortalContext>;
+  return (
+    <PortalContext value={{ viewer, me, roster }}>{children}</PortalContext>
+  );
 }
 
 export function usePortal() {
@@ -36,5 +48,5 @@ export function usePortal() {
 
 export function useMember(id: Id<"members"> | string | null | undefined) {
   const { roster } = usePortal();
-  return id ? roster.get(id) ?? null : null;
+  return id ? (roster.get(id) ?? null) : null;
 }

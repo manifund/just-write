@@ -2,7 +2,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 // interested → signed (agreed to terms, sent to Stripe) → committed (deposit paid)
-export const status = v.union(v.literal("interested"), v.literal("signed"), v.literal("committed"));
+export const status = v.union(
+  v.literal("interested"),
+  v.literal("signed"),
+  v.literal("committed"),
+);
 
 export default defineSchema({
   // Everyone who expressed interest, signed, or committed. Keyed by lowercase email,
@@ -40,7 +44,11 @@ export default defineSchema({
     title: v.string(),
     wordCount: v.optional(v.number()),
     submittedAt: v.number(),
-    review: v.union(v.literal("pending"), v.literal("verified"), v.literal("rejected")),
+    review: v.union(
+      v.literal("pending"),
+      v.literal("verified"),
+      v.literal("rejected"),
+    ),
   })
     .index("by_member", ["memberId"])
     .index("by_url", ["url"]),

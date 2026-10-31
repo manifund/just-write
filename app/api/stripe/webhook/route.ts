@@ -8,11 +8,16 @@ import { markCommitted, stripe } from "@/lib/stripe";
 export async function POST(req: Request) {
   const signature = req.headers.get("stripe-signature");
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!signature || !secret) return new Response("Missing signature", { status: 400 });
+  if (!signature || !secret)
+    return new Response("Missing signature", { status: 400 });
 
   let event: Stripe.Event;
   try {
-    event = await stripe().webhooks.constructEventAsync(await req.text(), signature, secret);
+    event = await stripe().webhooks.constructEventAsync(
+      await req.text(),
+      signature,
+      secret,
+    );
   } catch (err) {
     console.error("Stripe webhook signature check failed", err);
     return new Response("Bad signature", { status: 400 });

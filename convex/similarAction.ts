@@ -14,15 +14,24 @@ const MODEL = "anthropic/claude-sonnet-5.5";
 export const compute = internalAction({
   args: { memberId: v.id("members") },
   handler: async (ctx, { memberId }) => {
-    const { self, others, hash } = await ctx.runQuery(internal.similar.inputs, { memberId });
+    const { self, others, hash } = await ctx.runQuery(internal.similar.inputs, {
+      memberId,
+    });
     if (!self) return;
     // Nobody to match yet (or no key): save an empty result so the UI stops waiting.
     if (others.length === 0 || !process.env.OPENROUTER_API_KEY) {
-      if (!process.env.OPENROUTER_API_KEY) console.warn("OPENROUTER_API_KEY is not set; skipping similar writers");
-      await ctx.runMutation(internal.similar.save, { memberId, picks: [], inputHash: hash });
+      if (!process.env.OPENROUTER_API_KEY)
+        console.warn("OPENROUTER_API_KEY is not set; skipping similar writers");
+      await ctx.runMutation(internal.similar.save, {
+        memberId,
+        picks: [],
+        inputHash: hash,
+      });
       return;
     }
-    const openrouter = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY });
+    const openrouter = createOpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
 
     const { output } = await generateText({
       model: openrouter(MODEL),
@@ -32,7 +41,11 @@ export const compute = internalAction({
             .array(
               z.object({
                 id: z.string().describe("The writer's id, copied exactly"),
-                reason: z.string().describe("One short sentence, addressed to the reader as “you”"),
+                reason: z
+                  .string()
+                  .describe(
+                    "One short sentence, addressed to the reader as “you”",
+                  ),
               }),
             )
             .max(3),
@@ -50,7 +63,14 @@ export const compute = internalAction({
     const picks = (output?.picks ?? [])
       .filter((p) => valid.has(p.id))
       .slice(0, 3)
-      .map((p) => ({ memberId: p.id as Id<"members">, reason: p.reason.slice(0, 200) }));
-    await ctx.runMutation(internal.similar.save, { memberId, picks, inputHash: hash });
+      .map((p) => ({
+        memberId: p.id as Id<"members">,
+        reason: p.reason.slice(0, 200),
+      }));
+    await ctx.runMutation(internal.similar.save, {
+      memberId,
+      picks,
+      inputHash: hash,
+    });
   },
 });

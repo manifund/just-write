@@ -14,17 +14,21 @@ const fmt = new Intl.DateTimeFormat("en-US", {
 
 export function Admin() {
   const { viewer } = usePortal();
-  if (!viewer.isAdmin) return <p className="p-10 text-[18px] text-ink-muted">Admins only.</p>;
+  if (!viewer.isAdmin)
+    return <p className="p-10 text-[18px] text-ink-muted">Admins only.</p>;
   return <Overview />;
 }
 
 function Overview() {
   const rows = useQuery(api.admin.overview);
   const review = useMutation(api.admin.setEssayReview);
-  const [filter, setFilter] = useState<"all" | "committed" | "signed" | "interested">("all");
+  const [filter, setFilter] = useState<
+    "all" | "committed" | "signed" | "interested"
+  >("all");
   if (!rows) return <p className="p-10 text-ink-muted">Loading…</p>;
 
-  const shown = filter === "all" ? rows : rows.filter((r) => r.status === filter);
+  const shown =
+    filter === "all" ? rows : rows.filter((r) => r.status === filter);
   const count = (s: string) => rows.filter((r) => r.status === s).length;
 
   return (
@@ -41,7 +45,9 @@ function Overview() {
             {f} ({f === "all" ? rows.length : count(f)})
           </button>
         ))}
-        <span className="ml-2 text-ink-muted select-all">{shown.map((r) => r.email).join(", ")}</span>
+        <span className="ml-2 text-ink-muted select-all">
+          {shown.map((r) => r.email).join(", ")}
+        </span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-[16px]">
@@ -65,17 +71,29 @@ function Overview() {
                   </td>
                   <td className="py-2 pr-5">
                     {r.link ? (
-                      <a href={r.link} target="_blank" rel="noopener noreferrer nofollow">
+                      <a
+                        href={r.link}
+                        target="_blank"
+                        rel="noopener noreferrer nofollow"
+                      >
                         {hostOf(r.link)}
                       </a>
                     ) : (
                       <span className="text-ink-muted">—</span>
                     )}
                   </td>
-                  <td className="py-2 pr-5 whitespace-nowrap text-ink-muted tabular-nums">{fmt.format(r.createdAt)}</td>
+                  <td className="py-2 pr-5 whitespace-nowrap text-ink-muted tabular-nums">
+                    {fmt.format(r.createdAt)}
+                  </td>
                   <td className="py-2 pr-5 whitespace-nowrap">
                     {r.status === "committed" ? (
-                      <span title={r.committedAt ? `Paid ${fmt.format(r.committedAt)}` : undefined}>
+                      <span
+                        title={
+                          r.committedAt
+                            ? `Paid ${fmt.format(r.committedAt)}`
+                            : undefined
+                        }
+                      >
                         Committed
                         {r.stripePaymentIntent && (
                           <>
@@ -92,14 +110,19 @@ function Overview() {
                         )}
                       </span>
                     ) : r.status === "signed" ? (
-                      <span className="text-ink-muted" title={`Signed “${r.signedName}”`}>
+                      <span
+                        className="text-ink-muted"
+                        title={`Signed “${r.signedName}”`}
+                      >
                         Signed, unpaid
                       </span>
                     ) : (
                       <span className="text-ink-muted">Interested</span>
                     )}
                   </td>
-                  <td className="py-2 tabular-nums">{r.status === "committed" ? `${r.slotsFilled}/4` : ""}</td>
+                  <td className="py-2 tabular-nums">
+                    {r.status === "committed" ? `${r.slotsFilled}/4` : ""}
+                  </td>
                 </tr>
                 {r.essays.map((e) => (
                   <tr key={e._id} className="border-b border-ink/5 text-[15px]">
@@ -111,7 +134,9 @@ function Overview() {
                       </a>{" "}
                       <span className="text-ink-muted">
                         · {fmt.format(e.submittedAt)}
-                        {e.wordCount ? ` · ~${e.wordCount.toLocaleString()} words` : ""}
+                        {e.wordCount
+                          ? ` · ~${e.wordCount.toLocaleString()} words`
+                          : ""}
                       </span>
                     </td>
                     <td colSpan={2} className="py-1.5">
@@ -119,7 +144,11 @@ function Overview() {
                         aria-label={`Review for ${e.title}`}
                         value={e.review}
                         onChange={(ev) =>
-                          review({ essayId: e._id, review: ev.target.value as "pending" | "verified" | "rejected" })
+                          review({
+                            essayId: e._id,
+                            review: ev.target.value as
+                              "pending" | "verified" | "rejected",
+                          })
                         }
                         className="border border-ink/25 bg-cream px-2 py-1"
                       >

@@ -13,16 +13,35 @@ export type FontOption = {
 
 export const DISPLAY_FONTS: FontOption[] = [
   { id: "fraunces", name: "Fraunces", cssVar: "--font-fraunces" },
-  { id: "instrument", name: "Instrument Serif", cssVar: "--font-tw-instrument" },
+  {
+    id: "instrument",
+    name: "Instrument Serif",
+    cssVar: "--font-tw-instrument",
+  },
   { id: "cormorant", name: "Cormorant", cssVar: "--font-tw-cormorant" },
   { id: "schibsted", name: "Schibsted Grotesk", cssVar: "--font-tw-schibsted" },
 ];
 
 export const BODY_FONTS: FontOption[] = [
   { id: "garamond", name: "EB Garamond", cssVar: "--font-tw-garamond" },
-  { id: "newsreader", name: "Newsreader", cssVar: "--font-tw-newsreader", sizeAdjust: 0.42 },
-  { id: "literata", name: "Literata", cssVar: "--font-tw-literata", sizeAdjust: 0.42 },
-  { id: "atkinson", name: "Atkinson Next", cssVar: "--font-atkinson", sizeAdjust: 0.42 },
+  {
+    id: "newsreader",
+    name: "Newsreader",
+    cssVar: "--font-tw-newsreader",
+    sizeAdjust: 0.42,
+  },
+  {
+    id: "literata",
+    name: "Literata",
+    cssVar: "--font-tw-literata",
+    sizeAdjust: 0.42,
+  },
+  {
+    id: "atkinson",
+    name: "Atkinson Next",
+    cssVar: "--font-atkinson",
+    sizeAdjust: 0.42,
+  },
 ];
 
 export type Palette = {
@@ -128,10 +147,15 @@ export const DEFAULTS: Selection = {
   accent: "#ff0a0a",
 };
 
-const pick = <T extends { id: string }>(list: T[], id: unknown, fallback: string) =>
-  list.find((o) => o.id === id)?.id ?? fallback;
+const pick = <T extends { id: string }>(
+  list: T[],
+  id: unknown,
+  fallback: string,
+) => list.find((o) => o.id === id)?.id ?? fallback;
 
-export function parseSelection(params: Record<string, string | string[] | undefined>): Selection {
+export function parseSelection(
+  params: Record<string, string | string[] | undefined>,
+): Selection {
   // Anything missing from the URL means "same as DEFAULTS".
   const requested = params.palette ?? DEFAULTS.palette;
   const preset = PALETTES.find((p) => p.id === requested);
@@ -141,15 +165,23 @@ export function parseSelection(params: Record<string, string | string[] | undefi
     body: pick(BODY_FONTS, params.body, DEFAULTS.body),
     palette: preset?.id ?? CUSTOM_PALETTE,
     // A preset seeds the pickers with its own colors so editing starts there.
-    ink: (custom && normalizeHex(params.ink)) || (preset?.colors.ink ?? DEFAULTS.ink),
-    accent: (custom && normalizeHex(params.accent)) || (preset?.colors.brass ?? DEFAULTS.accent),
+    ink:
+      (custom && normalizeHex(params.ink)) ||
+      (preset?.colors.ink ?? DEFAULTS.ink),
+    accent:
+      (custom && normalizeHex(params.accent)) ||
+      (preset?.colors.brass ?? DEFAULTS.accent),
   };
 }
 
 /** The palette a selection resolves to, building it when it's custom. */
 export function resolvePalette(sel: Selection): PaletteOption {
   if (sel.palette === CUSTOM_PALETTE) {
-    return { id: CUSTOM_PALETTE, name: "Custom", colors: derivePalette(sel.ink, sel.accent) };
+    return {
+      id: CUSTOM_PALETTE,
+      name: "Custom",
+      colors: derivePalette(sel.ink, sel.accent),
+    };
   }
   return PALETTES.find((p) => p.id === sel.palette) ?? PALETTES[0];
 }

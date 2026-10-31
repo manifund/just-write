@@ -9,7 +9,9 @@ import { api } from "../convex/_generated/api";
 const url = process.env.CONVEX_URL ?? process.env.NEXT_PUBLIC_CONVEX_URL;
 const secret = process.env.CONVEX_SERVER_SECRET;
 if (!url || !secret || !process.env.DATABASE_URL) {
-  throw new Error("Needs DATABASE_URL, CONVEX_SERVER_SECRET, and CONVEX_URL (or NEXT_PUBLIC_CONVEX_URL)");
+  throw new Error(
+    "Needs DATABASE_URL, CONVEX_SERVER_SECRET, and CONVEX_URL (or NEXT_PUBLIC_CONVEX_URL)",
+  );
 }
 
 const sql = neon(process.env.DATABASE_URL);
@@ -22,22 +24,26 @@ const rows = (await sql`
 const ms = (v: unknown) => (v == null ? null : new Date(v as string).getTime());
 const str = (v: unknown) => (v == null ? null : String(v));
 
-const result = await new ConvexHttpClient(url).mutation(api.server.importLegacy, {
-  secret,
-  rows: rows.map((r) => ({
-    legacyId: Number(r.id),
-    createdAt: ms(r.created_at)!,
-    name: String(r.name),
-    email: String(r.email),
-    link: str(r.link),
-    status: r.status as "interested" | "signed" | "committed",
-    signedName: str(r.signed_name),
-    signedAt: ms(r.signed_at),
-    committedAt: ms(r.committed_at),
-    stripeSessionId: str(r.stripe_session_id),
-    stripePaymentIntent: str(r.stripe_payment_intent),
-    amountPaidCents: r.amount_paid_cents == null ? null : Number(r.amount_paid_cents),
-    termsEmailedAt: ms(r.terms_emailed_at),
-  })),
-});
+const result = await new ConvexHttpClient(url).mutation(
+  api.server.importLegacy,
+  {
+    secret,
+    rows: rows.map((r) => ({
+      legacyId: Number(r.id),
+      createdAt: ms(r.created_at)!,
+      name: String(r.name),
+      email: String(r.email),
+      link: str(r.link),
+      status: r.status as "interested" | "signed" | "committed",
+      signedName: str(r.signed_name),
+      signedAt: ms(r.signed_at),
+      committedAt: ms(r.committed_at),
+      stripeSessionId: str(r.stripe_session_id),
+      stripePaymentIntent: str(r.stripe_payment_intent),
+      amountPaidCents:
+        r.amount_paid_cents == null ? null : Number(r.amount_paid_cents),
+      termsEmailedAt: ms(r.terms_emailed_at),
+    })),
+  },
+);
 console.log(`Imported ${rows.length} rows into ${url}:`, result);

@@ -17,14 +17,18 @@ export type Slot = {
 
 // Fills the 4 weekly slots in submission order: each essay fills the earliest open slot
 // whose deadline it beat. Writing two essays early covers two weeks; a late essay fills nothing.
-export function fillSlots<E extends { _id: string; submittedAt: number; review: string }>(essays: E[]): Slot[] {
+export function fillSlots<
+  E extends { _id: string; submittedAt: number; review: string },
+>(essays: E[]): Slot[] {
   const slots: Slot[] = DEADLINES.map((deadline, i) => ({
     week: i + 1,
     deadline,
     label: DEADLINE_LABELS[i],
     essayId: null,
   }));
-  const counted = essays.filter((e) => e.review !== "rejected").sort((a, b) => a.submittedAt - b.submittedAt);
+  const counted = essays
+    .filter((e) => e.review !== "rejected")
+    .sort((a, b) => a.submittedAt - b.submittedAt);
   for (const e of counted) {
     const slot = slots.find((s) => !s.essayId && e.submittedAt <= s.deadline);
     if (slot) slot.essayId = e._id;

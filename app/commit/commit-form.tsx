@@ -13,7 +13,8 @@ const fieldLabel = "text-[13px] tracking-[0.12em] uppercase text-ink-muted";
 const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "long" });
 const noop = () => () => {};
 
-const heading = "font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]";
+const heading =
+  "font-display text-[clamp(30px,4.2vh,36px)] leading-[1.05] font-[340] tracking-[-0.015em]";
 
 // Signing is tied to the signed-in account, so sign in first.
 export function CommitForm() {
@@ -26,7 +27,9 @@ export function CommitForm() {
       <div className="flex flex-col gap-5 bg-cream-deep p-[clamp(20px,min(3vw,4vh),40px)]">
         <div className="flex flex-col gap-1.5">
           <h2 className={heading}>Sign in to commit</h2>
-          <p className="text-[17px] text-ink-muted">Your commitment is tied to your Just Write account.</p>
+          <p className="text-[17px] text-ink-muted">
+            Your commitment is tied to your Just Write account.
+          </p>
         </div>
         <SignInPanel next="/commit#sign" />
       </div>
@@ -38,8 +41,13 @@ export function CommitForm() {
         <h2 className={heading}>
           You’re <em className="wonk text-brass-numeral">in</em>.
         </h2>
-        <p className="text-[17px] text-ink-muted">You’ve already committed. Thank you!</p>
-        <Link href="/home" className="self-start bg-ink px-6 py-3 text-[18px] text-cream no-underline">
+        <p className="text-[17px] text-ink-muted">
+          You’ve already committed. Thank you!
+        </p>
+        <Link
+          href="/home"
+          className="self-start bg-ink px-6 py-3 text-[18px] text-cream no-underline"
+        >
           Open the member portal →
         </Link>
       </div>
@@ -49,9 +57,16 @@ export function CommitForm() {
 }
 
 function SignForm({ email }: { email: string }) {
-  const [state, action, pending] = useActionState<CommitState, FormData>(startCommitment, { status: "idle" });
+  const [state, action, pending] = useActionState<CommitState, FormData>(
+    startCommitment,
+    { status: "idle" },
+  );
   // Read on the client so the date is the signer's today, not the build date.
-  const today = useSyncExternalStore(noop, () => dateFmt.format(new Date()), () => null);
+  const today = useSyncExternalStore(
+    noop,
+    () => dateFmt.format(new Date()),
+    () => null,
+  );
   const canceled = useSyncExternalStore(
     noop,
     () => new URLSearchParams(window.location.search).has("canceled"),
@@ -76,13 +91,19 @@ function SignForm({ email }: { email: string }) {
         </h2>
         {canceled && state.status === "idle" && (
           <p role="status" className="text-base text-ink-muted">
-            Checkout was canceled, so nothing was charged. You can try again below.
+            Checkout was canceled, so nothing was charged. You can try again
+            below.
           </p>
         )}
       </div>
 
       <label className="flex cursor-pointer items-start gap-3 text-[17px] leading-[1.45] text-pretty">
-        <input type="checkbox" name="agree" required className="mt-[3px] size-5 shrink-0 cursor-pointer accent-ink" />
+        <input
+          type="checkbox"
+          name="agree"
+          required
+          className="mt-[3px] size-5 shrink-0 cursor-pointer accent-ink"
+        />
         <span>I’ve read and agree to the terms above.</span>
       </label>
 
@@ -91,7 +112,9 @@ function SignForm({ email }: { email: string }) {
         <button
           type="button"
           className="cursor-pointer underline"
-          onClick={() => authClient.signOut().then(() => window.location.reload())}
+          onClick={() =>
+            authClient.signOut().then(() => window.location.reload())
+          }
         >
           Not you?
         </button>
@@ -137,7 +160,9 @@ function SignForm({ email }: { email: string }) {
             <path d="M0 6h16M11 1l5 5-5 5" />
           </svg>
         </button>
-        <span className="text-[15px] text-ink-muted">Secure checkout by Stripe</span>
+        <span className="text-[15px] text-ink-muted">
+          Secure checkout by Stripe
+        </span>
       </div>
       {state.status === "error" && (
         <p role="alert" className="-mt-2 text-base text-ink">

@@ -7,7 +7,10 @@ import { status } from "./schema";
 import { checkServerSecret } from "./lib/viewer";
 
 // client_reference_id is a Convex member id, or a numeric id from the old Neon table.
-async function findByReference(ctx: MutationCtx, ref: string): Promise<Doc<"members"> | null> {
+async function findByReference(
+  ctx: MutationCtx,
+  ref: string,
+): Promise<Doc<"members"> | null> {
   if (/^\d+$/.test(ref)) {
     return await ctx.db
       .query("members")
@@ -19,7 +22,11 @@ async function findByReference(ctx: MutationCtx, ref: string): Promise<Doc<"memb
 }
 
 export const recordStripeSession = mutation({
-  args: { secret: v.string(), memberId: v.id("members"), sessionId: v.string() },
+  args: {
+    secret: v.string(),
+    memberId: v.id("members"),
+    sessionId: v.string(),
+  },
   handler: async (ctx, { secret, memberId, sessionId }) => {
     checkServerSecret(secret);
     await ctx.db.patch(memberId, { stripeSessionId: sessionId });
@@ -58,7 +65,14 @@ export const claimTermsEmail = mutation({
   handler: async (ctx, { secret, memberId }) => {
     checkServerSecret(secret);
     const m = await ctx.db.get(memberId);
-    if (!m || m.status !== "committed" || m.termsEmailedAt || !m.signedName || !m.signedAt) return null;
+    if (
+      !m ||
+      m.status !== "committed" ||
+      m.termsEmailedAt ||
+      !m.signedName ||
+      !m.signedAt
+    )
+      return null;
     await ctx.db.patch(memberId, { termsEmailedAt: Date.now() });
     return {
       email: m.email,
@@ -126,7 +140,8 @@ export const importLegacy = mutation({
         .unique();
       if (existing) {
         // Never downgrade someone who already committed in Convex.
-        const keepStatus = existing.status === "committed" ? "committed" : fields.status;
+        const keepStatus =
+          existing.status === "committed" ? "committed" : fields.status;
         await ctx.db.patch(existing._id, { ...fields, status: keepStatus });
         updated++;
       } else {

@@ -5,12 +5,18 @@
 export type Run = string | { text: string; href: string };
 export type Rich = string | Run[];
 
-export type Term = { title: string; intro?: Rich; bullets?: Rich[]; outro?: Rich[] };
+export type Term = {
+  title: string;
+  intro?: Rich;
+  bullets?: Rich[];
+  outro?: Rich[];
+};
 
 export const TERMS: Term[] = [
   {
     title: "Publish 4 essays",
-    intro: "To join Just Write, you commit to publish 4 essays in the month of November 2026:",
+    intro:
+      "To join Just Write, you commit to publish 4 essays in the month of November 2026:",
     bullets: [
       "Essays are due on or before Mondays, 9pm PT: Nov 9, 16, 23, and 30.",
       "Essays must be 1000 words or more.",

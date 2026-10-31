@@ -18,10 +18,15 @@ export function stripe() {
 
 // Marks the signer as committed once Stripe confirms payment. Safe to call more than once.
 // Returns the member id if a row was updated, else null.
-export async function markCommitted(session: Stripe.Checkout.Session): Promise<Id<"members"> | null> {
-  if (session.payment_status === "unpaid" || !session.client_reference_id) return null;
+export async function markCommitted(
+  session: Stripe.Checkout.Session,
+): Promise<Id<"members"> | null> {
+  if (session.payment_status === "unpaid" || !session.client_reference_id)
+    return null;
   const paymentIntent =
-    typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
 
   return await fetchMutation(api.server.markCommitted, {
     secret: serverSecret(),
