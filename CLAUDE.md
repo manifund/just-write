@@ -14,7 +14,7 @@ Site and member portal for [justwrite.club](https://justwrite.club), a November 
 
 ```bash
 bun install
-vercel env pull .env.local   # Stripe keys etc. (bun auto-loads .env.local)
+vercel env pull .env.local   # Stripe keys etc. (bun auto-loads .env.local); overwrites the Convex values, see README
 bun convex                   # pushes convex/ to the dev deployment and watches; tails Convex logs
 bun dev                      # localhost:3000
 bunx tsc --noEmit            # typecheck (includes convex/)
@@ -49,4 +49,6 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Env vars (Vercel / `.env.local`):** `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, `CONVEX_SERVER_SECRET`, `CONVEX_DEPLOY_KEY` (Vercel builds only), `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (live Stripe keys are Production-only on Vercel), `RESEND_API_KEY`, optional `RESEND_FROM` (defaults to `austin@manifund.org`, verified in Manifund's Resend account). Stripe is Manifund's live account; deposits are donations to Manifund. `DATABASE_URL` (Neon) is only used by `scripts/import-neon.ts`.
 
-**Env vars (Convex deployment, `bunx convex env set`):** `SITE_URL`, `BETTER_AUTH_SECRET`, `CONVEX_SERVER_SECRET` (same value as in Vercel), `ADMIN_EMAILS` (comma-separated), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY` (magic links; without it links are logged), `OPENROUTER_API_KEY`.
+**Env vars (Convex deployment, `bunx convex env set`):** `SITE_URL`, `BETTER_AUTH_SECRET`, `CONVEX_SERVER_SECRET` (same value as in Vercel), `ADMIN_EMAILS` (comma-separated), `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (Google Cloud project `just-write-513304`; copies kept in gitignored `.env`), `RESEND_API_KEY` (magic links; without it links are logged instead of sent), `OPENROUTER_API_KEY`. All are set on the dev deployment (`brilliant-starling-517`), which sends real email.
+
+**Deployment status:** only a Convex dev deployment exists so far. Before the portal can go live, production needs a Convex deployment (or a decision to serve from dev), the Convex env vars above set there with `SITE_URL=https://justwrite.club`, `CONVEX_DEPLOY_KEY` + `NEXT_PUBLIC_CONVEX_*` + `CONVEX_SERVER_SECRET` in Vercel, the Vercel build command `bunx convex deploy --cmd 'bun run build'`, `chat:seedChannels`, and `bun import:neon` against it.
