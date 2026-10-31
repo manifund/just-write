@@ -329,25 +329,23 @@ function Sidebar() {
             </div>
           </div>
         )}
-        <div className="flex items-center gap-3 border-t border-cream/15 pt-4 text-ink">
-          <Avatar member={me} size={34} />
-          <div className="flex min-w-0 flex-col text-cream">
-            <Link
-              href="/settings"
-              className="truncate text-[16px] no-underline hover:underline"
-            >
-              {me.name}
-            </Link>
-            <button
-              type="button"
-              onClick={() =>
-                authClient.signOut().then(() => window.location.assign("/"))
-              }
-              className="cursor-pointer self-start text-[14px] text-wash-light hover:underline"
-            >
-              Sign out
-            </button>
-          </div>
+        <div className="-mx-3 border-t border-cream/15 pt-3">
+          <Link
+            href="/settings"
+            className={`flex items-center gap-3 px-3 py-2.5 no-underline transition-colors hover:bg-cream/8 ${active("/settings") ? "bg-cream/12" : ""}`}
+          >
+            <span className="text-ink">
+              <Avatar member={me} size={36} />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-[16px] text-cream">{me.name}</span>
+              {me.handle && (
+                <span className="truncate text-[14px] text-wash-light">
+                  @{me.handle}
+                </span>
+              )}
+            </span>
+          </Link>
         </div>
       </div>
     </div>

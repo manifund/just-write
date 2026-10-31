@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { api } from "@/convex/_generated/api";
+import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/convex";
 
 const input =
@@ -233,6 +234,18 @@ export function Settings() {
           </p>
         )}
       </form>
+
+      <div className="border-t border-ink/15 pt-6">
+        <button
+          type="button"
+          onClick={() =>
+            authClient.signOut().then(() => window.location.assign("/"))
+          }
+          className="min-h-[44px] cursor-pointer border border-ink/28 px-5 text-[16px] transition-colors hover:bg-ink/5"
+        >
+          Sign out
+        </button>
+      </div>
     </main>
   );
 }
