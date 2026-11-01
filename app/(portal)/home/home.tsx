@@ -11,7 +11,7 @@ import type { Id } from "@/convex/_generated/dataModel";
 import { DEADLINES } from "@/convex/lib/program";
 import { errorMessage } from "@/lib/convex";
 
-const NUMERALS = ["i.", "ii.", "iii.", "iv."];
+const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4"];
 const eyebrow = "text-[13px] tracking-[0.14em] text-brass-text uppercase";
 const h2 =
   "font-display text-[clamp(26px,3vw,32px)] leading-[1.1] font-[380] tracking-[-0.015em]";
@@ -66,7 +66,7 @@ export function Home() {
               </>
             ) : nextIdx >= 0 ? (
               <>
-                Essay {NUMERALS[nextIdx].replace(".", "")} is due{" "}
+                Essay {nextIdx + 1} is due{" "}
                 <strong className="text-ink">
                   Mon {["Nov 9", "Nov 16", "Nov 23", "Nov 30"][nextIdx]}, 9pm PT
                 </strong>
@@ -145,9 +145,9 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
           >
             <div className="flex items-baseline justify-between">
               <span
-                className={`wonk font-display text-[30px] leading-none font-semibold ${e ? "text-brass-light" : "text-brass-numeral"}`}
+                className={`wonk font-display text-[24px] leading-none font-semibold ${e ? "text-brass-light" : "text-brass-numeral"}`}
               >
-                {NUMERALS[i]}
+                {WEEKS[i]}
               </span>
               {e && (
                 <span
