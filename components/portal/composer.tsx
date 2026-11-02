@@ -10,6 +10,7 @@ import {
   type Editor,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import type { Transaction } from "@tiptap/pm/state";
 import type {
   SuggestionKeyDownProps,
   SuggestionProps,
@@ -297,6 +298,31 @@ function writeDraft(key: string, editor: Editor) {
   }
 }
 
+// Shift+Enter adds line breaks inside one paragraph, so a list or quote would wrap
+// every line typed so far. Before adding one, split the cursor's line (or the
+// selected lines) into its own paragraph so only that part changes.
+function isolateLine({ tr }: { tr: Transaction }) {
+  const { $from, $to } = tr.selection;
+  if ($from.parent !== $to.parent || $from.parent.type.name !== "paragraph")
+    return true;
+  const start = $from.start();
+  let before = -1;
+  let after = -1;
+  $from.parent.forEach((child, offset) => {
+    if (child.type.name !== "hardBreak") return;
+    const pos = start + offset;
+    if (pos < $from.pos) before = pos;
+    else if (pos >= $to.pos && after === -1) after = pos;
+  });
+  // Later break first, so the earlier position stays valid.
+  for (const pos of [after, before]) {
+    if (pos < 0) continue;
+    tr.delete(pos, pos + 1);
+    tr.split(pos);
+  }
+  return true;
+}
+
 function Toolbar({ editor }: { editor: Editor | null }) {
   const state = useEditorState({
     editor,
@@ -397,7 +423,14 @@ function Toolbar({ editor }: { editor: Editor | null }) {
           title="Bulleted list"
           aria-pressed={state.bullet}
           className={btn(state.bullet)}
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .command(state.bullet ? () => true : isolateLine)
+              .toggleBulletList()
+              .run()
+          }
         >
           ••
         </button>
@@ -406,7 +439,14 @@ function Toolbar({ editor }: { editor: Editor | null }) {
           title="Quote"
           aria-pressed={state.quote}
           className={`${btn(state.quote)} font-display text-[20px]`}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          onClick={() =>
+            editor
+              .chain()
+              .focus()
+              .command(state.quote ? () => true : isolateLine)
+              .toggleBlockquote()
+              .run()
+          }
         >
           “
         </button>
