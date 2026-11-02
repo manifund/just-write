@@ -102,7 +102,7 @@ const RULES = `You are Claude, working in the codebase of the Just Write site (j
 
 How this run works:
 - You're in a fresh clone of github.com/${REPO} on branch ${brief.branch}. When you finish, the harness typechecks, lints, commits, and pushes your work, then opens a PR or merges it, depending on the site's policy. Don't commit, push, or open PRs yourself.
-- There's no dev server, browser, or local Convex backend here. Before you finish, run \`bun check\` (typecheck, then lint) and fix anything it reports.
+- There's no dev server, browser, or local Convex backend here. Before you finish, run \`bun check\` (typecheck) and \`bun lint\` and fix anything they report.
 - Never run \`bun convex\`, \`convex dev\`, \`convex deploy\`, \`convex run\`, or anything else that touches the live Convex deployment, which real members use. Don't edit env files or secrets.
 - Before each step, write one short, plain sentence about what you're doing, e.g. "Looking at how the chat composer works." or "Adding a word count under the message box." Members see these sentences live as a checklist, so write them for people, not programmers, and keep them under 80 characters.
 - Keep the change focused on what was asked, and follow CLAUDE.md and the site's existing patterns, design tokens, and plain copy style.
@@ -224,7 +224,7 @@ async function runAgent(input: string, resume?: string) {
         } else if (block.type === "tool_use") {
           const cmd = String((block.input as { command?: unknown }).command ?? "");
           console.log("[tool]", block.name, JSON.stringify(block.input).slice(0, 200));
-          if (!typechecked && /\btsc\b|\bbun (run )?(check|typecheck)\b/.test(cmd)) {
+          if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
             typechecked = true;
             await step("Typechecking");
           }
@@ -252,8 +252,14 @@ async function runAgent(input: string, resume?: string) {
 // --- Checks and merge decision ---------------------------------------------------------
 
 function checks() {
-  const check = sh("bun check");
-  return { ok: check.ok, output: check.ok ? "" : tail(check.out, 8000) };
+  const tsc = sh("bun check");
+  const lint = sh("bun lint");
+  return {
+    ok: tsc.ok && lint.ok,
+    output: [!tsc.ok && tail(tsc.out, 4000), !lint.ok && tail(lint.out, 4000)]
+      .filter(Boolean)
+      .join("\n\n"),
+  };
 }
 
 async function classify(diff: string): Promise<{ merge: boolean; why: string }> {
@@ -311,7 +317,7 @@ async function main() {
   const { branch } = brief;
   await step("Installing dependencies");
   if (!sh("bun install --frozen-lockfile").ok) must("bun install");
-  sh("bunx next typegen"); // tsc needs Next's generated route types
+  sh("bunx next typegen"); // the typecheck needs Next's generated route types
 
   must(`git config user.name "Claude" && git config user.email "noreply@anthropic.com"`);
   if (brief.prNumber) {
