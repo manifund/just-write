@@ -186,7 +186,7 @@ export function Message({
             </span>
           ) : (
             <>
-              {REACTIONS.slice(0, 3).map((e) => (
+              {REACTIONS.slice(0, 4).map((e) => (
                 <button
                   key={e}
                   type="button"
@@ -335,9 +335,9 @@ function ReactionChip({
     <button
       type="button"
       onClick={onClick}
-      title={`${names.join(", ")} reacted ${emoji}`}
+      aria-label={`${names.join(", ")} reacted ${emoji}`}
       aria-pressed={mine}
-      className={`flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[14px] tabular-nums transition-colors motion-safe:animate-[pop_250ms_ease-out] ${
+      className={`group/chip relative flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[14px] tabular-nums transition-colors motion-safe:animate-[pop_250ms_ease-out] ${
         mine
           ? "border-brass bg-brass/15 text-brass-text"
           : "border-ink/15 bg-cream hover:border-ink/40"
@@ -345,6 +345,12 @@ function ReactionChip({
     >
       <span className="text-[15px]">{emoji}</span>
       {memberIds.length}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-max max-w-[16rem] -translate-x-1/2 bg-ink px-2 py-1 text-left text-[13px] leading-snug text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] group-hover/chip:block group-focus-visible/chip:block"
+      >
+        {names.join(", ")} reacted {emoji}
+      </span>
     </button>
   );
 }
