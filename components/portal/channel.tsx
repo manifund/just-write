@@ -482,7 +482,7 @@ function Thread({
   return (
     <aside
       aria-label="Thread"
-      className="fixed inset-0 z-30 flex flex-col bg-cream lg:static lg:z-auto lg:w-[min(440px,40vw)] lg:shrink-0 lg:border-l lg:border-ink/10"
+      className="fixed inset-0 z-30 flex flex-col bg-cream md:left-[264px] lg:static lg:z-auto lg:w-[min(440px,40vw)] lg:shrink-0 lg:border-l lg:border-ink/10"
     >
       <header className="flex items-center justify-between border-b border-ink/10 px-5 py-3.5">
         <h2 className="font-display text-[22px] font-[450]">

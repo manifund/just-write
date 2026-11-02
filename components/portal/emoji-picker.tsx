@@ -118,6 +118,7 @@ export function EmojiPicker({
   return createPortal(
     <div
       ref={ref}
+      data-emoji-picker
       style={
         pos
           ? { left: pos.left, top: pos.top }
