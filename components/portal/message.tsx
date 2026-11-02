@@ -2,7 +2,7 @@
 
 import { useMutation } from "convex/react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { ChatMessage } from "@/convex/chat";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -39,6 +39,36 @@ export function Message({
   const [picker, setPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
+  // Touch screens have no hover, so a long press opens the actions instead.
+  const [held, setHeld] = useState(false);
+  const articleRef = useRef<HTMLElement>(null);
+  const press = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const fired = useRef(false);
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = null;
+  };
+  const closeActions = useCallback(() => {
+    setHeld(false);
+    setPicker(false);
+    // A tapped action button keeps focus, which would keep the bar open via focus-within.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && articleRef.current?.contains(active))
+      active.blur();
+  }, []);
+  useEffect(() => {
+    if (!held) return;
+    const onDown = (e: PointerEvent) => {
+      if (!articleRef.current?.contains(e.target as Node)) closeActions();
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [held, closeActions]);
+  useEffect(() => () => cancelPress(), []);
+  const react = (emoji: string) => {
+    void toggle({ messageId: m._id, emoji });
+    if (held) closeActions();
+  };
   const mine = m.authorId === me._id;
   // Sent but not yet saved (an optimistic update); it has no real id to act on yet.
   const pending = m._id.startsWith(PENDING);
@@ -50,7 +80,44 @@ export function Message({
 
   return (
     <article
-      className={`group relative grid grid-cols-[40px_minmax(0,1fr)] gap-x-3 px-[clamp(16px,3vw,32px)] transition-colors hover:bg-cream-deep/45 ${
+      ref={articleRef}
+      onPointerDown={(e) => {
+        if (e.pointerType !== "touch" || editing || pending) return;
+        if ((e.target as Element).closest("button, input, [contenteditable]"))
+          return;
+        cancelPress();
+        fired.current = false;
+        press.current = {
+          x: e.clientX,
+          y: e.clientY,
+          timer: window.setTimeout(() => {
+            press.current = null;
+            fired.current = true;
+            setHeld(true);
+            navigator.vibrate?.(10);
+          }, 450),
+        };
+      }}
+      onPointerMove={(e) => {
+        const p = press.current;
+        if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10)
+          cancelPress();
+      }}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={(e) => {
+        // Android opens a menu on long press; we show our own actions instead.
+        if (fired.current || press.current) e.preventDefault();
+      }}
+      onClickCapture={(e) => {
+        // Releasing a long press shouldn't also follow a link under the finger.
+        if (fired.current) {
+          fired.current = false;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+      className={`group relative grid pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] grid-cols-[40px_minmax(0,1fr)] gap-x-3 px-[clamp(16px,3vw,32px)] transition-colors hover:bg-cream-deep/45 ${
         animate ? "motion-safe:animate-[rise_220ms_ease-out]" : ""
       } ${pending ? "opacity-60" : ""} ${compact ? "py-0.5" : "pt-3 pb-0.5"}`}
     >
@@ -130,7 +197,7 @@ export function Message({
                 key={r.emoji}
                 emoji={r.emoji}
                 memberIds={r.memberIds}
-                onClick={() => toggle({ messageId: m._id, emoji: r.emoji })}
+                onClick={() => react(r.emoji)}
               />
             ))}
           </div>
@@ -163,7 +230,7 @@ export function Message({
       {!editing && !pending && (
         <div
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
-            picker || confirmDelete
+            picker || confirmDelete || held
               ? "flex"
               : "hidden group-focus-within:flex group-hover:flex"
           }`}
@@ -181,7 +248,10 @@ export function Message({
               <button
                 type="button"
                 className="cursor-pointer underline"
-                onClick={() => setConfirmDelete(false)}
+                onClick={() => {
+                  setConfirmDelete(false);
+                  if (held) closeActions();
+                }}
               >
                 Cancel
               </button>
@@ -194,7 +264,7 @@ export function Message({
                   type="button"
                   aria-label={`React ${e}`}
                   className="cursor-pointer px-1.5 py-1 text-[17px] transition-transform hover:scale-125"
-                  onClick={() => toggle({ messageId: m._id, emoji: e })}
+                  onClick={() => react(e)}
                 >
                   {e}
                 </button>
@@ -222,7 +292,7 @@ export function Message({
               {picker && (
                 <EmojiPicker
                   onPick={(e) => {
-                    void toggle({ messageId: m._id, emoji: e });
+                    react(e);
                     setPicker(false);
                   }}
                   onClose={closePicker}
@@ -231,7 +301,10 @@ export function Message({
               {!inThread && onOpenThread && (
                 <ActionButton
                   label="Reply in thread"
-                  onClick={() => onOpenThread(m._id)}
+                  onClick={() => {
+                    closeActions();
+                    onOpenThread(m._id);
+                  }}
                 >
                   <svg
                     aria-hidden="true"
@@ -248,7 +321,13 @@ export function Message({
                 </ActionButton>
               )}
               {mine && !m.essay && !m.kind && (
-                <ActionButton label="Edit" onClick={() => setEditing(true)}>
+                <ActionButton
+                  label="Edit"
+                  onClick={() => {
+                    closeActions();
+                    setEditing(true);
+                  }}
+                >
                   <svg
                     aria-hidden="true"
                     width="16"
