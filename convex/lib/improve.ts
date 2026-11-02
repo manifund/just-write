@@ -4,7 +4,7 @@
 // review: always open a PR for an admin to merge.
 // automerge: merge whenever typecheck and lint pass.
 // classify: a second model call decides per change (small and low-risk → merge; else PR).
-export const MERGE_POLICY: "review" | "automerge" | "classify" = "review";
+export const MERGE_POLICY: "review" | "automerge" | "classify" = "classify";
 
 // Production builds on Vercel push convex/ before building the site (buildCommand in
 // vercel.json, using the CONVEX_DEPLOY_KEY env var), so merged backend changes deploy themselves.
