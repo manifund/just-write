@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { REACTIONS } from "@/convex/lib/reactions";
 
 type Group = {
@@ -21,16 +29,47 @@ async function loadGroups() {
   return cache;
 }
 
+const WIDTH = 312;
+const GAP = 4;
+
 export function EmojiPicker({
+  anchor,
   onPick,
   onClose,
 }: {
+  anchor: RefObject<HTMLElement | null>;
   onPick: (emoji: string) => void;
   onClose: () => void;
 }) {
   const [groups, setGroups] = useState<Group[] | null>(cache);
   const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Rendered into <body> with fixed positioning so the message list's scroll
+  // area and the composer below it can't clip or cover it. Opens below the
+  // anchor, or above it when there isn't room.
+  useLayoutEffect(() => {
+    const place = () => {
+      const a = anchor.current?.getBoundingClientRect();
+      const h = ref.current?.offsetHeight ?? 0;
+      if (!a) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const left = Math.max(8, Math.min(a.right - WIDTH, vw - WIDTH - 8));
+      let top = a.bottom + GAP;
+      if (top + h > vh - 8 && a.top - GAP - h >= 8) top = a.top - GAP - h;
+      top = Math.max(8, Math.min(top, vh - h - 8));
+      setPos({ left, top });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchor]);
 
   useEffect(() => {
     if (!groups) void loadGroups().then(setGroups);
@@ -76,10 +115,15 @@ export function EmojiPicker({
     </button>
   );
 
-  return (
+  return createPortal(
     <div
       ref={ref}
-      className="absolute top-full right-0 z-20 mt-1 flex w-[312px] flex-col border border-ink/15 bg-cream shadow-[0_8px_24px_-10px_rgb(56_33_63/0.4)]"
+      style={
+        pos
+          ? { left: pos.left, top: pos.top }
+          : { left: 0, top: 0, visibility: "hidden" }
+      }
+      className="fixed z-50 flex w-[312px] flex-col border border-ink/15 bg-cream shadow-[0_8px_24px_-10px_rgb(56_33_63/0.4)]"
     >
       <div className="border-b border-ink/10 p-2">
         <input
@@ -127,7 +171,8 @@ export function EmojiPicker({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { useMutation } from "convex/react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { ChatMessage } from "@/convex/chat";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -39,6 +39,7 @@ export function Message({
   const [picker, setPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const mine = m.authorId === me._id;
   // Sent but not yet saved (an optimistic update); it has no real id to act on yet.
   const pending = m._id.startsWith(PENDING);
@@ -162,6 +163,7 @@ export function Message({
       {/* Hover actions */}
       {!editing && !pending && (
         <div
+          ref={actionsRef}
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
             picker || confirmDelete
               ? "flex"
@@ -221,6 +223,7 @@ export function Message({
               </span>
               {picker && (
                 <EmojiPicker
+                  anchor={actionsRef}
                   onPick={(e) => {
                     void toggle({ messageId: m._id, emoji: e });
                     setPicker(false);
