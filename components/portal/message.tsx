@@ -130,6 +130,7 @@ export function Message({
           // Out of flow and only toggling visibility, so hovering never changes the row's height.
           <time className="invisible absolute inset-x-0 top-1.5 text-right text-[11px] leading-none whitespace-nowrap text-ink-muted tabular-nums group-hover:visible">
             {clockTime(m._creationTime)}
+            {m.editedAt && <span className="block">edited</span>}
           </time>
         ) : (
           <Link href={profileHref} aria-label={author?.name}>
@@ -157,6 +158,9 @@ export function Message({
             >
               {clockTime(m._creationTime)}
             </time>
+            {m.editedAt && (
+              <span className="text-[12px] text-ink-muted">(edited)</span>
+            )}
           </div>
         )}
 
@@ -188,9 +192,6 @@ export function Message({
         ) : (
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
-            {m.editedAt && (
-              <span className="text-[12px] text-ink-muted"> (edited)</span>
-            )}
           </div>
         )}
 
