@@ -328,6 +328,7 @@ function MessageList({
           </p>
         )}
         <Composer
+          draftKey={slug}
           placeholder={
             locked ? "About 100 words of today’s writing" : `Message #${slug}`
           }
@@ -527,6 +528,7 @@ function Thread({
           <Composer
             compact
             autoFocus
+            draftKey={`${slug}/${parentId}`}
             placeholder="Reply…"
             onTyping={onTyping}
             onSend={async (body) => void (await send({ slug, body, parentId }))}

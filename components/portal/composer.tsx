@@ -35,6 +35,7 @@ export function Composer({
   autoFocus,
   submitLabel = "Send",
   compact,
+  draftKey,
 }: {
   placeholder: string;
   onSend: (body: string) => Promise<void>;
@@ -44,8 +45,11 @@ export function Composer({
   autoFocus?: boolean;
   submitLabel?: string;
   compact?: boolean;
+  /** Keeps unsent text in this browser under this key, e.g. per channel or thread. */
+  draftKey?: string;
 }) {
   const { roster, me } = usePortal();
+  const storageKey = draftKey ? `jw-draft:${me._id}:${draftKey}` : null;
   const [mention, setMention] = useState<MentionState>(null);
   // Tiptap's callbacks are set up once, when the editor is created, so they read
   // the latest props and state through these refs (kept current by the effect below).
@@ -60,7 +64,11 @@ export function Composer({
     // pass instead of popping in after mount.
     immediatelyRender: true,
     autofocus: autoFocus ? "end" : false,
-    content: initial ? JSON.parse(initial) : undefined,
+    content: initial
+      ? JSON.parse(initial)
+      : storageKey
+        ? readDraft(storageKey)
+        : undefined,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2] },
@@ -171,6 +179,7 @@ export function Composer({
       },
     },
     onUpdate: ({ editor }) => {
+      if (storageKey) writeDraft(storageKey, editor);
       if (!editor.isEmpty) typingRef.current?.();
     },
   });
@@ -268,6 +277,24 @@ export function Composer({
       )}
     </div>
   );
+}
+
+function readDraft(key: string): JSONContent | undefined {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? (JSON.parse(saved) as JSONContent) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeDraft(key: string, editor: Editor) {
+  try {
+    if (editor.isEmpty) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(editor.getJSON()));
+  } catch {
+    // Storage can be full or blocked; the draft just isn't kept.
+  }
 }
 
 function Toolbar({ editor }: { editor: Editor | null }) {
