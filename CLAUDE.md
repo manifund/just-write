@@ -17,8 +17,9 @@ bun install
 vercel env pull .env.local   # Stripe keys etc. (bun auto-loads .env.local); then `bun convex` to restore CONVEX_DEPLOYMENT
 bun convex                   # pushes convex/ to the dev deployment and watches; tails Convex logs
 bun dev                      # localhost:3000
-bunx tsc --noEmit            # typecheck (includes convex/)
-bunx eslint app lib components convex scripts  # lint (plain `bun run lint` also scans .next and reports bogus errors)
+bun check                    # typecheck (includes convex/) then lint; run before finishing any change
+bun typecheck                # just `tsc --noEmit`
+bun lint                     # just eslint on app lib components convex scripts (bare `bunx eslint` also scans .next and reports bogus errors)
 bunx convex run chat:seedChannels  # create/update the default chat channels (once per deployment)
 ```
 

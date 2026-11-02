@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "eslint app lib components convex scripts",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && eslint app lib components convex scripts",
     "convex": "convex dev",
     "import:neon": "bun scripts/import-neon.ts"
   },
