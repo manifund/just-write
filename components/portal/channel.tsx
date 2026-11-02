@@ -501,7 +501,7 @@ function Thread({
           ×
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-3">
+      <div className="min-h-0 flex-1 overflow-y-auto pt-4 pb-3">
         {data === null && (
           <p className="p-5 text-ink-muted">This message was deleted.</p>
         )}
