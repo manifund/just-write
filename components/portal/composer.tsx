@@ -1,6 +1,6 @@
 "use client";
 
-import { Extension, type JSONContent } from "@tiptap/core";
+import { Extension, InputRule, type JSONContent } from "@tiptap/core";
 import Mention from "@tiptap/extension-mention";
 import Placeholder from "@tiptap/extension-placeholder";
 import {
@@ -171,6 +171,46 @@ export function Composer({
               },
             };
           },
+        },
+      }),
+      // Nested lists: Tab / Shift+Tab indent and outdent a list item (and stay in the
+      // editor even when they can't, e.g. on the first item), and typing "- " at the
+      // start of a list item nests it under the item above, which also works on phones.
+      Extension.create({
+        name: "nestLists",
+        priority: 1000,
+        addKeyboardShortcuts() {
+          return {
+            Tab: ({ editor }) => {
+              if (mentionRef.current || !editor.isActive("listItem"))
+                return false;
+              editor.commands.sinkListItem("listItem");
+              return true;
+            },
+            "Shift-Tab": ({ editor }) => {
+              if (!editor.isActive("listItem")) return false;
+              editor.commands.liftListItem("listItem");
+              return true;
+            },
+          };
+        },
+        addInputRules() {
+          return [
+            new InputRule({
+              find: /^\s*[-+*]\s$/,
+              handler: ({ state, range, chain, can }) => {
+                const { $from } = state.selection;
+                if (
+                  $from.depth < 2 ||
+                  $from.node(-1).type.name !== "listItem" ||
+                  $from.index(-1) !== 0 ||
+                  !can().sinkListItem("listItem")
+                )
+                  return null;
+                chain().deleteRange(range).sinkListItem("listItem").run();
+              },
+            }),
+          ];
         },
       }),
       // Enter sends, Shift+Enter breaks the line (lists and code blocks keep their own Enter).
