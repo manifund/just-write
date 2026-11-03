@@ -53,7 +53,13 @@ function openThread(slug: string, id: Id<"messages">, current: string | null) {
   if (current === id) return;
   if (current) {
     // Switching threads replaces the entry, so one Back still returns to the channel.
-    window.history.replaceState(window.history.state, "", threadUrl(slug, id));
+    // Pass a fresh object: Next ignores the URL change if the state carries its own keys.
+    const opened = window.history.state?.[OPENED] === true;
+    window.history.replaceState(
+      opened ? { [OPENED]: true } : null,
+      "",
+      threadUrl(slug, id),
+    );
   } else {
     window.history.pushState({ [OPENED]: true }, "", threadUrl(slug, id));
   }
