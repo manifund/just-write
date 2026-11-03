@@ -24,6 +24,7 @@ const NODES = new Set([
   "codeBlock",
   "horizontalRule",
   "mention",
+  "image",
 ]);
 const MARKS = new Set([
   "bold",
@@ -39,6 +40,10 @@ function isSafeHref(href: unknown) {
   return typeof href === "string" && /^(https?:|mailto:)/i.test(href);
 }
 
+export function isSafeSrc(src: unknown): src is string {
+  return typeof src === "string" && /^https:\/\//i.test(src);
+}
+
 // Checks a message body from the client: allowed node and mark types only, http(s) links only.
 // Returns the cleaned JSON string and its plain text.
 export function cleanBody(raw: string): { body: string; text: string } {
@@ -51,8 +56,9 @@ export function cleanBody(raw: string): { body: string; text: string } {
   }
   if (doc?.type !== "doc") throw new ConvexError("Couldn’t read that message.");
 
-  const walk = (n: RichNode): RichNode | null => {
+  const walk = (n: RichNode, parent?: string): RichNode | null => {
     if (!n || typeof n.type !== "string" || !NODES.has(n.type)) return null;
+    if (n.type === "image" && parent !== "doc") return null; // images are top-level blocks only
     const out: RichNode = { type: n.type };
     if (n.type === "text") {
       if (typeof n.text !== "string" || !n.text) return null;
@@ -74,6 +80,19 @@ export function cleanBody(raw: string): { body: string; text: string } {
     }
     if (n.type === "orderedList" && typeof n.attrs?.start === "number")
       out.attrs = { start: n.attrs.start };
+    if (n.type === "image") {
+      // An uploaded image. The server swaps `src` for the stored file's URL
+      // (chat.ts#withImages), so only `id` is trusted from the client.
+      const dim = (x: unknown) =>
+        typeof x === "number" && x > 0 ? Math.min(Math.round(x), 10_000) : null;
+      out.attrs = {
+        id: String(n.attrs?.id ?? ""),
+        src: isSafeSrc(n.attrs?.src) ? n.attrs!.src : null,
+        width: dim(n.attrs?.width),
+        height: dim(n.attrs?.height),
+      };
+      return out;
+    }
     if (n.type === "mention") {
       out.attrs = {
         id: String(n.attrs?.id ?? ""),
@@ -83,7 +102,7 @@ export function cleanBody(raw: string): { body: string; text: string } {
     }
     if (n.content)
       out.content = n.content
-        .map(walk)
+        .map((c) => walk(c, n.type))
         .filter((c): c is RichNode => c !== null);
     return out;
   };
@@ -97,6 +116,7 @@ export function plainText(n: RichNode): string {
   if (n.type === "text") return n.text ?? "";
   if (n.type === "hardBreak") return "\n";
   if (n.type === "mention") return `@${n.attrs?.label ?? ""}`;
+  if (n.type === "image") return "(image)";
   const inner = (n.content ?? [])
     .map(plainText)
     .join(n.type === "doc" || n.type.endsWith("List") ? "\n" : "");

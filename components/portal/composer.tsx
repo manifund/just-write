@@ -15,8 +15,12 @@ import type {
   SuggestionKeyDownProps,
   SuggestionProps,
 } from "@tiptap/suggestion";
+import { useMutation } from "convex/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { PublicMember } from "@/convex/lib/viewer";
+import { errorMessage } from "@/lib/convex";
 import { Avatar } from "./avatar";
 import { usePortal } from "./context";
 
@@ -26,6 +30,19 @@ type MentionState = {
   rect: DOMRect | null;
   command: (m: PublicMember) => void;
 } | null;
+
+// An image attached to the message being written. `id` is the uploaded file's
+// storage id, missing while it uploads (when `src` is a local preview).
+type Attachment = {
+  key: string;
+  id?: string;
+  src: string;
+  width?: number;
+  height?: number;
+};
+
+const MAX_IMAGES = 10;
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export function Composer({
   placeholder,
@@ -59,17 +76,28 @@ export function Composer({
   const sendRef = useRef<() => void>(() => {});
   const cancelRef = useRef(onCancel);
   const typingRef = useRef(onTyping);
+  const filesRef = useRef<(files: File[]) => void>(() => {});
+  const [start] = useState(() =>
+    splitImages(
+      initial
+        ? (JSON.parse(initial) as JSONContent)
+        : storageKey
+          ? readDraft(storageKey)
+          : undefined,
+    ),
+  );
+  const [images, setImages] = useState<Attachment[]>(start.images);
+  const imagesRef = useRef(images);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const uploadUrl = useMutation(api.chat.imageUploadUrl);
+  const imageUrl = useMutation(api.chat.imageUrl);
 
   const editor = useEditor({
     // The portal only renders in the browser, so the editor can render on the first
     // pass instead of popping in after mount.
     immediatelyRender: true,
     autofocus: autoFocus ? "end" : false,
-    content: initial
-      ? JSON.parse(initial)
-      : storageKey
-        ? readDraft(storageKey)
-        : undefined,
+    content: start.doc,
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2] },
@@ -178,28 +206,101 @@ export function Composer({
         class: `rich composer-input ${compact ? "max-h-[30vh]" : "max-h-[40vh]"} min-h-[24px] overflow-y-auto outline-none`,
         "aria-label": placeholder,
       },
+      handlePaste: (_view, event) => {
+        const files = imageFiles(event.clipboardData);
+        if (!files.length) return false;
+        filesRef.current(files);
+        return true;
+      },
+      handleDrop: (_view, event) => {
+        const files = imageFiles(event.dataTransfer);
+        if (!files.length) return false;
+        event.preventDefault();
+        filesRef.current(files);
+        return true;
+      },
     },
     onUpdate: ({ editor }) => {
-      if (storageKey) writeDraft(storageKey, editor);
+      if (storageKey) writeDraft(storageKey, editor, imagesRef.current);
       if (!editor.isEmpty) typingRef.current?.();
     },
   });
 
+  const uploading = images.some((a) => !a.id);
+
+  // Uploads pasted, dropped, or picked images and shows them under the text.
+  const addFiles = async (files: File[]) => {
+    setImageError(null);
+    const room = MAX_IMAGES - imagesRef.current.length;
+    if (files.length > room)
+      setImageError(`You can attach up to ${MAX_IMAGES} images.`);
+    for (const file of files.slice(0, Math.max(room, 0))) {
+      if (file.size > MAX_IMAGE_BYTES) {
+        setImageError("Please use an image under 10 MB.");
+        continue;
+      }
+      const key = crypto.randomUUID();
+      const preview = URL.createObjectURL(file);
+      setImages((prev) => [...prev, { key, src: preview }]);
+      try {
+        const [size, url] = await Promise.all([
+          imageSize(preview),
+          uploadUrl(),
+        ]);
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const { storageId } = (await res.json()) as { storageId: string };
+        const src = await imageUrl({ storageId: storageId as Id<"_storage"> });
+        setImages((prev) =>
+          prev.map((a) =>
+            a.key === key ? { key, id: storageId, src, ...size } : a,
+          ),
+        );
+      } catch (err) {
+        setImages((prev) => prev.filter((a) => a.key !== key));
+        setImageError(
+          err instanceof Error && err.message === "Upload failed"
+            ? "Couldn’t upload that image. Please try again."
+            : errorMessage(err),
+        );
+      } finally {
+        URL.revokeObjectURL(preview);
+      }
+    }
+  };
+
   // Clears right away and doesn't wait for the server, so you can keep sending.
   const send = async () => {
-    if (!editor || editor.isEmpty) return;
+    if (!editor || uploading) return;
+    const sent = images;
+    if (editor.isEmpty && sent.length === 0) return;
     const json: JSONContent = editor.getJSON();
-    const body = JSON.stringify(json);
+    const body = JSON.stringify(withImages(json, sent));
     editor.commands.clearContent(true);
+    setImages([]);
+    setImageError(null);
     try {
       await onSend(body);
     } catch (err) {
       // Put the draft back so nothing is lost, unless you've started a new one.
-      if (!editor.isDestroyed && editor.isEmpty)
+      if (!editor.isDestroyed && editor.isEmpty) {
         editor.commands.setContent(json);
+        setImages((prev) => (prev.length ? prev : sent));
+      }
       throw err;
     }
   };
+
+  // Keep the saved draft in step when images are added or removed.
+  useEffect(() => {
+    imagesRef.current = images;
+    if (storageKey && editor && !editor.isDestroyed)
+      writeDraft(storageKey, editor, images);
+  }, [images, storageKey, editor]);
 
   useLayoutEffect(() => {
     rosterRef.current = roster;
@@ -207,6 +308,7 @@ export function Composer({
     cancelRef.current = onCancel;
     typingRef.current = onTyping;
     sendRef.current = send;
+    filesRef.current = (files) => void addFiles(files);
   });
 
   const isEmpty = useEditorState({
@@ -225,8 +327,36 @@ export function Composer({
           editor={editor}
           className="px-3.5 pt-3 pb-1.5 text-[17px] leading-[1.35]"
         />
+        {images.length > 0 && (
+          <div className="flex flex-wrap gap-2 px-3.5 pt-1.5 pb-1">
+            {images.map((a) => (
+              <div key={a.key} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local previews and Convex storage URLs */}
+                <img
+                  src={a.src}
+                  alt=""
+                  className={`block h-16 max-w-40 border border-ink/15 bg-cream-deep object-cover ${a.id ? "" : "opacity-50"}`}
+                />
+                <button
+                  type="button"
+                  title="Remove image"
+                  aria-label="Remove image"
+                  onClick={() =>
+                    setImages((prev) => prev.filter((b) => b.key !== a.key))
+                  }
+                  className="absolute -top-1.5 -right-1.5 flex size-5 cursor-pointer items-center justify-center rounded-full bg-ink text-[13px] leading-none text-cream hover:bg-ink-muted"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {imageError && (
+          <p className="px-3.5 pb-1 text-[13px] text-ink-muted">{imageError}</p>
+        )}
         <div className="flex items-center gap-0.5 px-2 pb-2">
-          <Toolbar editor={editor} />
+          <Toolbar editor={editor} onFiles={(files) => void addFiles(files)} />
           <span className="ml-auto hidden pr-2 text-[13px] text-ink-muted sm:inline">
             {onCancel ? "Esc to cancel · " : ""}Shift+Enter for a new line
           </span>
@@ -242,7 +372,7 @@ export function Composer({
           <button
             type="button"
             onClick={() => void send()}
-            disabled={isEmpty}
+            disabled={(isEmpty && images.length === 0) || uploading}
             className="cursor-pointer bg-ink px-4 py-1.5 text-[15px] text-cream transition-[background-color,opacity] enabled:hover:bg-ink-muted disabled:cursor-default disabled:opacity-35"
           >
             {submitLabel}
@@ -280,6 +410,60 @@ export function Composer({
   );
 }
 
+function imageFiles(data: { files: FileList | null } | null): File[] {
+  return [...(data?.files ?? [])].filter(
+    (f) => f.type.startsWith("image/") && !f.type.includes("svg"),
+  );
+}
+
+function imageSize(src: string): Promise<{ width?: number; height?: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({});
+    img.src = src;
+  });
+}
+
+// Messages keep their images as top-level "image" nodes after the text; the
+// editor itself only holds the text, so split them apart and join them back.
+function splitImages(doc: JSONContent | undefined): {
+  doc: JSONContent | undefined;
+  images: Attachment[];
+} {
+  if (!doc?.content) return { doc, images: [] };
+  const images: Attachment[] = [];
+  const content: JSONContent[] = [];
+  for (const n of doc.content) {
+    if (n.type !== "image") content.push(n);
+    else if (typeof n.attrs?.id === "string" && typeof n.attrs?.src === "string")
+      images.push({
+        key: crypto.randomUUID(),
+        id: n.attrs.id,
+        src: n.attrs.src,
+        width: n.attrs.width ?? undefined,
+        height: n.attrs.height ?? undefined,
+      });
+  }
+  return { doc: { ...doc, content }, images };
+}
+
+function withImages(doc: JSONContent, images: Attachment[]): JSONContent {
+  const uploaded = images.filter((a) => a.id);
+  if (!uploaded.length) return doc;
+  return {
+    ...doc,
+    content: [
+      ...(doc.content ?? []),
+      ...uploaded.map((a) => ({
+        type: "image",
+        attrs: { id: a.id, src: a.src, width: a.width, height: a.height },
+      })),
+    ],
+  };
+}
+
 function readDraft(key: string): JSONContent | undefined {
   try {
     const saved = localStorage.getItem(key);
@@ -289,10 +473,15 @@ function readDraft(key: string): JSONContent | undefined {
   }
 }
 
-function writeDraft(key: string, editor: Editor) {
+function writeDraft(key: string, editor: Editor, images: Attachment[]) {
   try {
-    if (editor.isEmpty) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(editor.getJSON()));
+    if (editor.isEmpty && !images.some((a) => a.id))
+      localStorage.removeItem(key);
+    else
+      localStorage.setItem(
+        key,
+        JSON.stringify(withImages(editor.getJSON(), images)),
+      );
   } catch {
     // Storage can be full or blocked; the draft just isn't kept.
   }
@@ -323,7 +512,14 @@ function isolateLine({ tr }: { tr: Transaction }) {
   return true;
 }
 
-function Toolbar({ editor }: { editor: Editor | null }) {
+function Toolbar({
+  editor,
+  onFiles,
+}: {
+  editor: Editor | null;
+  onFiles: (files: File[]) => void;
+}) {
+  const picker = useRef<HTMLInputElement>(null);
   const state = useEditorState({
     editor,
     selector: (s) => ({
@@ -408,6 +604,40 @@ function Toolbar({ editor }: { editor: Editor | null }) {
           <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
         </svg>
       </button>
+      <button
+        type="button"
+        title="Add image (or paste one)"
+        className={btn(false)}
+        onClick={() => picker.current?.click()}
+      >
+        <svg
+          aria-hidden="true"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="3" y="4" width="18" height="16" rx="1" />
+          <circle cx="9" cy="10" r="1.5" />
+          <path d="m21 16-5-5-9 9" />
+        </svg>
+      </button>
+      <input
+        ref={picker}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = imageFiles(e.target);
+          e.target.value = "";
+          if (files.length) onFiles(files);
+        }}
+      />
       <span className="hidden items-center gap-0.5 sm:flex">
         <button
           type="button"

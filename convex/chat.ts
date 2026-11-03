@@ -17,7 +17,12 @@ import {
 } from "./lib/channels";
 import { isReaction } from "./lib/reactions";
 import { cardOf, ensureClaude, getClaude, startFromMessage } from "./improvements";
-import { cleanBody, mentionIds, type RichNode } from "./lib/richtext";
+import {
+  cleanBody,
+  mentionIds,
+  plainText,
+  type RichNode,
+} from "./lib/richtext";
 import { isAdminEmail, requireAdmin, requireMember } from "./lib/viewer";
 
 // Creates the default channels, or updates their names and descriptions. Run once per deployment:
@@ -286,6 +291,70 @@ export const thread = query({
   },
 });
 
+// Images in messages: the composer gets an upload URL, uploads the file, then
+// calls imageUrl to check it and get the address to show while composing.
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGES = 10;
+
+export const imageUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireMember(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+async function storedImageUrl(ctx: MutationCtx, id: Id<"_storage">) {
+  const file = await ctx.db.system.get(id);
+  if (
+    !file ||
+    !file.contentType?.startsWith("image/") ||
+    file.contentType.includes("svg") ||
+    file.size > MAX_IMAGE_BYTES
+  )
+    return null;
+  return await ctx.storage.getUrl(id);
+}
+
+export const imageUrl = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    await requireMember(ctx);
+    const url = await storedImageUrl(ctx, storageId);
+    if (!url) {
+      const file = await ctx.db.system.get(storageId);
+      if (file) await ctx.storage.delete(storageId);
+      throw new ConvexError("Please use an image under 10 MB.");
+    }
+    return url;
+  },
+});
+
+// Replaces each image's `src` with the URL of the uploaded file it names, and
+// drops images that don't point at a stored image.
+async function withImages(
+  ctx: MutationCtx,
+  cleaned: { body: string; text: string },
+): Promise<{ body: string; text: string }> {
+  const doc = JSON.parse(cleaned.body) as RichNode;
+  if (!doc.content?.some((n) => n.type === "image")) return cleaned;
+  let count = 0;
+  const content: RichNode[] = [];
+  for (const n of doc.content) {
+    if (n.type !== "image") {
+      content.push(n);
+      continue;
+    }
+    const id = ctx.db.system.normalizeId("_storage", String(n.attrs?.id ?? ""));
+    const src = id && count < MAX_IMAGES ? await storedImageUrl(ctx, id) : null;
+    if (!src) continue;
+    count++;
+    content.push({ ...n, attrs: { ...n.attrs, src } });
+  }
+  const out: RichNode = { ...doc, content };
+  return { body: JSON.stringify(out), text: plainText(out).trim() };
+}
+
 export const send = mutation({
   args: {
     slug: v.string(),
@@ -295,7 +364,7 @@ export const send = mutation({
   handler: async (ctx, args) => {
     const { member, isAdmin } = await requireMember(ctx);
     const c = await channelBySlug(ctx, args.slug);
-    const { body, text } = cleanBody(args.body);
+    const { body, text } = await withImages(ctx, cleanBody(args.body));
     if (!text) throw new ConvexError("Write something first.");
 
     const parentId = args.parentId;
@@ -346,7 +415,7 @@ export const edit = mutation({
       throw new ConvexError("You can only edit your own messages.");
     if (m.essayId || m.kind)
       throw new ConvexError("This post can’t be edited.");
-    const { body, text } = cleanBody(args.body);
+    const { body, text } = await withImages(ctx, cleanBody(args.body));
     if (!text) throw new ConvexError("Write something first.");
     await ctx.db.patch(m._id, { body, text, editedAt: Date.now() });
   },

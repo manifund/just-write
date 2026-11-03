@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { RichNode } from "@/convex/lib/richtext";
+import { isSafeSrc, type RichNode } from "@/convex/lib/richtext";
 
 // Renders a (server-cleaned) Tiptap JSON document as React elements, without raw HTML.
 export function RichText({ body }: { body: string }) {
@@ -12,7 +12,15 @@ export function RichText({ body }: { body: string }) {
   }
   return (
     <div className="rich">
-      {normalizeBlocks(doc.content ?? []).map((n, i) => renderNode(n, i))}
+      {groupImages(normalizeBlocks(doc.content ?? [])).map((n, i) =>
+        Array.isArray(n) ? (
+          <div key={i} className="flex flex-wrap gap-2">
+            {n.map((img, j) => renderImage(img, j))}
+          </div>
+        ) : (
+          renderNode(n, i)
+        ),
+      )}
     </div>
   );
 }
@@ -33,6 +41,45 @@ function normalizeBlocks(blocks: RichNode[]): RichNode[] {
     }
   }
   return out.length ? out : blocks;
+}
+
+// Images next to each other share a row.
+function groupImages(blocks: RichNode[]): (RichNode | RichNode[])[] {
+  const out: (RichNode | RichNode[])[] = [];
+  for (const b of blocks) {
+    const last = out[out.length - 1];
+    if (b.type !== "image") out.push(b);
+    else if (Array.isArray(last)) last.push(b);
+    else out.push([b]);
+  }
+  return out;
+}
+
+function renderImage(n: RichNode, key: number): ReactNode {
+  const src = n.attrs?.src;
+  if (!isSafeSrc(src)) return null;
+  const w = Number(n.attrs?.width) || undefined;
+  const h = Number(n.attrs?.height) || undefined;
+  return (
+    <a
+      key={key}
+      href={src}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="block max-w-full"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- user uploads from Convex storage */}
+      <img
+        src={src}
+        alt=""
+        width={w}
+        height={h}
+        loading="lazy"
+        className="block h-auto max-h-80 w-auto max-w-full border border-ink/15 bg-cream-deep object-contain"
+        style={w && h ? { aspectRatio: `${w} / ${h}` } : undefined}
+      />
+    </a>
+  );
 }
 
 function splitOnDoubleBreaks(inline: RichNode[]): RichNode[][] {
