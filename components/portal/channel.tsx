@@ -32,9 +32,62 @@ const GROUP_MS = 5 * 60 * 1000;
 
 export function ChannelFromUrl() {
   const { slug } = useParams<{ slug: string }>();
-  // ?thread=<id> opens a thread, e.g. from #site or /improvements.
+  // ?thread=<id> is the open thread, so it can be linked and works with Back/Forward.
   const thread = useSearchParams().get("thread") as Id<"messages"> | null;
-  return <Channel key={thread ?? ""} slug={slug} initialThread={thread} />;
+  return <Channel slug={slug} threadId={thread} />;
+}
+
+// The last thread open in each channel during this visit. On wide screens, where the
+// thread sits beside the channel, coming back to a channel reopens it.
+const lastThread = new Map<string, Id<"messages">>();
+const WIDE = "(min-width: 1024px)"; // Tailwind's lg, where the thread panel stops covering the page
+
+// Set on history entries added by opening a thread, so closing it can just go Back.
+const OPENED = "jwThreadOpened";
+
+function threadUrl(slug: string, id: Id<"messages"> | null) {
+  return id ? `/chat/${slug}?thread=${id}` : `/chat/${slug}`;
+}
+
+function openThread(slug: string, id: Id<"messages">, current: string | null) {
+  if (current === id) return;
+  if (current) {
+    // Switching threads replaces the entry, so one Back still returns to the channel.
+    window.history.replaceState(window.history.state, "", threadUrl(slug, id));
+  } else {
+    window.history.pushState({ [OPENED]: true }, "", threadUrl(slug, id));
+  }
+}
+
+function closeThread(slug: string) {
+  lastThread.delete(slug);
+  if (window.history.state?.[OPENED]) window.history.back();
+  else window.history.replaceState(null, "", threadUrl(slug, null));
+}
+
+// Keeps lastThread up to date, and restores it when arriving at a channel on a wide screen.
+function useRememberThread(slug: string, threadId: Id<"messages"> | null) {
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    const arrived = seen.current !== slug;
+    seen.current = slug;
+    if (arrived && !threadId) {
+      const last = lastThread.get(slug);
+      if (last && window.matchMedia(WIDE).matches) {
+        window.history.replaceState(null, "", threadUrl(slug, last));
+        return;
+      }
+    }
+    if (threadId) lastThread.set(slug, threadId);
+    else lastThread.delete(slug);
+  }, [slug, threadId]);
+  // Hidden pages kept by the router count as a fresh arrival when shown again.
+  useEffect(
+    () => () => {
+      seen.current = null;
+    },
+    [],
+  );
 }
 
 // What a message will look like once the server saves it, shown while it's sending.
@@ -94,10 +147,10 @@ function addToChannel(
 
 export function Channel({
   slug,
-  initialThread = null,
+  threadId,
 }: {
   slug: string;
-  initialThread?: Id<"messages"> | null;
+  threadId: Id<"messages"> | null;
 }) {
   // The sidebar already subscribes to the channel list, so this is usually ready immediately.
   const channels = useQuery(api.chat.channels);
@@ -105,9 +158,12 @@ export function Channel({
     channels === undefined
       ? undefined
       : (channels.find((c) => c.slug === slug) ?? null);
-  const [threadId, setThreadId] = useState<Id<"messages"> | null>(
-    initialThread,
+  useRememberThread(slug, threadId);
+  const onOpenThread = useCallback(
+    (id: Id<"messages">) => openThread(slug, id, threadId),
+    [slug, threadId],
   );
+  const onCloseThread = useCallback(() => closeThread(slug), [slug]);
   const here = useRoom(`channel:${slug}`);
 
   if (channel === undefined) return <div className="h-full" aria-busy="true" />;
@@ -158,7 +214,7 @@ export function Channel({
           slug={slug}
           channelId={channel._id}
           locked={channel.locked}
-          onOpenThread={setThreadId}
+          onOpenThread={onOpenThread}
         />
       </div>
       {threadId && (
@@ -166,7 +222,7 @@ export function Channel({
           key={threadId}
           slug={slug}
           parentId={threadId}
-          onClose={() => setThreadId(null)}
+          onClose={onCloseThread}
         />
       )}
     </div>
