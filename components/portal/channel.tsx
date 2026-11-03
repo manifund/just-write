@@ -18,7 +18,7 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ChatMessage } from "@/convex/chat";
-import { PAGE_SIZE } from "@/convex/lib/channels";
+import { CHECK_IN_SLUG, PAGE_SIZE } from "@/convex/lib/channels";
 import { cleanBody, mentionIds } from "@/convex/lib/richtext";
 import { errorMessage } from "@/lib/convex";
 import { Avatar } from "./avatar";
@@ -391,6 +391,7 @@ function MessageList({
         )}
         <Composer
           draftKey={slug}
+          wordCount={slug === CHECK_IN_SLUG}
           placeholder={
             locked ? "About 100 words of today’s writing" : `Message #${slug}`
           }
