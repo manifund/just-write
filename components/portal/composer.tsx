@@ -192,6 +192,18 @@ export function Composer({
               editor.commands.liftListItem("listItem");
               return true;
             },
+            // Shift+Enter at the end of a bullet starts a new bullet, like Enter;
+            // elsewhere in a bullet it still adds a line break.
+            "Shift-Enter": ({ editor }) => {
+              const { empty, $from } = editor.state.selection;
+              if (
+                !empty ||
+                !editor.isActive("listItem") ||
+                $from.parentOffset !== $from.parent.content.size
+              )
+                return false;
+              return editor.commands.splitListItem("listItem");
+            },
           };
         },
         addInputRules() {
