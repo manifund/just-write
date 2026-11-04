@@ -7,7 +7,7 @@ import {
   usePaginatedQuery,
   useQuery,
 } from "convex/react";
-import { useParams, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -31,10 +31,12 @@ import { dayLabel, PENDING, useNow } from "./util";
 const GROUP_MS = 5 * 60 * 1000;
 
 export function ChannelFromUrl() {
-  const { slug } = useParams<{ slug: string }>();
+  // From the path rather than useParams: the sidebar switches channels with pushState
+  // (see switchChannel in frame.tsx), which updates the path but not the route params.
+  const slug = decodeURIComponent(usePathname().split("/")[2] ?? "");
   // ?thread=<id> is the open thread, so it can be linked and works with Back/Forward.
   const thread = useSearchParams().get("thread") as Id<"messages"> | null;
-  return <Channel slug={slug} threadId={thread} />;
+  return <Channel key={slug} slug={slug} threadId={thread} />;
 }
 
 // The last thread open in each channel during this visit. On wide screens, where the

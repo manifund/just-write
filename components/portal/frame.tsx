@@ -3,7 +3,13 @@
 import { useConvexAuth, useMutation, useQueries, useQuery } from "convex/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Avatar } from "./avatar";
@@ -243,6 +249,30 @@ function ReadonlyBanner() {
 const navLink =
   "flex items-center gap-2.5 px-3 py-1.5 text-[16px] no-underline transition-colors hover:bg-cream/8";
 
+// Between channels, change the URL in the browser instead of asking the server for the page.
+// The chat page renders nothing on the server (Channel reads the slug from the URL), so
+// there's nothing to fetch, and skipping the request avoids Next.js falling back to a full
+// page load when that request fails or comes from a newer deploy than the open tab.
+// Cmd/Ctrl/Shift-clicks and middle clicks still go to the Link as usual.
+function switchChannel(
+  e: MouseEvent<HTMLAnchorElement>,
+  from: string,
+  to: string,
+) {
+  if (
+    !from.startsWith("/chat/") ||
+    e.button !== 0 ||
+    e.metaKey ||
+    e.ctrlKey ||
+    e.shiftKey ||
+    e.altKey
+  )
+    return;
+  e.preventDefault();
+  if (from !== to || window.location.search)
+    window.history.pushState(null, "", to);
+}
+
 function Sidebar() {
   const { me, viewer } = usePortal();
   const pathname = usePathname();
@@ -337,6 +367,7 @@ function Sidebar() {
           <Link
             key={c._id}
             href={`/chat/${c.slug}`}
+            onClick={(e) => switchChannel(e, pathname, `/chat/${c.slug}`)}
             className={`${cls(`/chat/${c.slug}`)} ${c.unread ? "font-bold text-cream" : ""}`}
           >
             <span aria-hidden="true" className="w-5 text-center opacity-60">
