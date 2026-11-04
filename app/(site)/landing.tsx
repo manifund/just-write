@@ -8,7 +8,7 @@ const RULES = [
   {
     numeral: "1.",
     title: "Write 100 words each day",
-    detail: "Post your snippet online; one “grace day” each week.",
+    detail: "Share your snippet to see everyone else's.",
   },
   {
     numeral: "2.",
