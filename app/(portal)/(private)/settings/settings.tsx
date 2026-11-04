@@ -21,7 +21,8 @@ function PhotoPicker() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [picked, setPicked] = useState<File | null>(null);
+  const [picked, setPicked] = useState<Blob | string | null>(null);
+  const [pickCount, setPickCount] = useState(0); // remounts the crop step per photo
 
   async function upload(blob: Blob) {
     setPicked(null);
@@ -43,11 +44,18 @@ function PhotoPicker() {
     }
   }
 
+  // With a current photo, open the crop step on it; otherwise pick a file.
+  function change() {
+    setError(null);
+    if (me?.image) setPicked(me.image);
+    else inputRef.current?.click();
+  }
+
   return (
     <div className="flex shrink-0 flex-col items-center gap-1.5">
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={change}
         disabled={uploading}
         aria-label="Change photo"
         className={`cursor-pointer rounded-full transition-opacity hover:opacity-85 ${uploading ? "opacity-50" : ""}`}
@@ -56,7 +64,7 @@ function PhotoPicker() {
       </button>
       <button
         type="button"
-        onClick={() => inputRef.current?.click()}
+        onClick={change}
         disabled={uploading}
         className="cursor-pointer text-[13px] text-ink-muted underline-offset-2 hover:underline"
       >
@@ -73,14 +81,17 @@ function PhotoPicker() {
           if (file) {
             setError(null);
             setPicked(file);
+            setPickCount((n) => n + 1);
           }
         }}
       />
       {picked && (
         <PhotoCrop
+          key={pickCount}
           file={picked}
           onCancel={() => setPicked(null)}
           onSave={upload}
+          onChooseFile={() => inputRef.current?.click()}
         />
       )}
       {error && (

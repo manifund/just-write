@@ -8,16 +8,19 @@ const MAX_ZOOM = 4;
 type Crop = { zoom: number; x: number; y: number };
 
 // Lets the member drag and zoom a photo inside a circle before uploading it.
-// `onSave` gets a square JPEG of what's inside the circle.
+// `file` is a picked file or the URL of their current photo. `onSave` gets a
+// square JPEG of what's inside the circle.
 export function PhotoCrop({
   file,
   onCancel,
   onSave,
+  onChooseFile,
   size = 400,
 }: {
-  file: File;
+  file: Blob | string;
   onCancel: () => void;
   onSave: (blob: Blob) => void;
+  onChooseFile?: () => void;
   size?: number;
 }) {
   const [image, setImage] = useState<{
@@ -32,9 +35,16 @@ export function PhotoCrop({
   useEffect(() => {
     let cancelled = false;
     let loaded: { bitmap: ImageBitmap; url: string } | null = null;
-    createImageBitmap(file).then(
-      (bitmap) => {
-        loaded = { bitmap, url: URL.createObjectURL(file) };
+    const blob =
+      typeof file === "string"
+        ? fetch(file, { referrerPolicy: "no-referrer" }).then((r) => {
+            if (!r.ok) throw new Error();
+            return r.blob();
+          })
+        : Promise.resolve(file);
+    blob.then(async (b) => [b, await createImageBitmap(b)] as const).then(
+      ([b, bitmap]) => {
+        loaded = { bitmap, url: URL.createObjectURL(b) };
         if (cancelled) return cleanup();
         const base = VIEW / Math.min(bitmap.width, bitmap.height);
         setCrop({
@@ -44,7 +54,13 @@ export function PhotoCrop({
         });
         setImage(loaded);
       },
-      () => !cancelled && setError("Couldn’t read that image."),
+      () =>
+        !cancelled &&
+        setError(
+          typeof file === "string"
+            ? "Couldn’t load your current photo. Choose a new one instead."
+            : "Couldn’t read that image.",
+        ),
     );
     function cleanup() {
       if (!loaded) return;
@@ -224,7 +240,16 @@ export function PhotoCrop({
             {error}
           </p>
         )}
-        <div className="flex w-full justify-end gap-3">
+        <div className="flex w-full items-center justify-end gap-3">
+          {onChooseFile && (
+            <button
+              type="button"
+              onClick={onChooseFile}
+              className="mr-auto cursor-pointer text-[14px] text-ink-muted underline-offset-2 hover:underline"
+            >
+              Choose new photo
+            </button>
+          )}
           <button
             type="button"
             onClick={onCancel}
