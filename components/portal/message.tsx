@@ -1,18 +1,22 @@
 "use client";
 
-import { useMutation } from "convex/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "@/convex/_generated/api";
 import type { ChatMessage } from "@/convex/chat";
 import type { Id } from "@/convex/_generated/dataModel";
 import { REACTIONS } from "@/convex/lib/reactions";
 import { fmtWhen } from "@/convex/lib/time";
+import { errorMessage } from "@/lib/convex";
 import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { EmojiPicker } from "./emoji-picker";
 import { useMember, usePortal } from "./context";
 import { ImprovementCard } from "./improvement";
+import {
+  useEditMessage,
+  useRemoveMessage,
+  useToggleReaction,
+} from "./optimistic";
 import { RichText } from "./rich-text";
 import { clockTime, hostOf, PENDING, timeAgo } from "./util";
 
@@ -33,10 +37,15 @@ export function Message({
 }) {
   const { me, viewer } = usePortal();
   const author = useMember(m.authorId);
-  const toggle = useMutation(api.chat.toggleReaction);
-  const edit = useMutation(api.chat.edit);
-  const remove = useMutation(api.chat.remove);
+  const toggle = useToggleReaction(me._id);
+  const edit = useEditMessage();
+  const remove = useRemoveMessage();
   const [editing, setEditing] = useState(false);
+  // An edit that didn't save: the editor reopens with it so nothing is lost.
+  const [failedEdit, setFailedEdit] = useState<{
+    body: string;
+    error: string;
+  } | null>(null);
   const [picker, setPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
@@ -170,15 +179,28 @@ export function Message({
             <Composer
               compact
               autoFocus
-              initial={m.body}
+              initial={failedEdit?.body ?? m.body}
               placeholder="Edit message"
               submitLabel="Save"
-              onCancel={() => setEditing(false)}
-              onSend={async (body) => {
-                await edit({ messageId: m._id, body });
+              onCancel={() => {
                 setEditing(false);
+                setFailedEdit(null);
+              }}
+              onSend={async (body) => {
+                // Shows the new text right away; the save finishes in the background.
+                setEditing(false);
+                setFailedEdit(null);
+                edit({ messageId: m._id, body }).catch((err) => {
+                  setFailedEdit({ body, error: errorMessage(err) });
+                  setEditing(true);
+                });
               }}
             />
+            {failedEdit && (
+              <p role="alert" className="pt-1 text-[14px] text-brass-text">
+                {failedEdit.error}
+              </p>
+            )}
           </div>
         ) : m.improvement ? (
           <ImprovementCard card={m.improvement} isAdmin={viewer.isAdmin} />

@@ -1,9 +1,10 @@
 "use client";
 
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
 import { Avatar } from "@/components/portal/avatar";
 import { hostOf } from "@/components/portal/util";
+import { useToggleVote } from "@/components/portal/optimistic";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { fillSlots } from "@/convex/lib/program";
@@ -108,7 +109,7 @@ function MemberIdeas({
   isSelf: boolean;
 }) {
   const ideas = useQuery(api.ideas.forMember, { memberId });
-  const vote = useMutation(api.ideas.toggleVote);
+  const vote = useToggleVote();
   if (!ideas || ideas.length === 0) return null;
   return (
     <section aria-labelledby="ideas" className="flex flex-col gap-3">

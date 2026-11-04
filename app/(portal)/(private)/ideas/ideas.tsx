@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { timeAgo, useNow } from "@/components/portal/util";
+import { useToggleVote } from "@/components/portal/optimistic";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { errorMessage } from "@/lib/convex";
@@ -195,7 +196,7 @@ function Notebook() {
 
 function Board() {
   const ideas = useQuery(api.ideas.board);
-  const vote = useMutation(api.ideas.toggleVote);
+  const vote = useToggleVote();
   const { me } = usePortal();
   const now = useNow();
 
