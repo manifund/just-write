@@ -288,6 +288,48 @@ export const setAltEmail = internalMutation({
   },
 });
 
+// Folds a duplicate row (someone who expressed interest again under a second address) into
+// their real row: the duplicate is deleted and its address becomes the altEmail, so signing in
+// with either address reaches the same account. Only rows that never entered the portal can be
+// merged away, so nothing else can point at them. Internal, so only the CLI can call it:
+//   bunx convex run members:merge '{"into":"kept@...","from":"duplicate@..."}'
+export const merge = internalMutation({
+  args: { into: v.string(), from: v.string() },
+  handler: async (ctx, args) => {
+    const byEmail = (email: string) =>
+      ctx.db
+        .query("members")
+        .withIndex("by_email", (q) => q.eq("email", email))
+        .unique();
+    const into = await byEmail(args.into.trim().toLowerCase());
+    const from = await byEmail(args.from.trim().toLowerCase());
+    if (!into || !from) throw new ConvexError("Both emails must be members.");
+    if (into._id === from._id) throw new ConvexError("Those are the same row.");
+    if (
+      from.status === "committed" ||
+      isAdminEmail(from.email) ||
+      from.stripeSessionId
+    )
+      throw new ConvexError(
+        `${from.email} can use the portal or has started paying; merge the other way, or by hand.`,
+      );
+    if (into.altEmail)
+      throw new ConvexError(`${into.email} already has an alternate address.`);
+    await ctx.db.delete(from._id);
+    await ctx.db.patch(into._id, {
+      altEmail: from.email,
+      // Keep profile bits the kept row doesn't have yet.
+      link: into.link ?? from.link,
+      bio: into.bio ?? from.bio,
+      legacyId: into.legacyId ?? from.legacyId,
+    });
+    await ctx.scheduler.runAfter(0, internal.gcal.shareWith, {
+      memberId: into._id,
+    });
+    return { kept: into.email, altEmail: from.email, deleted: from._id };
+  },
+});
+
 // Every committed member's public card, for resolving chat authors and presence avatars.
 export const roster = query({
   args: {},

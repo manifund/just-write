@@ -1,13 +1,16 @@
-// Emails every committed member a message written in markdown, through Resend.
+// Emails a group of members a message written in markdown, through Resend.
 //
 //   bun scripts/email-blast.ts docs/email-1.md                        # preview: prints recipients and the text, sends nothing
 //   bun scripts/email-blast.ts docs/email-1.md --to austin@manifund.org  # send a draft to one address only
-//   bun scripts/email-blast.ts docs/email-1.md --send                 # send to every committed member
+//   bun scripts/email-blast.ts docs/email-1.md --send                 # send to everyone in the audience
 //
-// The file starts with header lines (`Subject: ...` required; `From:` and `Reply-To:` optional),
-// then a blank line, then the body. Blank lines separate paragraphs, and a block of `1. ` lines
-// becomes a numbered list. `{firstname}` is replaced per recipient (or "friend" with no name). The plain-text version is
-// the body as written; the HTML version also links URLs, #channels, and the phrases in LINKS.
+// The file starts with header lines (`Subject: ...` required; `To:`, `From:`, and `Reply-To:`
+// optional), then a blank line, then the body. `To:` picks the audience: "committed" (the
+// default) or "interested" (expressed interest or signed terms, but never paid the deposit);
+// any extra words after it, like "Interested, but not committed", are ignored. Blank lines separate paragraphs, and a block of `1. ` lines
+// becomes a numbered list. `{firstname}` is replaced per recipient (or "friend" with no name).
+// Markdown links `[text](url)` work in both versions (plain text shows "text (url)"); the HTML
+// version also links bare URLs, #channels, and the phrases in LINKS.
 // Real sends use the Resend idempotency key blast/<file name>/<email>, so re-running --send
 // within 24h won't email anyone twice. Rename the file to send a changed message again.
 // Recipients come from `bunx convex data members` (the deployment in .env.local), so nothing
@@ -32,6 +35,19 @@ const LINKS: [RegExp, string][] = [
   [/\bcalendar\b/, `${SITE}/calendar`],
 ];
 
+// Who a `To:` header can address, by member status.
+const AUDIENCES = {
+  committed: {
+    label: "committed members",
+    statuses: ["committed"],
+  },
+  interested: {
+    label: "interested members (not committed)",
+    statuses: ["interested", "signed"],
+  },
+};
+type Audience = keyof typeof AUDIENCES;
+
 const [file, ...flags] = process.argv.slice(2);
 const send = flags.includes("--send");
 const toIndex = flags.indexOf("--to");
@@ -52,16 +68,17 @@ const replyTo = headers["reply-to"] ?? DEFAULT_REPLY_TO;
 function personalize(name: string | undefined) {
   const first = name?.trim().split(/\s+/)[0] || "friend";
   const filled = body.replaceAll("{firstname}", first);
-  return { text: filled, html: renderHtml(filled) };
+  return { text: plainText(filled), html: renderHtml(filled) };
 }
 
 const resendKey = process.env.RESEND_API_KEY;
 if (!resendKey) throw new Error("Needs RESEND_API_KEY");
 
-const members = await committedMembers();
+const audience = pickAudience(headers.to);
+const members = await loadMembers(audience);
 
 console.log(`From: ${from}\nReply-To: ${replyTo}\nSubject: ${subject}\n\n${body}\n`);
-console.log(`${members.length} committed members:`);
+console.log(`${members.length} ${AUDIENCES[audience].label}:`);
 for (const m of members) console.log(`  ${m.email}  (${m.name})`);
 console.log();
 
@@ -99,8 +116,16 @@ console.log(
 );
 if (failed) process.exit(1);
 
-// Committed members (not the bot), via the Convex CLI so no new function has to be deployed.
-async function committedMembers() {
+function pickAudience(to: string | undefined): Audience {
+  const first = (to ?? "committed").trim().toLowerCase().split(/[\s,]+/)[0];
+  if (first in AUDIENCES) return first as Audience;
+  throw new Error(
+    `Unknown "To:" audience "${to}". Use one of: ${Object.keys(AUDIENCES).join(", ")}`,
+  );
+}
+
+// Members in the audience (never the bot), via the Convex CLI so no new function has to be deployed.
+async function loadMembers(audience: Audience) {
   const { stdout } = await promisify(execFile)("bunx", [
     "convex",
     "data",
@@ -123,7 +148,7 @@ async function committedMembers() {
         },
     );
   return rows
-    .filter((m) => m.status === "committed" && !m.bot)
+    .filter((m) => AUDIENCES[audience].statuses.includes(m.status) && !m.bot)
     .map(({ name, email }) => ({ name, email }))
     .sort((a, b) => a.email.localeCompare(b.email));
 }
@@ -157,9 +182,12 @@ function esc(s: string) {
 // Escapes a line and turns URLs, #channels, and LINKS phrases into links, in one pass so
 // a later pattern never matches inside an earlier link.
 function inline(line: string) {
+  // Group numbers: 1-3 markdown link (whole, text, href); 4 bare URL; 5-6 #channel (whole,
+  // slug); 7+ one per LINKS phrase. Markdown links go first so their URL isn't matched bare.
+  const mdLink = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/;
   const url = /https?:\/\/[^\s<>"]+/;
   const channel = /#([a-z0-9][a-z0-9-]*)/;
-  const parts = [url, channel, ...LINKS.map(([re]) => re)];
+  const parts = [mdLink, url, channel, ...LINKS.map(([re]) => re)];
   const re = new RegExp(parts.map((p) => `(${p.source})`).join("|"), "g");
   let out = "";
   let last = 0;
@@ -169,6 +197,11 @@ function inline(line: string) {
     let hit = m[0];
     let href: string;
     if (m[1]) {
+      out += `<a href="${esc(m[3])}" ${A}>${esc(m[2])}</a>`;
+      last = start + hit.length;
+      continue;
+    }
+    if (m[4]) {
       // Keep trailing punctuation outside the link.
       const trail = hit.match(/[.,!?;:)]+$/)?.[0] ?? "";
       hit = hit.slice(0, hit.length - trail.length);
@@ -177,15 +210,20 @@ function inline(line: string) {
       last = start + m[0].length;
       continue;
     }
-    if (m[3]) href = `${SITE}/chat/${m[3]}`;
+    if (m[6]) href = `${SITE}/chat/${m[6]}`;
     else {
-      const which = m.slice(4).findIndex((g) => g !== undefined);
+      const which = m.slice(7).findIndex((g) => g !== undefined);
       href = LINKS[which][1];
     }
     out += `<a href="${esc(href)}" ${A}>${esc(hit)}</a>`;
     last = start + hit.length;
   }
   return out + esc(line.slice(last));
+}
+
+// The plain-text version: markdown links become "text (url)".
+function plainText(body: string) {
+  return body.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1 ($2)");
 }
 
 function renderHtml(body: string) {
