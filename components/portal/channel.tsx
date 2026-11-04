@@ -593,7 +593,8 @@ function Thread({
           <TypingIndicator slug={slug} parentId={parentId} />
           <Composer
             compact
-            autoFocus
+            // Focusing opens the keyboard on phones, which gets in the way of reading.
+            autoFocus={window.matchMedia("(hover: hover) and (pointer: fine)").matches}
             draftKey={`${slug}/${parentId}`}
             placeholder="Reply…"
             onTyping={onTyping}
