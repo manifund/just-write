@@ -47,6 +47,8 @@ export default defineSchema({
     legacyCreatedAt: v.optional(v.number()),
     // The @Claude bot's row. Hidden from directories; can't sign in.
     bot: v.optional(v.boolean()),
+    // Opted in (on /settings) to a daily email when they haven't posted in #check-ins yet.
+    checkInReminders: v.optional(v.boolean()),
   })
     .index("by_email", ["email"])
     .index("by_altEmail", ["altEmail"])

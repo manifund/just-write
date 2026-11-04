@@ -10,4 +10,11 @@ crons.interval(
   internal.improvements.reapStale,
 );
 
+// Emails members who opted in and haven't posted in #check-ins today, at 6pm PT (PST).
+crons.daily(
+  "check-in reminders",
+  { hourUTC: 2, minuteUTC: 0 },
+  internal.reminders.sendCheckInReminders,
+);
+
 export default crons;

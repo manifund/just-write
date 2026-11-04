@@ -331,3 +331,20 @@ export const setAvatar = mutation({
     await ctx.db.patch(member._id, { image: url, imageStorageId: storageId });
   },
 });
+
+// /settings: the viewer's email preferences (kept out of publicMember, which others can see).
+export const emailPrefs = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    return { checkInReminders: member.checkInReminders ?? false };
+  },
+});
+
+export const setCheckInReminders = mutation({
+  args: { on: v.boolean() },
+  handler: async (ctx, { on }) => {
+    const { member } = await requireMember(ctx);
+    await ctx.db.patch(member._id, { checkInReminders: on || undefined });
+  },
+});

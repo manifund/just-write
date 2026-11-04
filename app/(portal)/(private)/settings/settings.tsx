@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
@@ -114,6 +114,50 @@ function PhotoPicker() {
         </p>
       )}
     </div>
+  );
+}
+
+function Reminders() {
+  const prefs = useQuery(api.members.emailPrefs);
+  const setReminders = useMutation(
+    api.members.setCheckInReminders,
+  ).withOptimisticUpdate((store, { on }) =>
+    store.setQuery(api.members.emailPrefs, {}, { checkInReminders: on }),
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <section className="flex flex-col gap-3 border-t border-ink/15 pt-6">
+      <h2 className={label}>Email</h2>
+      <label className="flex cursor-pointer items-start gap-3 text-[18px]">
+        <input
+          type="checkbox"
+          checked={prefs?.checkInReminders ?? false}
+          disabled={!prefs}
+          onChange={async (e) => {
+            setError(null);
+            try {
+              await setReminders({ on: e.target.checked });
+            } catch (err) {
+              setError(errorMessage(err));
+            }
+          }}
+          className="mt-1.5 size-4 shrink-0 accent-ink"
+        />
+        <span className="flex flex-col gap-0.5">
+          <span>Remind me to post a check-in</span>
+          <span className="text-[14px] text-ink-muted">
+            A short email at 6pm Pacific on days you haven’t posted in
+            #check-ins yet.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="text-[16px] text-brass-text">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -234,6 +278,8 @@ export function Settings() {
           </p>
         )}
       </form>
+
+      <Reminders />
 
       <div className="border-t border-ink/15 pt-6">
         <button
