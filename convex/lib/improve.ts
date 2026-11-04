@@ -17,7 +17,7 @@ export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
 export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
 
 // Runs per non-admin member per 24 hours, and for everyone combined.
-export const MEMBER_DAILY_LIMIT = 5;
+export const MEMBER_DAILY_LIMIT = 25;
 export const GLOBAL_DAILY_LIMIT = 40;
 
 // The bot's member row. The .invalid domain can never receive a sign-in link.
