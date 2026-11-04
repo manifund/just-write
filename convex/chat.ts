@@ -15,6 +15,7 @@ import {
   DEFAULT_CHANNELS,
   PAGE_SIZE,
 } from "./lib/channels";
+import { postMessage } from "./lib/messages";
 import { isReaction } from "./lib/reactions";
 import { cardOf, ensureClaude, getClaude, startFromMessage } from "./improvements";
 import {
@@ -110,26 +111,16 @@ export const channels = query({
     );
     return await Promise.all(
       rows.map(async (c) => {
-        const latest = await ctx.db
-          .query("messages")
-          .withIndex("by_channel_parent", (q) =>
-            q.eq("channelId", c._id).eq("parentId", undefined),
-          )
-          .order("desc")
-          .first();
+        const latest = await latestPost(ctx, c._id);
         const read = await ctx.db
           .query("reads")
           .withIndex("by_member_channel", (q) =>
             q.eq("memberId", member._id).eq("channelId", c._id),
           )
           .unique();
-        const unread =
-          !!latest &&
-          latest.authorId !== member._id &&
-          latest._creationTime > (read?.lastReadAt ?? 0);
         return {
           ...c,
-          unread,
+          unread: isUnread(latest, member._id, read?.lastReadAt),
           lastMessageAt: latest?._creationTime ?? null,
           // #check-ins: whether the viewer still has to post before reading others' posts.
           locked: !!(await checkInGate(ctx, c, member)),
@@ -138,6 +129,48 @@ export const channels = query({
     );
   },
 });
+
+async function latestPost(ctx: QueryCtx, channelId: Id<"channels">) {
+  return await ctx.db
+    .query("messages")
+    .withIndex("by_channel_parent", (q) =>
+      q.eq("channelId", channelId).eq("parentId", undefined),
+    )
+    .order("desc")
+    .first();
+}
+
+// Whether a channel's newest top-level message is from someone else and newer than the member's last read.
+function isUnread(
+  latest: Doc<"messages"> | null,
+  memberId: Id<"members">,
+  lastReadAt = 0,
+) {
+  return (
+    !!latest &&
+    latest.authorId !== memberId &&
+    latest._creationTime > lastReadAt
+  );
+}
+
+// How many channels each member has unread, for the app icon badge.
+export async function unreadCounts(ctx: QueryCtx, memberIds: Id<"members">[]) {
+  const channels = await ctx.db.query("channels").collect();
+  const latest = await Promise.all(channels.map((c) => latestPost(ctx, c._id)));
+  const counts = await Promise.all(
+    memberIds.map(async (memberId) => {
+      const reads = await ctx.db
+        .query("reads")
+        .withIndex("by_member_channel", (q) => q.eq("memberId", memberId))
+        .collect();
+      const lastRead = new Map(reads.map((r) => [r.channelId, r.lastReadAt]));
+      return channels.filter((c, i) =>
+        isUnread(latest[i], memberId, lastRead.get(c._id)),
+      ).length;
+    }),
+  );
+  return new Map(memberIds.map((id, i) => [id, counts[i]]));
+}
 
 async function channelBySlug(ctx: QueryCtx, slug: string) {
   const c = await ctx.db
@@ -164,7 +197,7 @@ export const channel = query({
 // The channel's oldest post, when an admin wrote it, is the standing intro and always
 // shows in full. Returns null when nothing should be hidden from this viewer.
 type Gate = { viewerId: Id<"members">; introId: Id<"messages"> | null };
-async function checkInGate(
+export async function checkInGate(
   ctx: QueryCtx,
   c: Doc<"channels">,
   member: Doc<"members">,
@@ -195,7 +228,7 @@ async function checkInGate(
 }
 
 // Replaces a message's body with a short preview when the gate hides it.
-function veil(m: Doc<"messages">, gate: Gate | null) {
+export function veil(m: Doc<"messages">, gate: Gate | null) {
   if (
     !gate ||
     m.authorId === gate.viewerId ||
@@ -313,15 +346,17 @@ export const recent = query({
 });
 
 // A thread: the parent message and its replies, oldest first.
+// Takes a plain string because it can come from a ?thread= link; a bad id reads as deleted.
 export const thread = query({
-  args: { parentId: v.id("messages") },
-  handler: async (ctx, { parentId }) => {
+  args: { parentId: v.string() },
+  handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
-    const parent = await ctx.db.get(parentId);
+    const parentId = ctx.db.normalizeId("messages", args.parentId);
+    const parent = parentId && (await ctx.db.get(parentId));
     if (!parent) return null;
     const replies = await ctx.db
       .query("messages")
-      .withIndex("by_parent", (q) => q.eq("parentId", parentId))
+      .withIndex("by_parent", (q) => q.eq("parentId", parent._id))
       .collect();
     const c = await ctx.db.get(parent.channelId);
     const gate = c ? await checkInGate(ctx, c, member) : null;
@@ -426,7 +461,7 @@ export const send = mutation({
       });
     }
 
-    const id = await ctx.db.insert("messages", {
+    const id = await postMessage(ctx, {
       channelId: c._id,
       authorId: member._id,
       body,

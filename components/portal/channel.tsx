@@ -18,9 +18,15 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ChatMessage } from "@/convex/chat";
-import { CHECK_IN_SLUG, PAGE_SIZE } from "@/convex/lib/channels";
+import {
+  channelRoom,
+  CHECK_IN_SLUG,
+  notificationTag,
+  PAGE_SIZE,
+} from "@/convex/lib/channels";
 import { cleanBody, mentionIds } from "@/convex/lib/richtext";
 import { errorMessage } from "@/lib/convex";
+import { closeNotifications } from "@/lib/push";
 import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { usePortal } from "./context";
@@ -173,7 +179,7 @@ export function Channel({
     [slug, threadId],
   );
   const onCloseThread = useCallback(() => closeThread(slug), [slug]);
-  const here = useRoom(`channel:${slug}`);
+  const here = useRoom(channelRoom(slug));
 
   if (channel === undefined) return <div className="h-full" aria-busy="true" />;
   if (channel === null) {
@@ -345,9 +351,17 @@ function MessageList({
     }
   }, [results]);
 
+  // Mark read when a message arrives while you're looking, or when you come back to the tab.
   useEffect(() => {
-    if (newest && document.visibilityState === "visible")
+    if (!newest) return;
+    const read = () => {
+      if (document.visibilityState !== "visible") return;
       void markRead({ slug });
+      void closeNotifications(notificationTag(slug));
+    };
+    read();
+    document.addEventListener("visibilitychange", read);
+    return () => document.removeEventListener("visibilitychange", read);
   }, [newest, slug, markRead]);
 
   function onScroll() {
@@ -538,6 +552,10 @@ function Thread({
   useEffect(() => {
     end.current?.scrollIntoView({ block: "end" });
   }, [count]);
+
+  useEffect(() => {
+    void closeNotifications(notificationTag(slug, parentId));
+  }, [slug, parentId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) =>

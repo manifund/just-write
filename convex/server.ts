@@ -6,6 +6,7 @@ import type { Doc } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { improvementStatus, status } from "./schema";
 import { mention, paragraph, postAsClaude, txt } from "./improvements";
+import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
 
@@ -64,7 +65,7 @@ export const markCommitted = mutation({
         .withIndex("by_slug", (q) => q.eq("slug", "general"))
         .unique();
       if (general)
-        await ctx.db.insert("messages", {
+        await postMessage(ctx, {
           channelId: general._id,
           authorId: member._id,
           body: JSON.stringify(emptyDoc),

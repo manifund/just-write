@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Document } from "../document";
+import { appleWebApp, Document } from "../document";
 import { Providers } from "../providers";
 
 const title = "Just Write: 4 essays over 4 weeks";
@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     title,
     description,
   },
+  appleWebApp,
 };
 
 // Root layout for the public pages. Portal pages have their own in app/(portal)/layout.tsx,

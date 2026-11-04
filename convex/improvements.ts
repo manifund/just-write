@@ -18,6 +18,7 @@ import {
   MEMBER_DAILY_LIMIT,
   branchFor,
 } from "./lib/improve";
+import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
 import { publicMember, requireAdmin } from "./lib/viewer";
 
@@ -67,7 +68,7 @@ export async function postAsClaude(
         ].slice(0, 3),
       });
   }
-  return await ctx.db.insert("messages", {
+  return await postMessage(ctx, {
     channelId: args.channelId,
     authorId: claudeId,
     body: JSON.stringify(args.body),

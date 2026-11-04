@@ -1,6 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
+// Which chat messages send a member a push notification (convex/push.ts).
+export const notifyLevel = v.union(v.literal("mentions"), v.literal("all"));
+
 // interested → signed (agreed to terms, sent to Stripe) → committed (deposit paid)
 export const status = v.union(
   v.literal("interested"),
@@ -34,6 +37,7 @@ export default defineSchema({
     bio: v.optional(v.string()),
     image: v.optional(v.string()),
     imageStorageId: v.optional(v.id("_storage")), // set when the image was uploaded here, not from Google
+    notify: v.optional(notifyLevel), // unset means "mentions"
     // Commitment
     signedName: v.optional(v.string()),
     signedAt: v.optional(v.number()),
@@ -223,6 +227,16 @@ export default defineSchema({
   })
     .index("by_token", ["token"])
     .index("by_expires", ["expiresAt"]),
+
+  // Browsers and installed apps that get push notifications (see convex/push.ts).
+  pushSubscriptions: defineTable({
+    memberId: v.id("members"),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+  })
+    .index("by_endpoint", ["endpoint"])
+    .index("by_member", ["memberId"]),
 
   // LLM-picked "similar writers", cached per member.
   similar: defineTable({

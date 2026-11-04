@@ -2,12 +2,18 @@
 
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { signOut } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/convex";
+import {
+  deviceSubscription,
+  pushSupport,
+  subscribeDevice,
+  unsubscribeDevice,
+} from "@/lib/push";
 import { PhotoCrop } from "./crop";
 
 const input =
@@ -150,6 +156,133 @@ function Reminders() {
   );
 }
 
+const LEVELS = [
+  { value: "mentions", label: "Mentions and threads you’re in" },
+  { value: "all", label: "All new messages" },
+] as const;
+
+function Notifications() {
+  const { me } = usePortal();
+  const publicKey = useQuery(api.push.publicKey);
+  const save = useMutation(api.push.subscribe);
+  const remove = useMutation(api.push.unsubscribe);
+  const setLevel = useMutation(api.push.setLevel);
+  const [support] = useState(pushSupport);
+  const [on, setOn] = useState<boolean | null>(null); // null until we've checked
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (support !== "supported") return;
+    deviceSubscription().then(
+      (sub) => setOn(!!sub),
+      () => setOn(false),
+    );
+  }, [support]);
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (on) {
+        const endpoint = await unsubscribeDevice();
+        if (endpoint) await remove({ endpoint });
+        setOn(false);
+      } else {
+        const sub = await subscribeDevice(publicKey!);
+        if (!sub) {
+          if (Notification.permission === "denied")
+            setError(
+              "Notifications are blocked for this site. Allow them in your browser’s site settings, then try again.",
+            );
+          return;
+        }
+        try {
+          await save(sub);
+        } catch (err) {
+          // Don't leave the browser subscribed when the server has no record of it.
+          await unsubscribeDevice().catch(() => {});
+          throw err;
+        }
+        setOn(true);
+      }
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const loading =
+    publicKey === undefined || (support === "supported" && on === null);
+  const notice =
+    publicKey === null
+      ? "Notifications aren’t set up yet."
+      : support === "install-first"
+        ? "On iPhone and iPad, add Just Write to your Home Screen first: tap Share, then Add to Home Screen. Open it from there and turn notifications on here."
+        : support === "unsupported"
+          ? "This browser doesn’t support notifications."
+          : null;
+  const content = loading ? null : notice ? (
+    <p className="text-ink-muted">{notice}</p>
+  ) : (
+    <>
+      <p className="text-ink-muted">
+        {on
+          ? "On for this device."
+          : "Get a notification on this device when someone messages you."}
+      </p>
+      <div>
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={busy}
+          className="min-h-[44px] cursor-pointer border border-ink/28 px-5 text-[16px] transition-colors hover:bg-ink/5 disabled:opacity-60"
+        >
+          {on ? "Turn off on this device" : "Turn on for this device"}
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="text-[16px] text-brass-text">
+          {error}
+        </p>
+      )}
+      <fieldset className="flex flex-col gap-2">
+        <legend className={`${label} pb-2`}>Notify me about</legend>
+        {LEVELS.map((l) => (
+          <label
+            key={l.value}
+            className="flex items-center gap-2.5 text-[17px]"
+          >
+            <input
+              type="radio"
+              name="notify"
+              value={l.value}
+              checked={me.notify === l.value}
+              onChange={() => void setLevel({ notify: l.value })}
+              className="size-4 accent-ink"
+            />
+            {l.label}
+          </label>
+        ))}
+        <span className="text-[14px] text-ink-muted">
+          Applies to all your devices. Nothing is sent for a channel you have
+          open.
+        </span>
+      </fieldset>
+    </>
+  );
+
+  return (
+    <section className="flex flex-col gap-3 border-t border-ink/15 pt-6">
+      <h2 className="font-display text-[26px] leading-none font-[400]">
+        Notifications
+      </h2>
+      {content}
+    </section>
+  );
+}
+
 export function Settings() {
   const { me } = usePortal();
   const save = useMutation(api.members.updateProfile);
@@ -269,13 +402,12 @@ export function Settings() {
       </form>
 
       <Reminders />
+      <Notifications />
 
       <div className="border-t border-ink/15 pt-6">
         <button
           type="button"
-          onClick={() =>
-            authClient.signOut().then(() => window.location.assign("/"))
-          }
+          onClick={() => signOut().then(() => window.location.assign("/"))}
           className="min-h-[44px] cursor-pointer border border-ink/28 px-5 text-[16px] transition-colors hover:bg-ink/5"
         >
           Sign out

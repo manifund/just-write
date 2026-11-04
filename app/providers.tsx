@@ -2,8 +2,10 @@
 
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
 import { ConvexProviderWithAuth, ConvexReactClient } from "convex/react";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -20,6 +22,7 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+      <NotificationClicks />
       {children}
     </ConvexBetterAuthProvider>
   );
@@ -54,6 +57,7 @@ export function SetInitialToken({ token }: { token: string | null }) {
 export function PortalProviders({ children }: { children: ReactNode }) {
   return (
     <ConvexProviderWithAuth client={convex} useAuth={usePortalAuth}>
+      <NotificationClicks />
       {children}
     </ConvexProviderWithAuth>
   );
@@ -92,4 +96,23 @@ function usePortalAuth() {
     }),
     [initial, signedOut, fetchAccessToken],
   );
+}
+
+// When a notification is clicked while the app is open, the service worker
+// (public/sw.js) asks the page to go there.
+function NotificationClicks() {
+  const router = useRouter();
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type !== "navigate") return;
+      const url = new URL(e.data.url, window.location.href);
+      if (url.origin === window.location.origin)
+        router.push(url.pathname + url.search);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () =>
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [router]);
+  return null;
 }

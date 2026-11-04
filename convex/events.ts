@@ -11,6 +11,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { sendEmail } from "./lib/email";
+import { postMessage } from "./lib/messages";
 import type { RichNode } from "./lib/richtext";
 import { fmtWhen, ptToUtc } from "./lib/time";
 import { parseWebsite, slugify } from "./lib/util";
@@ -410,7 +411,7 @@ async function announce(
   const channel = await meetups(ctx);
   const event = await ctx.db.get(eventId);
   if (!channel || !event) return;
-  const messageId = await ctx.db.insert("messages", {
+  const messageId = await postMessage(ctx, {
     channelId: channel._id,
     authorId,
     body: JSON.stringify({ type: "doc", content: [] }),
@@ -438,7 +439,7 @@ async function note(
       ...(parent.replierIds ?? []).filter((id) => id !== authorId),
     ].slice(0, 3),
   });
-  await ctx.db.insert("messages", {
+  await postMessage(ctx, {
     channelId: parent.channelId,
     authorId,
     body: JSON.stringify(textDoc(text)),

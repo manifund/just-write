@@ -34,3 +34,11 @@ export const PAGE_SIZE = 50;
 export const CHECK_IN_SLUG = "check-ins";
 export const CHECK_IN_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const CHECK_IN_PREVIEW_CHARS = 100;
+
+// The presence room for a channel. Push notifications skip members who are in it.
+export const channelRoom = (slug: string) => `channel:${slug}`;
+
+// Push notifications for a channel (or one thread in it) share a tag, so a new one
+// replaces the last, and opening the channel or thread clears them.
+export const notificationTag = (slug: string, threadId?: string) =>
+  threadId ? `chat:${slug}:${threadId}` : `chat:${slug}`;

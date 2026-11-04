@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { Suspense, type ReactNode } from "react";
 import { getToken } from "@/lib/auth-server";
-import { Document } from "../document";
+import { appleWebApp, Document } from "../document";
 import { PortalProviders, SetInitialToken } from "../providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://justwrite.club"),
   title: "Just Write",
   robots: { index: false, follow: false },
+  appleWebApp,
 };
 
 // Root layout for the portal, separate from app/(site) so it can read the session cookie

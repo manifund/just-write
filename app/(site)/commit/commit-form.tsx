@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { SignInPanel } from "@/components/sign-in";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { signOut } from "@/lib/auth-client";
 import { startCommitment, type CommitState } from "./actions";
 
 const fieldLabel = "text-[13px] tracking-[0.12em] uppercase text-ink-muted";
@@ -112,9 +112,7 @@ function SignForm({ email }: { email: string }) {
         <button
           type="button"
           className="cursor-pointer underline"
-          onClick={() =>
-            authClient.signOut().then(() => window.location.reload())
-          }
+          onClick={() => signOut().then(() => window.location.reload())}
         >
           Not you?
         </button>

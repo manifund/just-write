@@ -48,6 +48,7 @@ export const viewer = query({
             ...publicMember(member),
             status: member.status,
             email: member.email,
+            notify: member.notify ?? "mentions",
           }
         : null,
       isAdmin,

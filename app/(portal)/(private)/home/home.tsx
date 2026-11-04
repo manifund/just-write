@@ -193,23 +193,38 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
 const input =
   "min-h-[46px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-2.5 font-body text-[18px] text-inherit";
 
+// A link shared to the installed app (share_target in app/manifest.ts) arrives as
+// /home?url=… or, from apps that send it as text, ?text=….
+function sharedLink() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  const text = `${params.get("url") ?? ""} ${params.get("text") ?? ""}`;
+  const link = text.match(/https?:\/\/\S+/)?.[0];
+  return link?.replace(/[.,!?)"'”’]+$/, "") ?? null;
+}
+
 function RegisterEssay() {
   const preview = useAction(api.essays.preview);
   const submit = useMutation(api.essays.submit);
-  const [url, setUrl] = useState("");
+  const [shared] = useState(sharedLink);
+  const [url, setUrl] = useState(shared ?? "");
   const [title, setTitle] = useState("");
   const [words, setWords] = useState<number | null>(null);
-  const [checking, setChecking] = useState(false);
-  const [checkedUrl, setCheckedUrl] = useState<string | null>(null);
+  const [checking, setChecking] = useState(!!shared);
+  const [checkedUrl, setCheckedUrl] = useState<string | null>(shared);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  async function check(raw: string) {
+  function check(raw: string) {
     const u = raw.trim();
     if (!u || u === checkedUrl) return;
     setChecking(true);
     setCheckedUrl(u);
+    void lookUp(u);
+  }
+
+  async function lookUp(u: string) {
     try {
       const p = await preview({ url: u });
       if (p.title && !title) setTitle(p.title);
@@ -218,6 +233,13 @@ function RegisterEssay() {
       setChecking(false);
     }
   }
+
+  useEffect(() => {
+    if (!shared) return;
+    window.history.replaceState(null, "", "/home");
+    void lookUp(shared);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only for the link the page opened with
+  }, [shared]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -14,7 +14,8 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { api } from "@/convex/_generated/api";
-import { authClient } from "@/lib/auth-client";
+import { signOut } from "@/lib/auth-client";
+import { deviceSubscription, setAppBadge } from "@/lib/push";
 import { Avatar } from "./avatar";
 import { PortalProvider, usePortal } from "./context";
 import { useRoom } from "./presence";
@@ -35,8 +36,9 @@ export function PortalFrame({
   useEffect(() => {
     if (membersOnly && !isLoading && !isAuthenticated) {
       // Read the path here rather than with usePathname, which would block prerendering public pages.
+      // Keep the query too: shared links and thread links live there.
       router.replace(
-        `/sign-in?next=${encodeURIComponent(window.location.pathname)}`,
+        `/sign-in?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
       );
     }
   }, [membersOnly, isLoading, isAuthenticated, router]);
@@ -116,9 +118,7 @@ function NotYet({ status, email }: { status: string | null; email: string }) {
             <button
               type="button"
               onClick={() =>
-                authClient
-                  .signOut()
-                  .then(() => window.location.assign("/sign-in"))
+                signOut().then(() => window.location.assign("/sign-in"))
               }
               className="cursor-pointer text-[17px] text-wash-light underline"
             >
@@ -161,6 +161,7 @@ function PublicFrame({
 function Shell({ children }: { children: ReactNode }) {
   const { me, viewer } = usePortal();
   const sync = useMutation(api.members.syncProfile);
+  const savePush = useMutation(api.push.subscribe);
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
@@ -180,6 +181,14 @@ function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (needsSync) void sync();
   }, [needsSync, sync]);
+
+  // If this device gets notifications, keep them on the account signed in here
+  // (and the server's copy current, e.g. after the browser renewed the subscription).
+  useEffect(() => {
+    deviceSubscription()
+      .then((sub) => sub && savePush(sub))
+      .catch(() => {});
+  }, [savePush]);
 
   return (
     <div ref={rootRef} className="flex h-dvh overflow-hidden">
@@ -371,7 +380,7 @@ function ReadonlyBanner() {
         type="button"
         className="cursor-pointer underline"
         onClick={async () => {
-          await authClient.signOut();
+          await signOut();
           window.location.assign("/sign-in?next=/home");
         }}
       >
@@ -433,6 +442,10 @@ function Sidebar() {
     [slugs],
   );
   useQueries(warm);
+  const unread = channels?.filter((c) => c.unread).length;
+  useEffect(() => {
+    if (unread !== undefined) setAppBadge(unread);
+  }, [unread]);
 
   const active = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
