@@ -8,40 +8,11 @@ import { usePortal } from "@/components/portal/context";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/convex";
+import { PhotoCrop } from "./crop";
 
 const input =
   "min-h-[46px] w-full rounded-none border border-ink/28 bg-cream px-3.5 py-2.5 font-body text-[18px] text-inherit";
 const label = "text-[13px] tracking-[0.12em] text-ink-muted uppercase";
-
-// Center-crops to a square and scales down, so uploads stay small.
-async function resizeImage(file: File, size = 400): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
-  const out = Math.min(size, side);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = out;
-  canvas
-    .getContext("2d")!
-    .drawImage(
-      bitmap,
-      (bitmap.width - side) / 2,
-      (bitmap.height - side) / 2,
-      side,
-      side,
-      0,
-      0,
-      out,
-      out,
-    );
-  bitmap.close();
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Couldn’t read that image."))),
-      "image/jpeg",
-      0.88,
-    ),
-  );
-}
 
 function PhotoPicker() {
   const { me } = usePortal();
@@ -50,12 +21,13 @@ function PhotoPicker() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [picked, setPicked] = useState<File | null>(null);
 
-  async function upload(file: File) {
+  async function upload(blob: Blob) {
+    setPicked(null);
     setUploading(true);
     setError(null);
     try {
-      const blob = await resizeImage(file);
       const res = await fetch(await getUploadUrl(), {
         method: "POST",
         headers: { "Content-Type": blob.type },
@@ -65,11 +37,7 @@ function PhotoPicker() {
       const { storageId } = await res.json();
       await setAvatar({ storageId });
     } catch (err) {
-      setError(
-        err instanceof DOMException
-          ? "Couldn’t read that image."
-          : errorMessage(err),
-      );
+      setError(errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -102,9 +70,19 @@ function PhotoPicker() {
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = "";
-          if (file) upload(file);
+          if (file) {
+            setError(null);
+            setPicked(file);
+          }
         }}
       />
+      {picked && (
+        <PhotoCrop
+          file={picked}
+          onCancel={() => setPicked(null)}
+          onSave={upload}
+        />
+      )}
       {error && (
         <p
           role="alert"
