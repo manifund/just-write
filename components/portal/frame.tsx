@@ -6,10 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
+import { flushSync } from "react-dom";
 import { api } from "@/convex/_generated/api";
 import { authClient } from "@/lib/auth-client";
 import { Avatar } from "./avatar";
@@ -161,6 +164,10 @@ function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const shadeRef = useRef<HTMLButtonElement>(null);
+  useSwipeDrawer(open, setOpen, rootRef, drawerRef, shadeRef);
 
   // Close the mobile drawer on navigation.
   if (pathname !== lastPath) {
@@ -175,22 +182,26 @@ function Shell({ children }: { children: ReactNode }) {
   }, [needsSync, sync]);
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div ref={rootRef} className="flex h-dvh overflow-hidden">
       <aside
+        ref={drawerRef}
         className={`fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col bg-ink text-cream transition-transform duration-200 md:static md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <Sidebar />
       </aside>
-      {open && (
-        <button
-          type="button"
-          aria-label="Close menu"
-          className="fixed inset-0 z-30 bg-ink/40 md:hidden"
-          onClick={() => setOpen(false)}
-        />
-      )}
+      <button
+        ref={shadeRef}
+        type="button"
+        aria-label="Close menu"
+        tabIndex={open ? 0 : -1}
+        aria-hidden={!open}
+        className={`fixed inset-0 z-30 bg-ink/40 transition-opacity duration-200 md:hidden ${
+          open ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setOpen(false)}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-3 border-b border-ink/10 px-4 py-3 md:hidden">
           <button
@@ -225,6 +236,130 @@ function Shell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+}
+
+// On phones, a horizontal swipe anywhere drags the menu in or out with your finger,
+// like Slack: swipe right to open, left to close. Swipes that start inside something
+// that scrolls sideways (code blocks, wide tables) are left alone.
+function useSwipeDrawer(
+  open: boolean,
+  setOpen: (open: boolean) => void,
+  rootRef: RefObject<HTMLDivElement | null>,
+  drawerRef: RefObject<HTMLElement | null>,
+  shadeRef: RefObject<HTMLButtonElement | null>,
+) {
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  }, [open]);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const mobile = window.matchMedia("(max-width: 767px)");
+    let start: { x: number; y: number; t: number } | null = null;
+    let dragging = false;
+    let progress = 0;
+    let lastX = 0;
+    let lastT = 0;
+    let speed = 0;
+
+    const scrollsSideways = (el: Element | null) => {
+      for (; el && el !== root; el = el.parentElement) {
+        if (el.scrollWidth > el.clientWidth + 1) {
+          const { overflowX } = getComputedStyle(el);
+          if (overflowX === "auto" || overflowX === "scroll") return true;
+        }
+      }
+      return false;
+    };
+
+    const paint = (p: number) => {
+      const drawer = drawerRef.current;
+      const shade = shadeRef.current;
+      if (drawer) {
+        drawer.style.transition = "none";
+        drawer.style.transform = `translateX(${(p - 1) * 100}%)`;
+      }
+      if (shade) {
+        shade.style.transition = "none";
+        shade.style.opacity = String(p);
+      }
+    };
+    const clear = () => {
+      for (const el of [drawerRef.current, shadeRef.current]) {
+        if (!el) continue;
+        el.style.transition = "";
+        el.style.transform = "";
+        el.style.opacity = "";
+      }
+    };
+
+    const onStart = (e: TouchEvent) => {
+      start = null;
+      dragging = false;
+      if (!mobile.matches || e.touches.length !== 1) return;
+      const target = e.target as Element;
+      if (!openRef.current && scrollsSideways(target)) return;
+      const t = e.touches[0];
+      start = { x: t.clientX, y: t.clientY, t: e.timeStamp };
+      lastX = t.clientX;
+      lastT = e.timeStamp;
+      speed = 0;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!start) return;
+      const t = e.touches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (!dragging) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        // Mostly vertical, or pushing the menu further the way it already is: let it scroll.
+        if (
+          Math.abs(dy) > Math.abs(dx) ||
+          (openRef.current ? dx > 0 : dx < 0)
+        ) {
+          start = null;
+          return;
+        }
+        dragging = true;
+      }
+      e.preventDefault();
+      const width = drawerRef.current?.offsetWidth || 264;
+      const base = openRef.current ? 1 : 0;
+      progress = Math.min(1, Math.max(0, base + dx / width));
+      if (e.timeStamp > lastT)
+        speed = (t.clientX - lastX) / (e.timeStamp - lastT);
+      lastX = t.clientX;
+      lastT = e.timeStamp;
+      paint(progress);
+    };
+
+    const onEnd = () => {
+      if (!start || !dragging) {
+        start = null;
+        return;
+      }
+      start = null;
+      dragging = false;
+      // A quick flick decides on its own; otherwise go with whichever side is closer.
+      const next = Math.abs(speed) > 0.4 ? speed > 0 : progress > 0.5;
+      flushSync(() => setOpen(next));
+      clear();
+    };
+
+    root.addEventListener("touchstart", onStart, { passive: true });
+    root.addEventListener("touchmove", onMove, { passive: false });
+    root.addEventListener("touchend", onEnd);
+    root.addEventListener("touchcancel", onEnd);
+    return () => {
+      root.removeEventListener("touchstart", onStart);
+      root.removeEventListener("touchmove", onMove);
+      root.removeEventListener("touchend", onEnd);
+      root.removeEventListener("touchcancel", onEnd);
+    };
+  }, [setOpen, rootRef, drawerRef, shadeRef]);
 }
 
 // Shown when a preview link signed someone in read-only (convex/previewAccess.ts).
