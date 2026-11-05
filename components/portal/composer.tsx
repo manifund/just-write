@@ -384,7 +384,7 @@ export function Composer({
   }, [autoFocus, editor]);
 
   return (
-    <div className="relative">
+    <div className="@container relative">
       <div className="flex flex-col border border-ink/25 bg-cream transition-colors focus-within:border-ink/60">
         <EditorContent
           editor={editor}
@@ -420,16 +420,17 @@ export function Composer({
         )}
         <div className="flex items-center gap-0.5 px-2 pb-2">
           <Toolbar editor={editor} onFiles={(files) => void addFiles(files)} />
+          <span className="flex-1" />
           {wordCount && (
             <span
               aria-live="polite"
-              className="ml-auto pr-2 text-[13px] text-ink-muted tabular-nums"
+              className="pr-2 text-[13px] text-ink-muted tabular-nums"
             >
               {words} {words === 1 ? "word" : "words"}
             </span>
           )}
           <span
-            className={`${wordCount ? "" : "ml-auto"} hidden pr-2 text-[13px] text-ink-muted sm:inline`}
+            className="hidden pr-2 text-[13px] text-ink-muted @xl:inline"
           >
             {onCancel ? "Esc to cancel · " : ""}Shift+Enter for a new line
           </span>
@@ -437,7 +438,7 @@ export function Composer({
             <button
               type="button"
               onClick={onCancel}
-              className="cursor-pointer px-3 py-1.5 text-[15px] text-ink-muted underline sm:hidden"
+              className="cursor-pointer px-3 py-1.5 text-[15px] text-ink-muted underline @xl:hidden"
             >
               Cancel
             </button>
@@ -446,7 +447,7 @@ export function Composer({
             type="button"
             onClick={() => void send()}
             disabled={(isEmpty && images.length === 0) || uploading}
-            className="cursor-pointer bg-ink px-4 py-1.5 text-[15px] text-cream transition-[background-color,opacity] enabled:hover:bg-ink-muted disabled:cursor-default disabled:opacity-35"
+            className="shrink-0 cursor-pointer bg-ink px-4 py-1.5 text-[15px] text-cream transition-[background-color,opacity] enabled:hover:bg-ink-muted disabled:cursor-default disabled:opacity-35"
           >
             {submitLabel}
           </button>
@@ -718,7 +719,7 @@ function Toolbar({
           if (files.length) onFiles(files);
         }}
       />
-      <span className="hidden items-center gap-0.5 sm:flex">
+      <span className="hidden items-center gap-0.5 @sm:flex">
         <button
           type="button"
           title="Code"
