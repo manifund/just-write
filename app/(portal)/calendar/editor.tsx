@@ -9,7 +9,7 @@ import type { CalendarEvent } from "@/convex/events";
 import { fromInputs, ptDayKey, ptTimeValue } from "@/convex/lib/time";
 import { errorText, PanelHeader } from "./event-panel";
 
-const field = "border border-ink/25 bg-cream px-3 py-2 text-[16px] focus:border-ink";
+const field = "min-w-0 border border-ink/25 bg-cream px-3 py-2 text-[16px] focus:border-ink";
 const label = "flex flex-col gap-1.5 text-[15px]";
 
 // Proposing a new session (no `event`) or editing one.
@@ -99,8 +99,8 @@ export function EventEditor({
             required
           />
         </label>
-        <div className="grid grid-cols-[1.4fr_1fr_1fr] gap-3">
-          <label className={label}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.4fr_1fr_1fr]">
+          <label className={`${label} col-span-2 sm:col-span-1`}>
             Date
             <input type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} required />
           </label>

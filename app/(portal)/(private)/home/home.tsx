@@ -81,7 +81,7 @@ export function Home() {
 
       <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-[clamp(32px,5vh,48px)]">
-          <section aria-labelledby="progress" className="flex flex-col gap-5">
+          <section aria-labelledby="progress" className="@container flex flex-col gap-5">
             <div className="flex items-baseline justify-between gap-4">
               <h2 id="progress" className={h2}>
                 Your four essays
@@ -115,7 +115,7 @@ type Mine = typeof api.essays.mine._returnType;
 function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
   const essays = new Map((mine?.essays ?? []).map((e) => [e._id as string, e]));
   return (
-    <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <ol className="grid grid-cols-2 gap-3 @xl:grid-cols-4">
       {(
         mine?.slots ??
         DEADLINES.map((deadline, i) => ({
@@ -163,7 +163,7 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
                 href={e.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="line-clamp-3 font-display text-[17px] leading-[1.25] font-[450] no-underline hover:underline"
+                className="line-clamp-3 font-display text-[17px] leading-[1.25] font-[450] [overflow-wrap:anywhere] no-underline hover:underline"
               >
                 {e.title}
               </a>
@@ -522,7 +522,7 @@ function Board() {
           Everyone’s progress
         </h2>
       </div>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-6 gap-y-1">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-x-6 gap-y-1">
         {sorted.map((r) => (
           <li key={r.member._id} className="flex items-center gap-3 py-1.5">
             <Avatar member={r.member} size={28} />

@@ -170,7 +170,7 @@ function DateLeaf({ event: e, onClose }: { event: CalendarEvent; onClose: () => 
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[4.5rem_1fr] gap-3 border-b border-ink/12 py-3 text-[16px]">
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b border-ink/12 py-3 text-[16px]">
       <dt className="text-ink-muted">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>
