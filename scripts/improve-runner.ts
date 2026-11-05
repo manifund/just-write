@@ -40,6 +40,14 @@ const brief: Brief = JSON.parse(
   readFileSync(env.IMPROVE_BRIEF ?? "/tmp/brief.json", "utf8"),
 );
 const GITHUB_TOKEN = env.GITHUB_TOKEN ?? "";
+
+// Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
+// Without one, the SDK uses the model's default.
+const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+type Effort = (typeof EFFORTS)[number];
+const EFFORT = brief.request
+  .match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"))?.[1]
+  .toLowerCase() as Effort | undefined;
 const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY ?? "";
 
 // --- Convex reporting -------------------------------------------------------------------
@@ -191,6 +199,7 @@ async function runAgent(input: string, resume?: string) {
       cwd: ROOT,
       model: AGENT_MODEL,
       resume,
+      effort: EFFORT,
       maxTurns: 150,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
@@ -332,6 +341,7 @@ async function main() {
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
   const resume =
     env.SANDBOX_FRESH === "0" ? (brief.resumeSessionId ?? undefined) : undefined;
+  if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
   let { final, sessionId } = await runAgent(prompt(), resume).catch((err) => {
     if (!resume) throw err;

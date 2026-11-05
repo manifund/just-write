@@ -115,7 +115,9 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
         </p>
         <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
           Members can mention @Claude in chat to ask for a change to this site.
-          Claude writes the code, and small changes go live after review.
+          Claude writes the code, and small changes go live after review. Add
+          “effort: low” (or medium, high, xhigh, max) to the request to set how
+          hard it thinks.
         </p>
       </header>
 
