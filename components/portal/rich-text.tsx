@@ -178,7 +178,11 @@ function renderMarks(n: RichNode, key: number): ReactNode {
         break;
       case "link": {
         const href = String(m.attrs?.href ?? "");
-        if (/^(https?:|mailto:)/i.test(href)) {
+        const local = sitePath(href);
+        if (local) {
+          // Links to this site (e.g. a copied message link) navigate in place.
+          out = <Link href={local}>{out}</Link>;
+        } else if (/^(https?:|mailto:)/i.test(href)) {
           out = (
             <a
               href={href}
@@ -197,4 +201,19 @@ function renderMarks(n: RichNode, key: number): ReactNode {
     }
   }
   return <span key={key}>{out}</span>;
+}
+
+const SITE_HOSTS = new Set(["justwrite.club", "www.justwrite.club"]);
+
+// The path of a full justwrite.club URL, so it can open with client-side navigation.
+function sitePath(href: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+  if (!SITE_HOSTS.has(url.hostname)) return null;
+  return url.pathname + url.search + url.hash;
 }
