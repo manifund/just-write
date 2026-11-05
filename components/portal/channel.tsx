@@ -379,7 +379,7 @@ function MessageList({
       <div
         ref={scroller}
         onScroll={onScroll}
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="scroll-soft min-h-0 flex-1 overflow-y-auto"
       >
         {/* Anchors a short conversation to the bottom, next to the composer. */}
         <div className="flex min-h-full flex-col justify-end pb-2">
@@ -585,7 +585,7 @@ function Thread({
           ×
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto pt-4 pb-3">
+      <div className="scroll-soft min-h-0 flex-1 overflow-y-auto pt-4 pb-3">
         {data === null && (
           <p className="p-5 text-ink-muted">This message was deleted.</p>
         )}
