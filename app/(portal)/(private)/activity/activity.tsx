@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { useMember } from "@/components/portal/context";
 import { timeAgo, useNow } from "@/components/portal/util";
@@ -12,16 +11,36 @@ type Item = NonNullable<typeof api.activity.feed._returnType>["items"][number];
 
 export function Activity() {
   const feed = useQuery(api.activity.feed);
-  const markSeen = useMutation(api.activity.markSeen);
+  const markSeen = useMutation(api.activity.markSeen).withOptimisticUpdate(
+    (store) => {
+      const cur = store.getQuery(api.activity.feed, {});
+      if (cur)
+        store.setQuery(
+          api.activity.feed,
+          {},
+          {
+            items: cur.items.map((i) => ({ ...i, read: true })),
+            unread: 0,
+          },
+        );
+    },
+  );
+  const markRead = useMutation(api.activity.markRead).withOptimisticUpdate(
+    (store, { messageId }) => {
+      const cur = store.getQuery(api.activity.feed, {});
+      if (!cur) return;
+      const items = cur.items.map((i) =>
+        i._id === messageId ? { ...i, read: true } : i,
+      );
+      store.setQuery(
+        api.activity.feed,
+        {},
+        { items, unread: items.filter((i) => !i.read).length },
+      );
+    },
+  );
   const now = useNow();
-  // Remember what was new when the page opened, so it stays marked while they read.
-  const [seenAt, setSeenAt] = useState<number | null>(null);
-  if (feed && seenAt === null) setSeenAt(feed.seenAt);
-
   const unread = feed?.unread ?? 0;
-  useEffect(() => {
-    if (unread > 0) void markSeen().catch(() => {});
-  }, [unread, markSeen]);
 
   return (
     <main className="mx-auto flex max-w-[48rem] flex-col gap-[clamp(24px,4vh,40px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
@@ -33,6 +52,15 @@ export function Activity() {
           Mentions of you and replies in threads you’re in, from the last 30
           days.
         </p>
+        {unread > 0 && (
+          <button
+            type="button"
+            onClick={() => void markSeen().catch(() => {})}
+            className="cursor-pointer self-start text-[15px] text-ink-muted underline"
+          >
+            Mark all as read
+          </button>
+        )}
       </header>
       {feed === undefined ? null : feed.items.length === 0 ? (
         <p className="text-[18px] text-ink-muted">
@@ -45,8 +73,11 @@ export function Activity() {
             <Row
               key={item._id}
               item={item}
-              isNew={item.createdAt > (seenAt ?? feed.seenAt)}
               now={now}
+              onOpen={() => {
+                if (!item.read)
+                  void markRead({ messageId: item._id }).catch(() => {});
+              }}
             />
           ))}
         </ul>
@@ -57,19 +88,21 @@ export function Activity() {
 
 function Row({
   item,
-  isNew,
   now,
+  onOpen,
 }: {
   item: Item;
-  isNew: boolean;
   now: number | null;
+  onOpen: () => void;
 }) {
+  const isNew = !item.read;
   const author = useMember(item.authorId);
   const name = author?.name ?? "Someone";
   return (
     <li className="border-b border-ink/10">
       <Link
         href={`/chat/${item.channel.slug}/${item.threadId}`}
+        onClick={onOpen}
         className={`flex gap-3 px-3 py-4 no-underline transition-colors hover:bg-ink/4 ${isNew ? "bg-brass/10" : ""}`}
       >
         <Avatar member={author} size={36} className="shrink-0" />
@@ -88,7 +121,7 @@ function Row({
             {isNew && (
               <span
                 className="ml-auto size-2 self-center rounded-full bg-brass"
-                aria-label="new"
+                aria-label="unread"
               />
             )}
           </p>

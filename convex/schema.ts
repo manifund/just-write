@@ -150,7 +150,8 @@ export default defineSchema({
   // row so marking it doesn't re-run every query that reads members.
   activitySeen: defineTable({
     memberId: v.id("members"),
-    seenAt: v.number(),
+    seenAt: v.number(), // everything up to here counts as read ("Mark all as read")
+    readIds: v.optional(v.array(v.id("messages"))), // newer items they've opened, newest last
   }).index("by_member", ["memberId"]),
 
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.
