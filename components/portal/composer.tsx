@@ -258,7 +258,7 @@ export function Composer({
     ],
     editorProps: {
       attributes: {
-        class: `rich composer-input scroll-soft ${compact ? "max-h-[30vh]" : "max-h-[40vh]"} min-h-[24px] overflow-y-auto outline-none`,
+        class: `rich composer-input ${compact ? "max-h-[30vh]" : "max-h-[40vh]"} min-h-[24px] overflow-y-auto outline-none`,
         "aria-label": placeholder,
       },
       handlePaste: (_view, event) => {
