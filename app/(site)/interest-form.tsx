@@ -1,13 +1,39 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useSyncExternalStore } from "react";
+import { SIGNUPS_CLOSE } from "@/convex/lib/program";
 import { submitInterest, type InterestState } from "./actions";
 
 const input =
   "min-h-[42px] w-full rounded-none border border-ink/28 bg-cream px-3 py-2 font-body text-[17px] text-inherit";
 const fieldLabel = "text-[12px] tracking-[0.12em] uppercase text-ink-muted";
 
+const noop = () => () => {};
+
 export function InterestForm() {
+  // Read on the client: the landing page is prerendered, so the build time would be stale.
+  const closed = useSyncExternalStore(
+    noop,
+    () => Date.now() >= SIGNUPS_CLOSE,
+    () => false,
+  );
+  if (closed) {
+    return (
+      <div className="flex flex-col gap-1 bg-cream-deep p-[clamp(16px,min(2vw,2.6vh),24px)]">
+        <p className="font-display text-[clamp(21px,3.1vh,24px)] font-[450]">
+          Sign-ups are closed.
+        </p>
+        <p className="text-[17px] text-ink-muted">
+          Sign-ups for Nov 2026 closed on Nov 4. Members can{" "}
+          <a href="/home">sign in</a>.
+        </p>
+      </div>
+    );
+  }
+  return <OpenForm />;
+}
+
+function OpenForm() {
   const [state, action, pending] = useActionState<InterestState, FormData>(
     submitInterest,
     { status: "idle" },
