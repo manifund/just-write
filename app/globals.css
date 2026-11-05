@@ -207,3 +207,29 @@ body {
     opacity: 0;
   }
 }
+
+/* Thin scrollbar in the site's colors (chat message lists and threads).
+   Browsers that support scrollbar-color ignore the -webkit- rules. */
+.scroll-soft {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(56 33 63 / 0.22) transparent;
+}
+.scroll-soft:hover {
+  scrollbar-color: rgb(56 33 63 / 0.4) transparent;
+}
+.scroll-soft::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-soft::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-soft::-webkit-scrollbar-thumb {
+  background: rgb(56 33 63 / 0.22);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scroll-soft:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(56 33 63 / 0.4);
+}
