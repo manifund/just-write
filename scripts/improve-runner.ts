@@ -328,6 +328,12 @@ async function main() {
     if (!fetched.ok) throw new Error(`Couldn’t check out ${branch}.`);
   } else must(`git checkout -B ${branch}`);
   const base = must("git rev-parse HEAD");
+  // Where the whole PR starts. A follow-up's merge decision covers every commit on the
+  // branch, not just its own, so a small addition can't merge an earlier change that
+  // was held for review.
+  const prBase = brief.prNumber
+    ? must("git fetch -q origin main && git merge-base HEAD FETCH_HEAD")
+    : base;
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
   const resume =
@@ -400,7 +406,11 @@ async function main() {
     prUrl = pr.html_url;
   }
 
-  const verdict = await decide(files, check.ok, diff);
+  const prFiles = brief.prNumber
+    ? must(`git diff --name-only ${prBase} HEAD`).split("\n").filter(Boolean)
+    : files;
+  const prDiff = brief.prNumber ? sh(`git diff ${prBase} HEAD`, { quiet: true }).out : diff;
+  const verdict = await decide(prFiles, check.ok, prDiff);
   const common = {
     title: commitTitle,
     summary,
