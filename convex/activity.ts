@@ -2,6 +2,7 @@
 // That's messages that @mention them, and replies in threads they started or replied in
 // (only replies posted after they joined the thread). Computed from recent messages
 // rather than stored, so it covers past messages and follows edits and deletes.
+import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { checkInGate, veil } from "./chat";
@@ -85,16 +86,46 @@ export const feed = query({
         parentText: parent ? veil(parent, gate).text : null,
       });
     }
-    const seenAt = (await seenRow(ctx, me))?.seenAt ?? 0;
+    const row = await seenRow(ctx, me);
+    const seenAt = row?.seenAt ?? 0;
+    const readIds = new Set(row?.readIds ?? []);
+    const withRead = items.map((i) => ({
+      ...i,
+      read: i.createdAt <= seenAt || readIds.has(i._id),
+    }));
     return {
-      items,
-      seenAt,
-      unread: items.filter((i) => i.createdAt > seenAt).length,
+      items: withRead,
+      unread: withRead.filter((i) => !i.read).length,
     };
   },
 });
 
-// Records that the viewer has looked at their activity, which clears the sidebar dot.
+const MAX_READ_IDS = 300;
+
+// Marks one item read, when the viewer opens it from /activity.
+export const markRead = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, { messageId }) => {
+    // Allowed in read-only previews: like chat read markers, it only records what they've seen.
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const row = await seenRow(ctx, member._id);
+    if (!row) {
+      await ctx.db.insert("activitySeen", {
+        memberId: member._id,
+        seenAt: 0,
+        readIds: [messageId],
+      });
+      return;
+    }
+    const ids = row.readIds ?? [];
+    if (ids.includes(messageId)) return;
+    await ctx.db.patch(row._id, {
+      readIds: [...ids, messageId].slice(-MAX_READ_IDS),
+    });
+  },
+});
+
+// Marks everything read ("Mark all as read"), which clears the sidebar count.
 export const markSeen = mutation({
   args: {},
   handler: async (ctx) => {
@@ -102,7 +133,7 @@ export const markSeen = mutation({
     const { member } = await requireMember(ctx, { allowReadonly: true });
     const row = await seenRow(ctx, member._id);
     const seenAt = Date.now();
-    if (row) await ctx.db.patch(row._id, { seenAt });
+    if (row) await ctx.db.patch(row._id, { seenAt, readIds: [] });
     else await ctx.db.insert("activitySeen", { memberId: member._id, seenAt });
   },
 });
