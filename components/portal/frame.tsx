@@ -169,6 +169,7 @@ function Shell({ children }: { children: ReactNode }) {
   const drawerRef = useRef<HTMLElement>(null);
   const shadeRef = useRef<HTMLButtonElement>(null);
   useSwipeDrawer(open, setOpen, rootRef, drawerRef, shadeRef);
+  useStuckNavigationFallback(pathname);
 
   // Close the mobile drawer on navigation.
   if (pathname !== lastPath) {
@@ -369,6 +370,51 @@ function useSwipeDrawer(
       root.removeEventListener("touchcancel", onEnd);
     };
   }, [setOpen, rootRef, drawerRef, shadeRef]);
+}
+
+// Next.js runs navigations one at a time, so if one never finishes (say, a page request
+// that hung while the phone was asleep or the network changed), every later link click
+// is silently ignored until a reload. As a safety net: if a click on a link to another
+// page of this site hasn't changed the page after a few seconds, load it directly.
+function useStuckNavigationFallback(pathname: string) {
+  const shown = useRef(pathname);
+  useEffect(() => {
+    shown.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onClick = (e: globalThis.MouseEvent) => {
+      if (
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      )
+        return;
+      const a = (e.target as Element | null)?.closest?.("a[href]");
+      if (!(a instanceof HTMLAnchorElement)) return;
+      if (a.hasAttribute("download") || (a.target && a.target !== "_self"))
+        return;
+      const url = new URL(a.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      const from = shown.current;
+      if (url.pathname === from) return; // same page (thread links, anchors)
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Anything that moved the page (including a redirect elsewhere) counts as working.
+        if (shown.current === from && document.visibilityState === "visible")
+          window.location.assign(url.href);
+      }, 4000);
+    };
+    // Capture phase, so this sees the click before Link handles it.
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("click", onClick, true);
+      clearTimeout(timer);
+    };
+  }, []);
 }
 
 // Shown when a preview link signed someone in read-only (convex/previewAccess.ts).
