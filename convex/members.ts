@@ -15,6 +15,7 @@ import {
   publicMember,
   requireMember,
 } from "./lib/viewer";
+import { SIGNUPS_CLOSE, SIGNUPS_CLOSED_MESSAGE } from "./lib/program";
 import { EMAIL_RE, HANDLE_RE, parseWebsite, slugify } from "./lib/util";
 
 // Picks an unused handle based on the name: "kit-when", then "kit-when-2", ...
@@ -88,6 +89,8 @@ export const syncProfile = mutation({
 export const expressInterest = mutation({
   args: { name: v.string(), email: v.string(), website: v.string() },
   handler: async (ctx, args) => {
+    if (Date.now() >= SIGNUPS_CLOSE)
+      throw new ConvexError(SIGNUPS_CLOSED_MESSAGE);
     const name = args.name.trim().slice(0, 200);
     const email = args.email.trim().toLowerCase().slice(0, 320);
     const link = parseWebsite(args.website);
@@ -144,6 +147,7 @@ export const signTerms = mutation({
       return { memberId: member._id, email, alreadyCommitted: true };
     }
     const now = Date.now();
+    if (now >= SIGNUPS_CLOSE) throw new ConvexError(SIGNUPS_CLOSED_MESSAGE);
     if (member) {
       await ctx.db.patch(member._id, {
         signedName: signature,

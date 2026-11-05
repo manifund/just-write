@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { SignInPanel } from "@/components/sign-in";
 import { api } from "@/convex/_generated/api";
+import { SIGNUPS_CLOSE } from "@/convex/lib/program";
 import { signOut } from "@/lib/auth-client";
 import { startCommitment, type CommitState } from "./actions";
 
@@ -19,8 +20,23 @@ const heading =
 // Signing is tied to the signed-in account, so sign in first.
 export function CommitForm() {
   const viewer = useQuery(api.members.viewer);
+  const closed = useSyncExternalStore(
+    noop,
+    () => Date.now() >= SIGNUPS_CLOSE,
+    () => false,
+  );
   if (viewer === undefined) {
     return <div className="min-h-[320px] bg-cream-deep" aria-busy="true" />;
+  }
+  if (closed && viewer?.member?.status !== "committed") {
+    return (
+      <div className="flex flex-col gap-1.5 bg-cream-deep p-[clamp(20px,min(3vw,4vh),40px)]">
+        <h2 className={heading}>Sign-ups are closed</h2>
+        <p className="text-[17px] text-ink-muted">
+          Commitments for Nov 2026 closed on Nov 4 at 11:59pm PT.
+        </p>
+      </div>
+    );
   }
   if (viewer === null) {
     return (

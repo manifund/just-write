@@ -35,3 +35,8 @@ export function fillSlots<
   }
   return slots;
 }
+
+// New sign-ups and commitments close at 11:59pm PT (PST, UTC−8) on Wed Nov 4, 2026.
+export const SIGNUPS_CLOSE = Date.UTC(2026, 10, 5, 8);
+export const SIGNUPS_CLOSED_MESSAGE =
+  "Sign-ups for Just Write closed on Nov 4 at 11:59pm PT.";
