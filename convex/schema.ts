@@ -146,6 +146,13 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_member_channel", ["memberId", "channelId"]),
 
+  // When each member last looked at /activity (convex/activity.ts). Kept off the members
+  // row so marking it doesn't re-run every query that reads members.
+  activitySeen: defineTable({
+    memberId: v.id("members"),
+    seenAt: v.number(),
+  }).index("by_member", ["memberId"]),
+
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.
   improvements: defineTable({
     number: v.number(), // 1, 2, 3…; the branch is claude/<number> unless it continues an earlier run

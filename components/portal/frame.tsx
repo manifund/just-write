@@ -421,6 +421,7 @@ function Sidebar() {
   const { me, viewer } = usePortal();
   const pathname = usePathname();
   const channels = useQuery(api.chat.channels);
+  const activity = useQuery(api.activity.feed);
   const online = useRoom("portal");
   // Keep each channel's latest messages loaded, so opening a channel shows them immediately.
   // This waits a moment so the page's own queries aren't competing with it on first load.
@@ -467,6 +468,20 @@ function Sidebar() {
             ✦
           </span>{" "}
           Home
+        </Link>
+        <Link
+          href="/activity"
+          className={`${cls("/activity")} ${activity?.unread ? "font-bold text-cream" : ""}`}
+        >
+          <span aria-hidden="true" className="w-5 text-center">
+            @
+          </span>{" "}
+          Activity
+          {!!activity?.unread && !active("/activity") && (
+            <span className="ml-auto min-w-5 rounded-full bg-brass-light px-1.5 text-center text-[13px] leading-5 font-bold text-ink">
+              {activity.unread}
+            </span>
+          )}
         </Link>
         <Link href="/calendar" className={cls("/calendar")}>
           <span aria-hidden="true" className="w-5 text-center">
