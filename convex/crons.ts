@@ -17,7 +17,13 @@ crons.interval(
   internal.events.claimReminders,
 );
 
-// Emails members who opted in and haven't posted in #check-ins today, at 6pm PT (PST).
+// Emails members who opted in and haven't posted in #check-ins today, at 10am and
+// again at 6pm PT (PST).
+crons.daily(
+  "morning check-in reminders",
+  { hourUTC: 18, minuteUTC: 0 },
+  internal.reminders.sendCheckInReminders,
+);
 crons.daily(
   "check-in reminders",
   { hourUTC: 2, minuteUTC: 0 },

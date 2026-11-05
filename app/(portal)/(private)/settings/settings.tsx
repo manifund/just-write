@@ -142,7 +142,7 @@ function Reminders() {
         <span className="flex flex-col gap-0.5">
           <span>Remind me to post a check-in</span>
           <span className="text-[14px] text-ink-muted">
-            A short email at 6pm Pacific on days you haven’t posted in
+            A short email at 10am and 6pm Pacific on days you haven’t posted in
             #check-ins yet.
           </span>
         </span>
