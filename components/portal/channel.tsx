@@ -41,8 +41,11 @@ export function ChannelFromUrl() {
   // (see switchChannel in frame.tsx), which updates the path but not the route params.
   const slug = decodeURIComponent(usePathname().split("/")[2] ?? "");
   // ?thread=<id> is the open thread, so it can be linked and works with Back/Forward.
-  const thread = useSearchParams().get("thread") as Id<"messages"> | null;
-  return <Channel key={slug} slug={slug} threadId={thread} />;
+  const params = useSearchParams();
+  const thread = params.get("thread") as Id<"messages"> | null;
+  // ?message=<id> is a reply in that thread, from a shared link.
+  const reply = params.get("message") as Id<"messages"> | null;
+  return <Channel key={slug} slug={slug} threadId={thread} replyId={reply} />;
 }
 
 // The last thread open in each channel during this visit. On wide screens, where the
@@ -163,9 +166,11 @@ function addToChannel(
 export function Channel({
   slug,
   threadId,
+  replyId = null,
 }: {
   slug: string;
   threadId: Id<"messages"> | null;
+  replyId?: Id<"messages"> | null;
 }) {
   // The sidebar already subscribes to the channel list, so this is usually ready immediately.
   const channels = useQuery(api.chat.channels);
@@ -237,6 +242,7 @@ export function Channel({
           key={threadId}
           slug={slug}
           parentId={threadId}
+          replyId={replyId}
           onClose={onCloseThread}
         />
       )}
@@ -443,12 +449,14 @@ function MessageRun({
   animateAfter,
   onOpenThread,
   inThread,
+  highlightId,
 }: {
   messages: ChatMessage[];
   now: number | null;
   animateAfter: number;
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
+  highlightId?: Id<"messages"> | null;
 }) {
   const { me } = usePortal();
   return messages.map((m, i) => {
@@ -484,6 +492,7 @@ function MessageRun({
           animate={m.authorId !== me._id && m._creationTime > animateAfter}
           onOpenThread={onOpenThread}
           inThread={inThread}
+          highlight={m._id === highlightId}
         />
       </div>
     );
@@ -519,10 +528,12 @@ function ChannelStart({ slug, empty }: { slug: string; empty: boolean }) {
 function Thread({
   slug,
   parentId,
+  replyId,
   onClose,
 }: {
   slug: string;
   parentId: Id<"messages">;
+  replyId: Id<"messages"> | null;
   onClose: () => void;
 }) {
   const { me } = usePortal();
@@ -547,11 +558,24 @@ function Thread({
   const now = useNow();
   const [openedAt] = useState(() => Date.now());
   const end = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLElement>(null);
+  const jumped = useRef(false);
   const count = data?.replies.length ?? 0;
 
   useEffect(() => {
+    // A shared link to a reply scrolls to that reply once, instead of the end.
+    if (replyId && !jumped.current && count > 0) {
+      jumped.current = true;
+      const target = panel.current?.querySelector(
+        `[data-message-id="${CSS.escape(replyId)}"]`,
+      );
+      if (target) {
+        target.scrollIntoView({ block: "center" });
+        return;
+      }
+    }
     end.current?.scrollIntoView({ block: "end" });
-  }, [count]);
+  }, [count, replyId]);
 
   useEffect(() => {
     void closeNotifications(notificationTag(slug, parentId));
@@ -566,6 +590,7 @@ function Thread({
 
   return (
     <aside
+      ref={panel}
       aria-label="Thread"
       className="fixed inset-0 z-30 flex flex-col bg-cream md:left-[264px] lg:static lg:z-auto lg:w-[min(440px,40vw)] lg:shrink-0 lg:border-l lg:border-ink/10"
     >
@@ -601,6 +626,7 @@ function Thread({
               now={now}
               animateAfter={openedAt}
               inThread
+              highlightId={replyId}
             />
           </>
         )}

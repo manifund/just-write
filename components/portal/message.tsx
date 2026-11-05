@@ -27,6 +27,7 @@ export function Message({
   animate,
   onOpenThread,
   inThread,
+  highlight,
 }: {
   m: ChatMessage;
   compact: boolean; // same author as the previous message, shortly after
@@ -34,6 +35,7 @@ export function Message({
   animate?: boolean; // slide in, for messages that arrive while you're watching
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
+  highlight?: boolean; // the reply a shared link points to
 }) {
   const { me, viewer } = usePortal();
   const author = useMember(m.authorId);
@@ -49,6 +51,12 @@ export function Message({
   const [picker, setPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
   const actionsRef = useRef<HTMLDivElement>(null);
   // Touch screens have no hover, so a long press opens the actions instead.
   const [held, setHeld] = useState(false);
@@ -95,6 +103,7 @@ export function Message({
   return (
     <article
       ref={articleRef}
+      data-message-id={m._id}
       onPointerDown={(e) => {
         if (e.pointerType !== "touch" || editing || pending) return;
         if ((e.target as Element).closest("button, input, [contenteditable]"))
@@ -133,7 +142,7 @@ export function Message({
       }}
       className={`group relative grid pointer-coarse:select-none pointer-coarse:[-webkit-touch-callout:none] grid-cols-[40px_minmax(0,1fr)] gap-x-3 px-[clamp(16px,3vw,32px)] transition-colors hover:bg-cream-deep/45 ${
         animate ? "motion-safe:animate-[rise_220ms_ease-out]" : ""
-      } ${pending ? "opacity-60" : ""} ${compact ? "py-0.5" : "pt-3 pb-0.5"}`}
+      } ${pending ? "opacity-60" : ""} ${highlight ? "bg-brass/12" : ""} ${compact ? "py-0.5" : "pt-3 pb-0.5"}`}
     >
       <div className="relative pt-0.5">
         {compact ? (
@@ -261,7 +270,7 @@ export function Message({
         <div
           ref={actionsRef}
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
-            picker || confirmDelete || held
+            picker || confirmDelete || held || copied
               ? "flex"
               : "hidden group-focus-within:flex group-hover:flex"
           }`}
@@ -352,6 +361,46 @@ export function Message({
                   </svg>
                 </ActionButton>
               )}
+              <ActionButton
+                label={copied ? "Link copied" : "Copy link"}
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(messageLink(m))
+                    .then(() => setCopied(true))
+                    .catch(() => {});
+                  if (held) closeActions();
+                }}
+              >
+                {copied ? (
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12.5l4.5 4.5L19 7" />
+                  </svg>
+                ) : (
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  >
+                    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+                    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+                  </svg>
+                )}
+              </ActionButton>
               {mine && !m.essay && !m.event && !m.kind && (
                 <ActionButton
                   label="Edit"
@@ -399,6 +448,15 @@ export function Message({
       )}
     </article>
   );
+}
+
+// A link that opens the message's thread; for a reply, it also points at the reply.
+function messageLink(m: ChatMessage) {
+  const slug = window.location.pathname.split("/")[2] ?? "";
+  const url = new URL(`/chat/${slug}`, window.location.origin);
+  url.searchParams.set("thread", m.parentId ?? m._id);
+  if (m.parentId) url.searchParams.set("message", m._id);
+  return url.toString();
 }
 
 function ActionButton({
