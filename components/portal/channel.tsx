@@ -7,7 +7,6 @@ import {
   usePaginatedQuery,
   useQuery,
 } from "convex/react";
-import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -25,6 +24,7 @@ import {
   PAGE_SIZE,
 } from "@/convex/lib/channels";
 import { cleanBody, mentionIds } from "@/convex/lib/richtext";
+import { pushChatUrl, replaceChatUrl, useChatUrl } from "@/lib/chat-url";
 import { errorMessage } from "@/lib/convex";
 import { closeNotifications } from "@/lib/push";
 import { Avatar } from "./avatar";
@@ -37,11 +37,12 @@ import { dayLabel, PENDING, useNow } from "./util";
 const GROUP_MS = 5 * 60 * 1000;
 
 export function ChannelFromUrl() {
-  // From the path rather than useParams: the sidebar switches channels with pushState
-  // (see switchChannel in frame.tsx), which updates the path but not the route params.
-  const slug = decodeURIComponent(usePathname().split("/")[2] ?? "");
+  // From lib/chat-url rather than the router: switching channels and opening threads
+  // change the URL there without a router navigation (see that file for why).
+  const { pathname, search } = useChatUrl();
+  const slug = decodeURIComponent(pathname.split("/")[2] ?? "");
   // ?thread=<id> is the open thread, so it can be linked and works with Back/Forward.
-  const thread = useSearchParams().get("thread") as Id<"messages"> | null;
+  const thread = search.get("thread") as Id<"messages"> | null;
   return <Channel key={slug} slug={slug} threadId={thread} />;
 }
 
@@ -61,22 +62,17 @@ function openThread(slug: string, id: Id<"messages">, current: string | null) {
   if (current === id) return;
   if (current) {
     // Switching threads replaces the entry, so one Back still returns to the channel.
-    // Pass a fresh object: Next ignores the URL change if the state carries its own keys.
     const opened = window.history.state?.[OPENED] === true;
-    window.history.replaceState(
-      opened ? { [OPENED]: true } : null,
-      "",
-      threadUrl(slug, id),
-    );
+    replaceChatUrl(threadUrl(slug, id), opened ? { [OPENED]: true } : undefined);
   } else {
-    window.history.pushState({ [OPENED]: true }, "", threadUrl(slug, id));
+    pushChatUrl(threadUrl(slug, id), { [OPENED]: true });
   }
 }
 
 function closeThread(slug: string) {
   lastThread.delete(slug);
   if (window.history.state?.[OPENED]) window.history.back();
-  else window.history.replaceState(null, "", threadUrl(slug, null));
+  else replaceChatUrl(threadUrl(slug, null));
 }
 
 // Keeps lastThread up to date, and restores it when arriving at a channel on a wide screen.
@@ -88,7 +84,7 @@ function useRememberThread(slug: string, threadId: Id<"messages"> | null) {
     if (arrived && !threadId) {
       const last = lastThread.get(slug);
       if (last && window.matchMedia(WIDE).matches) {
-        window.history.replaceState(null, "", threadUrl(slug, last));
+        replaceChatUrl(threadUrl(slug, last));
         return;
       }
     }
