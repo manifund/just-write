@@ -145,7 +145,7 @@ export const recipients = internalQuery({
           `${author.name} ${m.parentId ? "replied in" : "in"} #${channel.name}`,
           120,
         ),
-        url: `/chat/${channel.slug}${m.parentId ? `?thread=${m.parentId}` : ""}`,
+        url: `/chat/${channel.slug}${m.parentId ? `/${m.parentId}` : ""}`,
         tag: notificationTag(channel.slug, m.parentId),
       },
       recipients: await Promise.all(

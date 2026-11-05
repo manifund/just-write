@@ -222,7 +222,7 @@ export const claimImprovement = mutation({
       request: r.request,
       requester: requester?.name ?? "A member",
       channel: channel?.name ?? "chat",
-      threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}?thread=${r.threadId}`,
+      threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
       thread,
     };
   },
@@ -307,7 +307,7 @@ async function announceMerge(ctx: MutationCtx, r: Doc<"improvements">) {
       txt(`Merged #${r.number}: ${r.title ?? r.request.slice(0, 80)}. Asked by `),
       mention(requester),
       txt(" in "),
-      txt(`#${channel.name}`, `/chat/${channel.slug}?thread=${r.threadId}`),
+      txt(`#${channel.name}`, `/chat/${channel.slug}/${r.threadId}`),
       txt("."),
     ),
   });

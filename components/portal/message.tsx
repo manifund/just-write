@@ -453,8 +453,10 @@ export function Message({
 // A link that opens the message's thread; for a reply, it also points at the reply.
 function messageLink(m: ChatMessage) {
   const slug = window.location.pathname.split("/")[2] ?? "";
-  const url = new URL(`/chat/${slug}`, window.location.origin);
-  url.searchParams.set("thread", m.parentId ?? m._id);
+  const url = new URL(
+    `/chat/${slug}/${m.parentId ?? m._id}`,
+    window.location.origin,
+  );
   if (m.parentId) url.searchParams.set("message", m._id);
   return url.toString();
 }
