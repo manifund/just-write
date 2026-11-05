@@ -56,9 +56,9 @@ export function Activity() {
           <button
             type="button"
             onClick={() => void markSeen().catch(() => {})}
-            className="cursor-pointer self-start text-[15px] text-ink-muted underline"
+            className="cursor-pointer self-start border border-ink/25 px-3 py-1 text-[15px] transition-colors hover:border-ink hover:bg-ink hover:text-cream"
           >
-            Mark all as read
+            Mark all as read ({unread})
           </button>
         )}
       </header>
@@ -99,11 +99,11 @@ function Row({
   const author = useMember(item.authorId);
   const name = author?.name ?? "Someone";
   return (
-    <li className="relative border-b border-ink/10">
+    <li className="border-b border-ink/10">
       <Link
         href={`/chat/${item.channel.slug}/${item.threadId}`}
         onClick={onRead}
-        className={`flex gap-3 px-3 py-4 no-underline transition-colors hover:bg-ink/4 ${isNew ? "bg-brass/10 pr-28" : ""}`}
+        className={`flex gap-3 px-3 py-4 no-underline transition-colors hover:bg-ink/4 ${isNew ? "bg-brass/10" : ""}`}
       >
         <Avatar member={author} size={36} className="shrink-0" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -118,6 +118,12 @@ function Row({
                 {timeAgo(item.createdAt, now)}
               </span>
             )}
+            {isNew && (
+              <span
+                className="ml-auto size-2 self-center rounded-full bg-brass"
+                aria-label="unread"
+              />
+            )}
           </p>
           {item.parentText && (
             <p className="truncate text-[15px] text-ink-muted">
@@ -129,16 +135,6 @@ function Row({
           </p>
         </div>
       </Link>
-      {isNew && (
-        <button
-          type="button"
-          onClick={onRead}
-          className="absolute top-4 right-3 flex cursor-pointer items-center gap-2 text-[14px] text-ink-muted hover:text-ink"
-        >
-          <span className="size-2 rounded-full bg-brass" aria-hidden />
-          Mark read
-        </button>
-      )}
     </li>
   );
 }
