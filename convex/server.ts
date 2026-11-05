@@ -228,6 +228,38 @@ export const claimImprovement = mutation({
   },
 });
 
+// Follow-ups sent in the thread while this run is going (rows waiting on it). The runner
+// polls this while the agent works and hands each one to it right after its current tool
+// call. Claimed rows are closed out, so they don't also start as their own run later.
+export const claimFollowUps = mutation({
+  args: { secret: v.string(), id: v.id("improvements") },
+  handler: async (ctx, { secret, id }) => {
+    checkServerSecret(secret);
+    const r = await ctx.db.get(id);
+    if (!r || r.status !== "running") return [];
+    const rows = await ctx.db
+      .query("improvements")
+      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+      .collect();
+    const out = [];
+    for (const w of rows) {
+      if (w.waitingOn !== id || w.status !== "queued") continue;
+      await ctx.db.patch(w._id, {
+        status: "answered",
+        waitingOn: undefined,
+        summary: `Passed this along to run #${r.number} while it was working.`,
+        finishedAt: Date.now(),
+        steps: w.steps.map((s) =>
+          s.state === "active" ? { ...s, state: "done" as const } : s,
+        ),
+      });
+      const author = await ctx.db.get(w.requesterId);
+      out.push({ author: author?.name ?? "A member", text: w.request });
+    }
+    return out;
+  },
+});
+
 // Progress and results from the runner, and decisions from admins. `step` starts a new
 // checklist line (finishing the active one); `fail` marks the active line failed.
 export const reportImprovement = mutation({

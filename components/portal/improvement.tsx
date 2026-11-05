@@ -35,7 +35,7 @@ export function ImprovementCard({
       <div className="flex max-w-[38rem] flex-col gap-2 py-1">
         <p className="text-[15px] text-ink-muted">
           {card.waiting
-            ? "Got it. I’ll start on this once the request above is done."
+            ? "Got it. I’ll pass this to the run above, or start on it right after."
             : card.status === "queued"
               ? "On it."
               : "Working on it"}

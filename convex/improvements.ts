@@ -146,7 +146,9 @@ export async function startFromMessage(
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
     .first();
-  // If that run is still going, this one waits and starts when it ends (releaseWaiting).
+  // If that run is still going, this one waits. The runner hands it to the agent mid-run
+  // (server.claimFollowUps); if the agent has already finished, it starts when the run ends
+  // (releaseWaiting).
   const busy =
     previous && (previous.status === "queued" || previous.status === "running")
       ? previous
