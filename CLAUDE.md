@@ -8,7 +8,7 @@ IMPORTANT: when vibecoding, avoid writing slop-sounding copy. Use neutral, simpl
 
 ## What this is
 
-Site and member portal for [justwrite.club](https://justwrite.club), a November 2026 online writing club run by Austin through Manifund. Writers express interest, sign in, sign terms, and pay a $1,000 deposit (refunded if they publish 4 essays); committed writers get the member portal. Next.js 16 App Router + Tailwind v4, Convex (data, realtime, auth via Better Auth), Stripe, Resend, OpenRouter. Deployed on Vercel (manifund team, `just-write` project); pushes to `main` deploy to production. `MUSINGS.md` has program notes; `just-write-handoff/` has the approved landing design.
+Site and member portal for [justwrite.club](https://justwrite.club), a November 2026 online writing club run by Austin through Manifund. Writers express interest, sign in, sign terms, and pay a $1,000 deposit (refunded if they publish 4 essays); committed writers get the member portal. Next.js 16 App Router + Tailwind v4, Convex (data, realtime, auth via Better Auth), Stripe, Resend, OpenRouter. Deployed on Vercel (manifund team, `just-write` project); pushes to `main` deploy to production. `MUSINGS.md` has (old) program notes; `just-write-handoff/` has the approved landing design.
 
 ## Commands
 
