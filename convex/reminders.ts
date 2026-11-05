@@ -43,11 +43,12 @@ export const due = internalQuery({
   },
 });
 
-// Runs daily (see crons.ts) and emails everyone in `due`.
+// Runs at 10am and 6pm Pacific (see crons.ts) and emails everyone in `due`.
 export const sendCheckInReminders = internalAction({
   args: {},
   handler: async (ctx): Promise<number> => {
-    const site = process.env.SITE_URL ?? "https://justwrite.club";
+    // Links in emails always go to the live site (SITE_URL is localhost on our one deployment).
+    const site = "https://justwrite.club";
     const channelUrl = `${site}/chat/${CHECK_IN_SLUG}`;
     const settingsUrl = `${site}/settings`;
     const people: { name: string; email: string }[] = await ctx.runQuery(internal.reminders.due, {});
