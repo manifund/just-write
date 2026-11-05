@@ -74,7 +74,7 @@ export function Activity() {
               key={item._id}
               item={item}
               now={now}
-              onOpen={() => {
+              onRead={() => {
                 if (!item.read)
                   void markRead({ messageId: item._id }).catch(() => {});
               }}
@@ -89,21 +89,21 @@ export function Activity() {
 function Row({
   item,
   now,
-  onOpen,
+  onRead,
 }: {
   item: Item;
   now: number | null;
-  onOpen: () => void;
+  onRead: () => void;
 }) {
   const isNew = !item.read;
   const author = useMember(item.authorId);
   const name = author?.name ?? "Someone";
   return (
-    <li className="border-b border-ink/10">
+    <li className="relative border-b border-ink/10">
       <Link
         href={`/chat/${item.channel.slug}/${item.threadId}`}
-        onClick={onOpen}
-        className={`flex gap-3 px-3 py-4 no-underline transition-colors hover:bg-ink/4 ${isNew ? "bg-brass/10" : ""}`}
+        onClick={onRead}
+        className={`flex gap-3 px-3 py-4 no-underline transition-colors hover:bg-ink/4 ${isNew ? "bg-brass/10 pr-28" : ""}`}
       >
         <Avatar member={author} size={36} className="shrink-0" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -118,12 +118,6 @@ function Row({
                 {timeAgo(item.createdAt, now)}
               </span>
             )}
-            {isNew && (
-              <span
-                className="ml-auto size-2 self-center rounded-full bg-brass"
-                aria-label="unread"
-              />
-            )}
           </p>
           {item.parentText && (
             <p className="truncate text-[15px] text-ink-muted">
@@ -135,6 +129,16 @@ function Row({
           </p>
         </div>
       </Link>
+      {isNew && (
+        <button
+          type="button"
+          onClick={onRead}
+          className="absolute top-4 right-3 flex cursor-pointer items-center gap-2 text-[14px] text-ink-muted hover:text-ink"
+        >
+          <span className="size-2 rounded-full bg-brass" aria-hidden />
+          Mark read
+        </button>
+      )}
     </li>
   );
 }
