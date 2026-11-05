@@ -346,7 +346,7 @@ export const recent = query({
 });
 
 // A thread: the parent message and its replies, oldest first.
-// Takes a plain string because it can come from a ?thread= link; a bad id reads as deleted.
+// Takes a plain string because it can come from a thread link; a bad id reads as deleted.
 export const thread = query({
   args: { parentId: v.string() },
   handler: async (ctx, args) => {

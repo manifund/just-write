@@ -290,7 +290,7 @@ export const list = query({
           createdAt: r._creationTime,
           request: r.request,
           requester: requester ? publicMember(requester) : null,
-          threadHref: `/chat/${channels.get(r.channelId) ?? "general"}?thread=${r.threadId}`,
+          threadHref: `/chat/${channels.get(r.channelId) ?? "general"}/${r.threadId}`,
         };
       }),
     );

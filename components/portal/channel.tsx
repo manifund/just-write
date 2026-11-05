@@ -39,12 +39,25 @@ const GROUP_MS = 5 * 60 * 1000;
 export function ChannelFromUrl() {
   // From the path rather than useParams: the sidebar switches channels with pushState
   // (see switchChannel in frame.tsx), which updates the path but not the route params.
-  const slug = decodeURIComponent(usePathname().split("/")[2] ?? "");
-  // ?thread=<id> is the open thread, so it can be linked and works with Back/Forward.
+  // /chat/<slug>/<thread id> is the open thread, so it can be linked and works with
+  // Back/Forward. Older links used /chat/<slug>?thread=<id>, which still works.
+  const parts = usePathname().split("/");
+  const slug = decodeURIComponent(parts[2] ?? "");
   const params = useSearchParams();
-  const thread = params.get("thread") as Id<"messages"> | null;
+  const legacy = params.get("thread");
+  const inPath = parts[3] ? decodeURIComponent(parts[3]) : null;
+  const thread = (inPath || legacy || null) as Id<"messages"> | null;
   // ?message=<id> is a reply in that thread, from a shared link.
   const reply = params.get("message") as Id<"messages"> | null;
+  // Rewrite an old ?thread= link to the path form, keeping any other params.
+  useEffect(() => {
+    if (!legacy || inPath) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("thread");
+    url.pathname = threadUrl(slug, legacy as Id<"messages">);
+    // A fresh state object: Next ignores the URL change if it carries Next's own keys.
+    window.history.replaceState(null, "", url);
+  }, [legacy, inPath, slug]);
   return <Channel key={slug} slug={slug} threadId={thread} replyId={reply} />;
 }
 
@@ -57,7 +70,7 @@ const WIDE = "(min-width: 1024px)"; // Tailwind's lg, where the thread panel sto
 const OPENED = "jwThreadOpened";
 
 function threadUrl(slug: string, id: Id<"messages"> | null) {
-  return id ? `/chat/${slug}?thread=${id}` : `/chat/${slug}`;
+  return id ? `/chat/${slug}/${id}` : `/chat/${slug}`;
 }
 
 function openThread(slug: string, id: Id<"messages">, current: string | null) {
