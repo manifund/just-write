@@ -558,7 +558,7 @@ function Agenda({
                 </h2>
               )}
               <div
-                className={`grid grid-cols-[4.5rem_1fr] gap-4 border-t border-ink/15 py-4 md:grid-cols-[7rem_1fr] md:gap-8 ${
+                className={`grid grid-cols-[4.5rem_minmax(0,1fr)] gap-4 border-t border-ink/15 py-4 md:grid-cols-[7rem_minmax(0,1fr)] md:gap-8 ${
                   d.key < today ? "opacity-60" : ""
                 }`}
               >

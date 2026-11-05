@@ -458,7 +458,10 @@ export function Composer({
           role="listbox"
           className="fixed z-50 w-64 border border-ink/20 bg-cream py-1 shadow-[0_8px_24px_-8px_rgb(56_33_63/0.35)]"
           style={{
-            left: mention.rect.left,
+            left: Math.max(
+              8,
+              Math.min(mention.rect.left, window.innerWidth - 256 - 8),
+            ),
             bottom: window.innerHeight - mention.rect.top + 6,
           }}
         >
