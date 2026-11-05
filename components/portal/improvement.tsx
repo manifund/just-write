@@ -34,7 +34,11 @@ export function ImprovementCard({
     return (
       <div className="flex max-w-[38rem] flex-col gap-2 py-1">
         <p className="text-[15px] text-ink-muted">
-          {card.status === "queued" ? "On it." : "Working on it"}
+          {card.waiting
+            ? "Got it. I’ll start on this once the request above is done."
+            : card.status === "queued"
+              ? "On it."
+              : "Working on it"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
         <Steps steps={card.steps} />

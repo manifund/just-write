@@ -168,6 +168,7 @@ export default defineSchema({
     ),
     branch: v.string(),
     previousId: v.optional(v.id("improvements")), // the earlier run whose PR this continues
+    waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     title: v.optional(v.string()),
     summary: v.optional(v.string()),
     files: v.optional(v.array(v.string())),

@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { improvementStatus, status } from "./schema";
-import { mention, paragraph, postAsClaude, txt } from "./improvements";
+import { mention, paragraph, postAsClaude, releaseWaiting, txt } from "./improvements";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -286,6 +286,9 @@ export const reportImprovement = mutation({
       if (prev?.status === "pr")
         await ctx.db.patch(prev._id, { status: "superseded" });
     }
+
+    if (final && (r.status === "queued" || r.status === "running"))
+      await releaseWaiting(ctx, { ...r, ...patch });
 
     if (patch.status === "merged" && r.status !== "merged")
       await announceMerge(ctx, { ...r, ...patch });
