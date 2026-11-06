@@ -138,7 +138,6 @@ function pendingMessage(
       parentId: args.parentId,
       reactions: [],
       essay: null,
-      improvement: null,
       event: null,
       hidden: false,
     };

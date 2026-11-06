@@ -147,12 +147,26 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_member_channel", ["memberId", "channelId"]),
 
-  // When each member last looked at /activity (convex/activity.ts). Kept off the members
-  // row so marking it doesn't re-run every query that reads members.
+  // The /activity page (convex/activity.ts): one row per member a message involves, written
+  // when the message is posted (convex/lib/activity.ts). `at` is when it happened; Claude's
+  // status card gets its row when the run finishes, not when the empty card is posted.
+  activity: defineTable({
+    memberId: v.id("members"),
+    messageId: v.id("messages"),
+    kind: v.union(v.literal("mention"), v.literal("reply")),
+    at: v.number(),
+    readAt: v.optional(v.number()), // unset until they open it or mark all read
+  })
+    .index("by_member", ["memberId", "at"])
+    .index("by_member_unread", ["memberId", "readAt"])
+    .index("by_message", ["messageId"]),
+
+  // The old read state for /activity, before items were stored. `activity:backfill` moves
+  // it onto activity rows and empties this table; drop it from the schema after that.
   activitySeen: defineTable({
     memberId: v.id("members"),
-    seenAt: v.number(), // everything up to here counts as read ("Mark all as read")
-    readIds: v.optional(v.array(v.id("messages"))), // newer items they've opened, newest last
+    seenAt: v.number(),
+    readIds: v.optional(v.array(v.id("messages"))),
   }).index("by_member", ["memberId"]),
 
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.

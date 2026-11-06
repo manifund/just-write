@@ -15,14 +15,10 @@ import {
   DEFAULT_CHANNELS,
   PAGE_SIZE,
 } from "./lib/channels";
+import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { isReaction } from "./lib/reactions";
-import {
-  cardOf,
-  ensureClaude,
-  getClaude,
-  startFromMessage,
-} from "./improvements";
+import { ensureClaude, getClaude, startFromMessage } from "./improvements";
 import {
   cleanBody,
   mentionIds,
@@ -292,9 +288,6 @@ async function hydrate(
         for (const r of reacts)
           grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r.memberId]);
         const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
-        const improvement = m.improvementId
-          ? await ctx.db.get(m.improvementId)
-          : null;
         const event = m.eventId ? await ctx.db.get(m.eventId) : null;
         return {
           ...m,
@@ -309,7 +302,7 @@ async function hydrate(
                 wordCount: essay.wordCount ?? null,
               }
             : null,
-          improvement: improvement ? cardOf(improvement) : null,
+          // Claude's status card (improvementId) loads itself: see improvements.card.
           event: event
             ? {
                 _id: event._id,
@@ -545,6 +538,7 @@ export const remove = mutation({
         .withIndex("by_message", (q) => q.eq("messageId", doomed._id))
         .collect();
       for (const r of reacts) await ctx.db.delete(r._id);
+      await forgetActivity(ctx, doomed._id);
       await ctx.db.delete(doomed._id);
     }
     if (m.parentId) {
