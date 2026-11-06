@@ -573,9 +573,16 @@ function writeDraft(key: string, editor: Editor, images: Attachment[]) {
   }
 }
 
-// Phones and tablets without a mouse: Enter should add a new line, not send.
+// Phones and tablets: Enter should add a new line, not send. Some phones (Samsung
+// ones with a stylus, for example) claim to support hover, so also check the user
+// agent. iPads report themselves as Macs, but Macs have no touch points.
 function isTouchScreen() {
-  return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+  const ua = navigator.userAgent;
+  return (
+    /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+    (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ||
+    window.matchMedia("(pointer: coarse)").matches
+  );
 }
 
 // Shift+Enter adds line breaks inside one paragraph, so a list or quote would wrap
