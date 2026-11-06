@@ -61,7 +61,7 @@ export function SignInPanel({
         type="button"
         onClick={google}
         disabled={googlePending}
-        className="flex min-h-[52px] cursor-pointer items-center justify-center gap-3 rounded-none border border-ink bg-cream px-6 text-[18px] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-60"
+        className="flex min-h-[52px] cursor-pointer items-center justify-center gap-3 rounded-none border border-ink bg-cream px-6 text-[18px] transition-colors hover:bg-paper disabled:cursor-wait disabled:opacity-60"
       >
         <GoogleIcon />
         {googlePending ? "Opening Google…" : "Continue with Google"}

@@ -1,5 +1,6 @@
 import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
 import type { ReactNode } from "react";
+import { themeScript } from "@/lib/theme";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -28,7 +29,12 @@ export function Document({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={`${fraunces.variable} ${atkinson.variable} antialiased`}
+      // The theme script sets data-theme before React hydrates.
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { api } from "@/convex/_generated/api";
@@ -14,6 +14,7 @@ import {
   subscribeDevice,
   unsubscribeDevice,
 } from "@/lib/push";
+import { getTheme, setTheme, subscribeTheme } from "@/lib/theme";
 import { PhotoCrop } from "./crop";
 
 const input =
@@ -109,6 +110,44 @@ function PhotoPicker() {
         </p>
       )}
     </div>
+  );
+}
+
+const THEMES = [
+  { value: "system", label: "Match this device" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+] as const;
+
+function Appearance() {
+  // null on the server, where there's no stored choice to read.
+  const theme = useSyncExternalStore(subscribeTheme, getTheme, () => null);
+
+  return (
+    <section className="flex flex-col gap-3 border-t border-ink/15 pt-6">
+      <fieldset className="flex flex-col gap-2">
+        <legend className={`${label} pb-2`}>Appearance</legend>
+        {THEMES.map((t) => (
+          <label
+            key={t.value}
+            className="flex cursor-pointer items-center gap-2.5 text-[17px]"
+          >
+            <input
+              type="radio"
+              name="theme"
+              value={t.value}
+              checked={theme === t.value}
+              onChange={() => setTheme(t.value)}
+              className="size-4 accent-ink"
+            />
+            {t.label}
+          </label>
+        ))}
+        <span className="text-[14px] text-ink-muted">
+          Saved on this device only.
+        </span>
+      </fieldset>
+    </section>
   );
 }
 
@@ -401,6 +440,7 @@ export function Settings() {
         )}
       </form>
 
+      <Appearance />
       <Reminders />
       <Notifications />
 

@@ -552,7 +552,7 @@ function EventPost({ event }: { event: NonNullable<ChatMessage["event"]> }) {
       <p className="text-[16px] text-ink-muted">scheduled a session</p>
       <Link
         href={`/calendar/${event.slug}`}
-        className="flex max-w-[34rem] flex-col gap-1 border-l-4 border-ink bg-cream-deep px-4 py-3 no-underline transition-colors hover:bg-[#ecd5d1]"
+        className="flex max-w-[34rem] flex-col gap-1 border-l-4 border-ink bg-cream-deep px-4 py-3 no-underline transition-colors hover:bg-cream-hover"
       >
         <span
           className={`font-display text-[21px] leading-[1.2] font-[450] text-pretty ${event.canceled ? "line-through" : ""}`}
@@ -577,7 +577,7 @@ function EssayPost({ essay }: { essay: NonNullable<ChatMessage["essay"]> }) {
         href={essay.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex max-w-[34rem] flex-col gap-1 border-l-4 border-brass bg-cream-deep px-4 py-3 no-underline transition-colors hover:bg-[#ecd5d1]"
+        className="flex max-w-[34rem] flex-col gap-1 border-l-4 border-brass bg-cream-deep px-4 py-3 no-underline transition-colors hover:bg-cream-hover"
       >
         <span className="font-display text-[21px] leading-[1.2] font-[450] text-pretty">
           {essay.title}

@@ -50,7 +50,7 @@ const mark: Record<Event, string> = {
   essay:
     "border border-brass font-semibold text-brass-light group-hover/day:bg-brass/20",
   circle: "bg-wash/40 text-cream group-hover/day:bg-wash/65",
-  wrap: "bg-cream font-semibold text-ink group-hover/day:bg-white",
+  wrap: "bg-cream font-semibold text-ink group-hover/day:bg-paper",
 };
 
 const swatch: Record<Event, string> = {

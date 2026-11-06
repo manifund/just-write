@@ -137,7 +137,7 @@ export function EmojiPicker({
           }}
           placeholder="Search emoji"
           aria-label="Search emoji"
-          className="w-full border border-ink/15 bg-white/60 px-2 py-1 text-[14px] outline-none focus:border-ink/40"
+          className="w-full border border-ink/15 bg-paper/60 px-2 py-1 text-[14px] outline-none focus:border-ink/40"
         />
       </div>
       <div className="h-[280px] overflow-y-auto p-2">
