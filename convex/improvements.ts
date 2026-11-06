@@ -217,10 +217,14 @@ export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvemen
   }
 }
 
-// Asks Next.js to start the sandbox. The route returns once the runner is going.
+// Asks Next.js to start the sandbox. The route returns once the runner is going, and
+// retries sandbox startup itself. If the request doesn't get through at all, try again a
+// couple of times; the route skips runs it has already claimed, so a repeat is harmless.
+const KICK_ATTEMPTS = 3;
+
 export const kick = internalAction({
-  args: { id: v.id("improvements") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.id("improvements"), attempt: v.optional(v.number()) },
+  handler: async (ctx, { id, attempt = 1 }) => {
     let error: string | null = null;
     try {
       const res = await fetch(process.env.IMPROVE_URL!, {
@@ -233,7 +237,14 @@ export const kick = internalAction({
       error = String(err);
     }
     if (error) {
-      console.error("improve kick failed", id, error);
+      console.error(`improve kick failed (attempt ${attempt})`, id, error);
+      if (attempt < KICK_ATTEMPTS) {
+        await ctx.scheduler.runAfter(30_000 * attempt, internal.improvements.kick, {
+          id,
+          attempt: attempt + 1,
+        });
+        return;
+      }
       await ctx.runMutation(internal.improvements.markFailed, {
         id,
         error: "Couldn’t start a sandbox.",

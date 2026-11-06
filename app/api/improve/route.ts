@@ -20,6 +20,9 @@ import { serverSecret } from "@/lib/auth-server";
 export const maxDuration = 300;
 
 const RUN_TIMEOUT_MS = 40 * 60 * 1000;
+// Three tries in total, waiting 10s and then 30s between them (well under maxDuration).
+const START_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [10_000, 30_000];
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as {
@@ -39,11 +42,12 @@ export async function POST(req: Request) {
   const id = body.id as Id<"improvements">;
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
   const secret = serverSecret();
-  const brief = await convex.mutation(api.server.claimImprovement, {
+  const claimed = await convex.mutation(api.server.claimImprovement, {
     secret,
     id,
   });
-  if (!brief) return Response.json({ ok: true, skipped: true });
+  if (!claimed) return Response.json({ ok: true, skipped: true });
+  const brief = claimed;
 
   const report = (
     args: Omit<
@@ -53,64 +57,86 @@ export async function POST(req: Request) {
   ) =>
     convex.mutation(api.server.reportImprovement, { secret, id, ...args });
 
-  let sandbox: Sandbox | null = null;
-  let fresh = false;
-  try {
-    // Follow-ups on the same branch get the saved sandbox back (if it's under 24h old).
-    sandbox = await Sandbox.getOrCreate({
-      name: sandboxNameFor(brief.branch),
-      source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 50 },
-      resources: { vcpus: 4 },
-      timeout: RUN_TIMEOUT_MS,
-      persistent: true,
-      snapshotExpiration: SANDBOX_KEEP_MS,
-      keepLastSnapshots: { count: 1 },
-      onCreate: async () => {
-        fresh = true;
-      },
-    });
-    if (!fresh) {
-      await sandbox.update({ timeout: RUN_TIMEOUT_MS });
-      await report({ step: "Resuming the sandbox from last time" });
+  // Starting a sandbox sometimes fails for a moment (Vercel hiccups, the last run's
+  // sandbox still stopping), so try a few times before giving up.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < START_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await report({
+        step: `Couldn’t start the sandbox, trying again (${attempt + 1} of ${START_ATTEMPTS})`,
+      }).catch(() => {});
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt - 1]));
     }
-    await report({ patch: { sandboxId: sandbox.name } });
+    try {
+      const sandbox = await startSandbox();
+      return Response.json({ ok: true, sandbox: sandbox.name, attempt: attempt + 1 });
+    } catch (err) {
+      lastError = err;
+      console.error(`improve: couldn't start (attempt ${attempt + 1})`, id, err);
+    }
+  }
+  console.error("improve: giving up", id, lastError);
+  await report({
+    fail: true,
+    patch: { status: "failed", error: "Couldn’t start a sandbox." },
+  });
+  return new Response("Couldn't start", { status: 500 });
 
-    await sandbox.writeFiles([
-      { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
-    ]);
-    const bun = await sandbox.runCommand("bash", [
-      "-c",
-      "command -v bun >/dev/null || [ -x ~/.bun/bin/bun ] || curl -fsSL https://bun.sh/install | bash",
-    ]);
-    if (bun.exitCode !== 0) throw new Error(`bun install failed: ${await bun.stderr()}`);
+  async function startSandbox(): Promise<Sandbox> {
+    let sandbox: Sandbox | null = null;
+    let fresh = false;
+    try {
+      // Follow-ups on the same branch get the saved sandbox back (if it's under 24h old).
+      sandbox = await Sandbox.getOrCreate({
+        name: sandboxNameFor(brief.branch),
+        source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 50 },
+        resources: { vcpus: 4 },
+        timeout: RUN_TIMEOUT_MS,
+        persistent: true,
+        snapshotExpiration: SANDBOX_KEEP_MS,
+        keepLastSnapshots: { count: 1 },
+        onCreate: async () => {
+          fresh = true;
+        },
+      });
+      if (!fresh) {
+        await sandbox.update({ timeout: RUN_TIMEOUT_MS });
+        await report({ step: "Resuming the sandbox from last time" });
+      }
+      await report({ patch: { sandboxId: sandbox.name } });
 
-    await sandbox.runCommand({
-      cmd: "bash",
-      args: [
+      await sandbox.writeFiles([
+        { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
+      ]);
+      const bun = await sandbox.runCommand("bash", [
         "-c",
-        'export PATH="$HOME/.bun/bin:$PATH"; bun scripts/improve-runner.ts > /tmp/runner.log 2>&1',
-      ],
-      cwd: SANDBOX_ROOT,
-      detached: true,
-      env: {
-        IMPROVEMENT_ID: id,
-        SANDBOX_FRESH: fresh ? "1" : "0",
-        SANDBOX_NAME: sandbox.name,
-        CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL!,
-        CONVEX_SERVER_SECRET: secret,
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? "",
-        OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "",
-        IMPROVE_URL: new URL("/api/improve", req.url).toString(),
-      },
-    });
-    return Response.json({ ok: true, sandbox: sandbox.name });
-  } catch (err) {
-    console.error("improve: couldn't start", id, err);
-    await sandbox?.stop().catch(() => {});
-    await report({
-      fail: true,
-      patch: { status: "failed", error: "Couldn’t start a sandbox." },
-    });
-    return new Response("Couldn't start", { status: 500 });
+        "command -v bun >/dev/null || [ -x ~/.bun/bin/bun ] || curl -fsSL https://bun.sh/install | bash",
+      ]);
+      if (bun.exitCode !== 0) throw new Error(`bun install failed: ${await bun.stderr()}`);
+
+      await sandbox.runCommand({
+        cmd: "bash",
+        args: [
+          "-c",
+          'export PATH="$HOME/.bun/bin:$PATH"; bun scripts/improve-runner.ts > /tmp/runner.log 2>&1',
+        ],
+        cwd: SANDBOX_ROOT,
+        detached: true,
+        env: {
+          IMPROVEMENT_ID: id,
+          SANDBOX_FRESH: fresh ? "1" : "0",
+          SANDBOX_NAME: sandbox.name,
+          CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL!,
+          CONVEX_SERVER_SECRET: secret,
+          GITHUB_TOKEN: process.env.GITHUB_TOKEN ?? "",
+          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "",
+          IMPROVE_URL: new URL("/api/improve", req.url).toString(),
+        },
+      });
+      return sandbox;
+    } catch (err) {
+      await sandbox?.stop().catch(() => {});
+      throw err;
+    }
   }
 }
