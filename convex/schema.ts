@@ -121,6 +121,7 @@ export default defineSchema({
     improvementId: v.optional(v.id("improvements")), // Claude's live status card for a run
   })
     .index("by_channel_parent", ["channelId", "parentId"])
+    .index("by_channel_parent_author", ["channelId", "parentId", "authorId"])
     .index("by_parent", ["parentId"]),
 
   reactions: defineTable({

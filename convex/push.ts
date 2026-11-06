@@ -100,8 +100,8 @@ export const recipients = internalQuery({
     if (!m || !channel || !author || !m.text) return null;
 
     const direct = new Set<string>(mentionIds(JSON.parse(m.body) as RichNode));
+    const parent = m.parentId ? await ctx.db.get(m.parentId) : null;
     if (m.parentId) {
-      const parent = await ctx.db.get(m.parentId);
       if (parent) direct.add(parent.authorId);
       const replies = await ctx.db
         .query("messages")
@@ -151,7 +151,11 @@ export const recipients = internalQuery({
       recipients: await Promise.all(
         targets.map(async ([member, subscriptions]) => {
           // Same text they'd see in the app: #check-ins stays hidden behind its gate.
-          const { text } = veil(m, await checkInGate(ctx, channel, member));
+          const { text } = veil(
+            m,
+            await checkInGate(ctx, channel, member),
+            parent,
+          );
           return {
             subscriptions,
             badge: badges.get(member._id) ?? 0,

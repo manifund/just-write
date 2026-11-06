@@ -194,26 +194,33 @@ export const channel = query({
 
 // #check-ins is gated: until you've posted a top-level check-in yourself in the last 24
 // hours, everyone else's posts and thread replies show only their first 100 characters.
-// The channel's oldest post, when an admin wrote it, is the standing intro and always
-// shows in full. Returns null when nothing should be hidden from this viewer.
-type Gate = { viewerId: Id<"members">; introId: Id<"messages"> | null };
+// Posts you could already read stay readable: anything written before your last
+// check-in's 24 hours ran out, plus replies in those threads. The channel's oldest post,
+// when an admin wrote it, is the standing intro and always shows in full. Returns null
+// when nothing should be hidden from this viewer.
+type Gate = {
+  viewerId: Id<"members">;
+  introId: Id<"messages"> | null;
+  seenUntil: number;
+};
 export async function checkInGate(
   ctx: QueryCtx,
   c: Doc<"channels">,
   member: Doc<"members">,
 ): Promise<Gate | null> {
   if (c.slug !== CHECK_IN_SLUG) return null;
-  const since = Date.now() - CHECK_IN_WINDOW_MS;
-  const recentPosts = await ctx.db
+  const lastOwn = await ctx.db
     .query("messages")
-    .withIndex("by_channel_parent", (q) =>
+    .withIndex("by_channel_parent_author", (q) =>
       q
         .eq("channelId", c._id)
         .eq("parentId", undefined)
-        .gt("_creationTime", since),
+        .eq("authorId", member._id),
     )
-    .collect();
-  if (recentPosts.some((m) => m.authorId === member._id)) return null;
+    .order("desc")
+    .first();
+  const seenUntil = lastOwn ? lastOwn._creationTime + CHECK_IN_WINDOW_MS : 0;
+  if (seenUntil > Date.now()) return null;
   const first = await ctx.db
     .query("messages")
     .withIndex("by_channel_parent", (q) =>
@@ -224,15 +231,22 @@ export async function checkInGate(
   const firstAuthor = first ? await ctx.db.get(first.authorId) : null;
   const introId =
     first && firstAuthor && isAdminEmail(firstAuthor.email) ? first._id : null;
-  return { viewerId: member._id, introId };
+  return { viewerId: member._id, introId, seenUntil };
 }
 
-// Replaces a message's body with a short preview when the gate hides it.
-export function veil(m: Doc<"messages">, gate: Gate | null) {
+// Replaces a message's body with a short preview when the gate hides it. Pass the
+// thread's parent for replies, so replies to a post the viewer has seen stay readable.
+export function veil(
+  m: Doc<"messages">,
+  gate: Gate | null,
+  parent?: Doc<"messages"> | null,
+) {
   if (
     !gate ||
     m.authorId === gate.viewerId ||
     m._id === gate.introId ||
+    m._creationTime < gate.seenUntil ||
+    (parent && parent._creationTime < gate.seenUntil) ||
     m.kind ||
     m.essayId ||
     m.eventId ||
@@ -259,48 +273,51 @@ async function hydrate(
   ctx: QueryCtx,
   msgs: Doc<"messages">[],
   gate: Gate | null,
+  parent?: Doc<"messages"> | null,
 ) {
   return await Promise.all(
-    msgs.map((m) => veil(m, gate)).map(async (m) => {
-      const reacts = await ctx.db
-        .query("reactions")
-        .withIndex("by_message", (q) => q.eq("messageId", m._id))
-        .collect();
-      const grouped = new Map<string, Id<"members">[]>();
-      for (const r of reacts)
-        grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r.memberId]);
-      const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
-      const improvement = m.improvementId
-        ? await ctx.db.get(m.improvementId)
-        : null;
-      const event = m.eventId ? await ctx.db.get(m.eventId) : null;
-      return {
-        ...m,
-        reactions: [...grouped].map(([emoji, memberIds]) => ({
-          emoji,
-          memberIds,
-        })),
-        essay: essay
-          ? {
-              title: essay.title,
-              url: essay.url,
-              wordCount: essay.wordCount ?? null,
-            }
-          : null,
-        improvement: improvement ? cardOf(improvement) : null,
-        event: event
-          ? {
-              _id: event._id,
-              slug: event.slug ?? event._id,
-              title: event.title,
-              start: event.start,
-              end: event.end,
-              canceled: !!event.canceledAt,
-              location: event.location ?? null,
-            }
-          : null,
-      };
-    }),
+    msgs
+      .map((m) => veil(m, gate, m.parentId ? parent : null))
+      .map(async (m) => {
+        const reacts = await ctx.db
+          .query("reactions")
+          .withIndex("by_message", (q) => q.eq("messageId", m._id))
+          .collect();
+        const grouped = new Map<string, Id<"members">[]>();
+        for (const r of reacts)
+          grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r.memberId]);
+        const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
+        const improvement = m.improvementId
+          ? await ctx.db.get(m.improvementId)
+          : null;
+        const event = m.eventId ? await ctx.db.get(m.eventId) : null;
+        return {
+          ...m,
+          reactions: [...grouped].map(([emoji, memberIds]) => ({
+            emoji,
+            memberIds,
+          })),
+          essay: essay
+            ? {
+                title: essay.title,
+                url: essay.url,
+                wordCount: essay.wordCount ?? null,
+              }
+            : null,
+          improvement: improvement ? cardOf(improvement) : null,
+          event: event
+            ? {
+                _id: event._id,
+                slug: event.slug ?? event._id,
+                title: event.title,
+                start: event.start,
+                end: event.end,
+                canceled: !!event.canceledAt,
+                location: event.location ?? null,
+              }
+            : null,
+        };
+      }),
   );
 }
 export type ChatMessage = Awaited<ReturnType<typeof hydrate>>[number];
@@ -364,6 +381,7 @@ export const thread = query({
       ctx,
       [parent, ...replies],
       gate,
+      parent,
     );
     return { parent: hydratedParent, replies: hydratedReplies };
   },
