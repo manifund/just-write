@@ -29,6 +29,7 @@ export function Message({
   onOpenThread,
   inThread,
   highlight,
+  onMarkUnread,
 }: {
   m: ChatMessage;
   compact: boolean; // same author as the previous message, shortly after
@@ -37,6 +38,7 @@ export function Message({
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
   highlight?: boolean; // the reply a shared link points to
+  onMarkUnread?: () => void; // channel messages only: this one and later count as unread
 }) {
   const { me, viewer } = usePortal();
   const author = useMember(m.authorId);
@@ -410,6 +412,35 @@ export function Message({
                   </svg>
                 )}
               </ActionButton>
+              {onMarkUnread && !m.parentId && (
+                <ActionButton
+                  label="Mark unread"
+                  onClick={() => {
+                    closeActions();
+                    onMarkUnread();
+                  }}
+                >
+                  <svg
+                    aria-hidden="true"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6h11M4 12h16v8H4zM4 6v6" />
+                    <circle
+                      cx="19"
+                      cy="6"
+                      r="2.5"
+                      fill="currentColor"
+                      stroke="none"
+                    />
+                  </svg>
+                </ActionButton>
+              )}
               {mine && !m.essay && !m.event && !m.kind && (
                 <ActionButton
                   label="Edit"

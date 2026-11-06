@@ -17,7 +17,12 @@ import {
 } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { isReaction } from "./lib/reactions";
-import { cardOf, ensureClaude, getClaude, startFromMessage } from "./improvements";
+import {
+  cardOf,
+  ensureClaude,
+  getClaude,
+  startFromMessage,
+} from "./improvements";
 import {
   cleanBody,
   mentionIds,
@@ -597,6 +602,33 @@ export const markRead = mutation({
         memberId: member._id,
         channelId: c._id,
         lastReadAt: now,
+      });
+  },
+});
+
+// Mark a top-level message and everything after it as unread, by moving the
+// member's read marker to just before it.
+export const markUnread = mutation({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, { messageId }) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const m = await ctx.db.get(messageId);
+    if (!m) throw new ConvexError("That message was deleted.");
+    if (m.parentId)
+      throw new ConvexError("Only channel messages can be marked unread.");
+    const lastReadAt = m._creationTime - 1;
+    const read = await ctx.db
+      .query("reads")
+      .withIndex("by_member_channel", (q) =>
+        q.eq("memberId", member._id).eq("channelId", m.channelId),
+      )
+      .unique();
+    if (read) await ctx.db.patch(read._id, { lastReadAt });
+    else
+      await ctx.db.insert("reads", {
+        memberId: member._id,
+        channelId: m.channelId,
+        lastReadAt,
       });
   },
 });
