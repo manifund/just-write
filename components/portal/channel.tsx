@@ -709,6 +709,21 @@ function Thread({
     void closeNotifications(notificationTag(slug, parentId));
   }, [slug, parentId]);
 
+  // Mark the thread read (for Activity) when a reply arrives while it's open,
+  // or when you come back to the tab.
+  const markThreadRead = useMutation(api.chat.markThreadRead);
+  const newestReply = data?.replies.at(-1)?._id;
+  useEffect(() => {
+    if (!newestReply) return;
+    const read = () => {
+      if (document.visibilityState !== "visible") return;
+      void markThreadRead({ parentId }).catch(() => {});
+    };
+    read();
+    document.addEventListener("visibilitychange", read);
+    return () => document.removeEventListener("visibilitychange", read);
+  }, [newestReply, parentId, markThreadRead]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) =>
       e.key === "Escape" && !e.defaultPrevented && onClose();

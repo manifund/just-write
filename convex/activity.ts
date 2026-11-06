@@ -97,6 +97,7 @@ export const feed = query({
         text: veil({ ...m, text }, gate, parent).text,
         createdAt: at,
         channel: { slug: channel.slug, name: channel.name },
+        channelId: channel._id,
         threadId: m.parentId ?? m._id,
         // The thread's first message, so replies make sense on their own.
         parentText: parent ? veil(parent, gate).text : null,
@@ -105,10 +106,41 @@ export const feed = query({
     const row = await seenRow(ctx, me);
     const seenAt = row?.seenAt ?? 0;
     const readIds = new Set(row?.readIds ?? []);
-    const withRead = items.map((i) => ({
-      ...i,
-      read: i.createdAt <= seenAt || readIds.has(i._id),
-    }));
+    // Items already seen in chat count as read too: top-level messages up to the
+    // channel's read marker, and replies up to when the viewer last had the thread open.
+    const channelReads = new Map(
+      (
+        await ctx.db
+          .query("reads")
+          .withIndex("by_member_channel", (q) => q.eq("memberId", me))
+          .collect()
+      ).map((r) => [r.channelId, r.lastReadAt]),
+    );
+    const threadReads = new Map<Id<"messages">, number>();
+    for (const threadId of new Set(
+      picked.flatMap(({ m }) => (m.parentId ? [m.parentId] : [])),
+    )) {
+      const r = await ctx.db
+        .query("threadReads")
+        .withIndex("by_member_thread", (q) =>
+          q.eq("memberId", me).eq("threadId", threadId),
+        )
+        .unique();
+      if (r) threadReads.set(threadId, r.lastReadAt);
+    }
+    const withRead = items.map(({ channelId, ...i }) => {
+      const chatReadAt =
+        i.threadId === i._id
+          ? channelReads.get(channelId)
+          : threadReads.get(i.threadId);
+      return {
+        ...i,
+        read:
+          i.createdAt <= seenAt ||
+          readIds.has(i._id) ||
+          (chatReadAt !== undefined && i.createdAt <= chatReadAt),
+      };
+    });
     return {
       items: withRead,
       unread: withRead.filter((i) => !i.read).length,

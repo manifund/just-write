@@ -147,6 +147,14 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_member_channel", ["memberId", "channelId"]),
 
+  // When each member last had a thread open, so /activity can count replies they've
+  // already seen there as read. Channel reads above only cover top-level messages.
+  threadReads: defineTable({
+    memberId: v.id("members"),
+    threadId: v.id("messages"), // the thread's top-level message
+    lastReadAt: v.number(),
+  }).index("by_member_thread", ["memberId", "threadId"]),
+
   // When each member last looked at /activity (convex/activity.ts). Kept off the members
   // row so marking it doesn't re-run every query that reads members.
   activitySeen: defineTable({
