@@ -3,16 +3,9 @@
 // the feed is a small indexed read per member. Text is read from the message itself, so
 // edits show and deleted messages drop out.
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import {
-  internalMutation,
-  mutation,
-  query,
-  type QueryCtx,
-} from "./_generated/server";
+import { mutation, query, type QueryCtx } from "./_generated/server";
 import { checkInGate, veil } from "./chat";
-import { recordActivity } from "./lib/activity";
 import { requireMember } from "./lib/viewer";
 
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
@@ -115,54 +108,5 @@ export const markSeen = mutation({
     const now = Date.now();
     for (const row of await unreadRows(ctx, member._id))
       await ctx.db.patch(row._id, { readAt: now });
-  },
-});
-
-// One-time: builds activity rows for the messages of the last 30 days (the feed used to be
-// computed from them), then carries each member's old read state over from activitySeen
-// and empties that table. Works through the messages a page at a time, scheduling itself
-// for the next page. Safe to run again: messages that already have rows are skipped.
-//   bunx convex run activity:backfill
-export const backfill = internalMutation({
-  args: { cursor: v.optional(v.string()) },
-  handler: async (ctx, { cursor = null }) => {
-    const page = await ctx.db
-      .query("messages")
-      .withIndex("by_creation_time", (q) =>
-        q.gt("_creationTime", Date.now() - WINDOW_MS),
-      )
-      .order("asc")
-      .paginate({ numItems: 100, cursor });
-    let recorded = 0;
-    for (const m of page.page) {
-      const existing = await ctx.db
-        .query("activity")
-        .withIndex("by_message", (q) => q.eq("messageId", m._id))
-        .first();
-      if (existing) continue;
-      let at = m._creationTime;
-      if (!m.text) {
-        const run = m.improvementId && (await ctx.db.get(m.improvementId));
-        if (!run || !run.finishedAt || !(run.summary || run.error)) continue;
-        at = run.finishedAt;
-      }
-      await recordActivity(ctx, m, at);
-      recorded++;
-    }
-    if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.activity.backfill, {
-        cursor: page.continueCursor,
-      });
-      return { messages: page.page.length, recorded, done: false };
-    }
-
-    for (const seen of await ctx.db.query("activitySeen").collect()) {
-      const readIds = new Set(seen.readIds ?? []);
-      for (const row of await unreadRows(ctx, seen.memberId))
-        if (row.at <= seen.seenAt || readIds.has(row.messageId))
-          await ctx.db.patch(row._id, { readAt: seen.seenAt });
-      await ctx.db.delete(seen._id);
-    }
-    return { messages: page.page.length, recorded, done: true };
   },
 });

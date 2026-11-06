@@ -13,12 +13,13 @@ import {
   CHECK_IN_SLUG,
   CHECK_IN_WINDOW_MS,
   DEFAULT_CHANNELS,
-  PAGE_SIZE,
+  RECENT_SIZE,
 } from "./lib/channels";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { isReaction } from "./lib/reactions";
-import { ensureClaude, getClaude, startFromMessage } from "./improvements";
+import { ensureClaude, startFromMessage } from "./improvements";
+import { getClaude } from "./lib/claude";
 import {
   cleanBody,
   mentionIds,
@@ -338,8 +339,8 @@ export const messages = query({
   },
 });
 
-// The newest page of a channel, newest first. The sidebar keeps this subscribed for every
-// channel so switching channels can show messages right away, before `messages` loads.
+// The newest messages in a channel, newest first. The sidebar keeps this subscribed for
+// every channel so switching channels can show messages right away, before `messages` loads.
 export const recent = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
@@ -351,11 +352,11 @@ export const recent = query({
         q.eq("channelId", c._id).eq("parentId", undefined),
       )
       .order("desc")
-      .take(PAGE_SIZE + 1);
+      .take(RECENT_SIZE + 1);
     const gate = await checkInGate(ctx, c, member);
     return {
-      messages: await hydrate(ctx, rows.slice(0, PAGE_SIZE), gate),
-      more: rows.length > PAGE_SIZE,
+      messages: await hydrate(ctx, rows.slice(0, RECENT_SIZE), gate),
+      more: rows.length > RECENT_SIZE,
     };
   },
 });

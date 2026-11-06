@@ -28,6 +28,10 @@ export const DEFAULT_CHANNELS = [
 
 // How many messages the channel view loads at a time.
 export const PAGE_SIZE = 50;
+// How many the sidebar keeps warm per channel (chat.recent), enough to fill the screen
+// while the first page loads. Every member subscribes to this for every channel, so
+// each extra message here is read again on every change in that channel.
+export const RECENT_SIZE = 20;
 
 // #check-ins is gated: until you've posted a check-in of your own within this window,
 // other people's posts show only a short preview.

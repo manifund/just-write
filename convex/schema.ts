@@ -161,14 +161,6 @@ export default defineSchema({
     .index("by_member_unread", ["memberId", "readAt"])
     .index("by_message", ["messageId"]),
 
-  // The old read state for /activity, before items were stored. `activity:backfill` moves
-  // it onto activity rows and empties this table; drop it from the schema after that.
-  activitySeen: defineTable({
-    memberId: v.id("members"),
-    seenAt: v.number(),
-    readIds: v.optional(v.array(v.id("messages"))),
-  }).index("by_member", ["memberId"]),
-
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.
   improvements: defineTable({
     number: v.number(), // 1, 2, 3…; the branch is claude/<number> unless it continues an earlier run

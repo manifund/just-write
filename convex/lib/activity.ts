@@ -3,7 +3,7 @@
 // keeps the feed a small indexed read per member, instead of rescanning every message.
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
-import { CLAUDE_EMAIL } from "./improve";
+import { getClaude } from "./claude";
 import { mentionIds, type RichNode } from "./richtext";
 
 // Who a message involves: the members it @mentions, and the people already in its thread
@@ -34,10 +34,7 @@ export async function recordActivity(
   at = m._creationTime,
 ) {
   const { mentioned, inThread } = await involvement(ctx, m);
-  const claude = await ctx.db
-    .query("members")
-    .withIndex("by_email", (q) => q.eq("email", CLAUDE_EMAIL))
-    .unique();
+  const claude = await getClaude(ctx);
   const skip = new Set<string>([m.authorId, ...(claude ? [claude._id] : [])]);
   for (const raw of new Set([...mentioned, ...inThread])) {
     const memberId = ctx.db.normalizeId("members", raw);

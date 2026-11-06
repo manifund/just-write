@@ -11,27 +11,15 @@ import {
   internalMutation,
   query,
   type MutationCtx,
-  type QueryCtx,
 } from "./_generated/server";
-import {
-  CLAUDE_EMAIL,
-  GLOBAL_DAILY_LIMIT,
-  MEMBER_DAILY_LIMIT,
-  branchFor,
-} from "./lib/improve";
+import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
 import { recordActivity } from "./lib/activity";
+import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
 import { publicMember, requireAdmin } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
-
-export async function getClaude(ctx: QueryCtx) {
-  return await ctx.db
-    .query("members")
-    .withIndex("by_email", (q) => q.eq("email", CLAUDE_EMAIL))
-    .unique();
-}
 
 export async function ensureClaude(ctx: MutationCtx) {
   const existing = await getClaude(ctx);
