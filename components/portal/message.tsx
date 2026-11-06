@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ChatMessage } from "@/convex/chat";
 import type { Id } from "@/convex/_generated/dataModel";
 import { REACTIONS } from "@/convex/lib/reactions";
@@ -49,6 +50,7 @@ export function Message({
     error: string;
   } | null>(null);
   const [picker, setPicker] = useState(false);
+  const [whoReacted, setWhoReacted] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const closePicker = useCallback(() => setPicker(false), []);
   const [copied, setCopied] = useState(false);
@@ -237,9 +239,16 @@ export function Message({
                 emoji={r.emoji}
                 memberIds={r.memberIds}
                 onClick={() => react(r.emoji)}
+                onLongPress={() => setWhoReacted(true)}
               />
             ))}
           </div>
+        )}
+        {whoReacted && m.reactions.length > 0 && (
+          <WhoReacted
+            reactions={m.reactions}
+            onClose={() => setWhoReacted(false)}
+          />
         )}
 
         {!inThread && (m.replyCount ?? 0) > 0 && onOpenThread && (
@@ -494,12 +503,22 @@ function ReactionChip({
   emoji,
   memberIds,
   onClick,
+  onLongPress,
 }: {
   emoji: string;
   memberIds: string[];
   onClick: () => void;
+  onLongPress: () => void;
 }) {
   const { me, roster } = usePortal();
+  // Touch screens can't hover for the names, so a long press lists them instead.
+  const press = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const fired = useRef(false);
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = null;
+  };
+  useEffect(() => () => cancelPress(), []);
   const mine = memberIds.includes(me._id);
   const names = memberIds.map((id) =>
     id === me._id ? "You" : (roster.get(id)?.name.split(" ")[0] ?? "Someone"),
@@ -507,7 +526,39 @@ function ReactionChip({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        // Releasing a long press shouldn't also toggle the reaction.
+        if (fired.current) {
+          fired.current = false;
+          return;
+        }
+        onClick();
+      }}
+      onPointerDown={(e) => {
+        if (e.pointerType !== "touch") return;
+        cancelPress();
+        fired.current = false;
+        press.current = {
+          x: e.clientX,
+          y: e.clientY,
+          timer: window.setTimeout(() => {
+            press.current = null;
+            fired.current = true;
+            navigator.vibrate?.(10);
+            onLongPress();
+          }, 450),
+        };
+      }}
+      onPointerMove={(e) => {
+        const p = press.current;
+        if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 10)
+          cancelPress();
+      }}
+      onPointerUp={cancelPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={(e) => {
+        if (fired.current || press.current) e.preventDefault();
+      }}
       aria-label={`${names.join(", ")} reacted ${emoji}`}
       aria-pressed={mine}
       className={`group/chip relative flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 text-[14px] tabular-nums transition-colors motion-safe:animate-[pop_250ms_ease-out] ${
@@ -525,6 +576,78 @@ function ReactionChip({
         {names.join(", ")} reacted {emoji}
       </span>
     </button>
+  );
+}
+
+// A sheet listing everyone who reacted, opened by long-pressing a reaction.
+function WhoReacted({
+  reactions,
+  onClose,
+}: {
+  reactions: ChatMessage["reactions"];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return createPortal(
+    <div
+      data-emoji-picker
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-label="Reactions"
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[70vh] w-full overflow-y-auto bg-cream px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] text-ink shadow-[0_-4px_20px_-8px_rgb(56_33_63/0.4)] sm:max-w-sm"
+      >
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-[13px] tracking-[0.1em] text-ink-muted uppercase">
+            Reactions
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="cursor-pointer px-2 py-1 text-[14px] text-ink-muted hover:text-ink"
+          >
+            Close
+          </button>
+        </div>
+        {reactions.map((r) => (
+          <section key={r.emoji} className="border-t border-ink/10 py-2">
+            <p className="mb-1 text-[20px]">
+              {r.emoji}{" "}
+              <span className="text-[14px] text-ink-muted tabular-nums">
+                {r.memberIds.length}
+              </span>
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {r.memberIds.map((id) => (
+                <Reactor key={id} id={id} />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function Reactor({ id }: { id: string }) {
+  const { me } = usePortal();
+  const m = useMember(id);
+  return (
+    <li className="flex items-center gap-2.5 text-[16px]">
+      <Avatar member={m} size={28} />
+      {m?.name ?? "Someone"}
+      {id === me._id && <span className="text-ink-muted">(you)</span>}
+    </li>
   );
 }
 
