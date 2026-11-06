@@ -213,17 +213,73 @@ export const claimImprovement = mutation({
       }
       thread.push({ author: names.get(m.authorId)!, text, at: m._creationTime });
     }
+    // PRs still open from earlier runs in this thread (the latest run on each). The route
+    // decides which one, if any, this request continues (lib/improve-target.ts).
+    const runs = (
+      await ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .collect()
+    )
+      .filter((e) => e._id !== id && e.number < r.number)
+      .sort((a, b) => b.number - a.number);
+    const openPrs = runs
+      .filter((e) => e.status === "pr" && e.prNumber)
+      .map((e) => ({
+        id: e._id,
+        run: e.number,
+        prNumber: e.prNumber!,
+        title: e.title ?? e.request.slice(0, 100),
+        request: e.request.slice(0, 500),
+      }));
     return {
       number: r.number,
       branch: r.branch,
       prNumber: r.prNumber ?? null,
       // If the earlier run's sandbox is still saved, the agent picks up where it left off.
       resumeSessionId: previous?.sessionId ?? null,
+      openPrs,
+      // The PR of the run right before this one, if it's still open: the fallback choice.
+      latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
       request: r.request,
       requester: requester?.name ?? "A member",
       channel: channel?.name ?? "chat",
       threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
       thread,
+    };
+  },
+});
+
+// Points a just-claimed run at an earlier run's open PR in the same thread, so it builds on
+// that branch. Returns what the runner needs, or null if that PR isn't open anymore.
+export const continuePr = mutation({
+  args: {
+    secret: v.string(),
+    id: v.id("improvements"),
+    previousId: v.id("improvements"),
+  },
+  handler: async (ctx, { secret, id, previousId }) => {
+    checkServerSecret(secret);
+    const [r, prev] = await Promise.all([ctx.db.get(id), ctx.db.get(previousId)]);
+    if (
+      !r ||
+      !prev ||
+      r.status !== "running" ||
+      prev.threadId !== r.threadId ||
+      prev.status !== "pr" ||
+      !prev.prNumber
+    )
+      return null;
+    await ctx.db.patch(id, {
+      branch: prev.branch,
+      previousId: prev._id,
+      prNumber: prev.prNumber,
+      prUrl: prev.prUrl,
+    });
+    return {
+      branch: prev.branch,
+      prNumber: prev.prNumber,
+      resumeSessionId: prev.sessionId ?? null,
     };
   },
 });
