@@ -79,7 +79,10 @@ function openThread(slug: string, id: Id<"messages">, current: string | null) {
   if (current) {
     // Switching threads replaces the entry, so one Back still returns to the channel.
     const opened = window.history.state?.[OPENED] === true;
-    replaceChatUrl(threadUrl(slug, id), opened ? { [OPENED]: true } : undefined);
+    replaceChatUrl(
+      threadUrl(slug, id),
+      opened ? { [OPENED]: true } : undefined,
+    );
   } else {
     pushChatUrl(threadUrl(slug, id), { [OPENED]: true });
   }
@@ -341,6 +344,11 @@ function MessageList({
     },
   );
   const markRead = useMutation(api.chat.markRead);
+  const markUnreadMutation = useMutation(api.chat.markUnread);
+  // Set by "Mark unread": stop marking the channel read until you leave it,
+  // and show where unread starts.
+  const holdUnread = useRef(false);
+  const [unreadFrom, setUnreadFrom] = useState<number | null>(null);
   const onTyping = useTyping(slug);
   const now = useNow();
   const [error, setError] = useState<string | null>(null);
@@ -370,7 +378,7 @@ function MessageList({
   useEffect(() => {
     if (!newest) return;
     const read = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible" || holdUnread.current) return;
       void markRead({ slug });
       void closeNotifications(notificationTag(slug));
     };
@@ -411,6 +419,15 @@ function MessageList({
             now={now}
             animateAfter={openedAt}
             onOpenThread={onOpenThread}
+            unreadFrom={unreadFrom}
+            onMarkUnread={(m) => {
+              holdUnread.current = true;
+              setUnreadFrom(m._creationTime);
+              setError(null);
+              markUnreadMutation({ messageId: m._id }).catch((err) =>
+                setError(errorMessage(err)),
+              );
+            }}
           />
         </div>
       </div>
@@ -459,6 +476,8 @@ function MessageRun({
   onOpenThread,
   inThread,
   highlightId,
+  unreadFrom,
+  onMarkUnread,
 }: {
   messages: ChatMessage[];
   now: number | null;
@@ -466,10 +485,16 @@ function MessageRun({
   onOpenThread?: (id: Id<"messages">) => void;
   inThread?: boolean;
   highlightId?: Id<"messages"> | null;
+  unreadFrom?: number | null; // draw an "Unread" line above the first message from here on
+  onMarkUnread?: (m: ChatMessage) => void;
 }) {
   const { me } = usePortal();
   return messages.map((m, i) => {
     const prev = messages[i - 1];
+    const firstUnread =
+      unreadFrom != null &&
+      m._creationTime >= unreadFrom &&
+      (!prev || prev._creationTime < unreadFrom);
     const newDay =
       !prev ||
       new Date(prev._creationTime).toDateString() !==
@@ -492,6 +517,13 @@ function MessageRun({
             <span className="h-px flex-1 bg-ink/12" />
           </div>
         )}
+        {firstUnread && (
+          <div className="flex items-center gap-3 px-[clamp(16px,3vw,32px)] pt-2 pb-1 text-[13px] tracking-[0.1em] text-brass-text uppercase">
+            <span className="h-px flex-1 bg-brass-text/40" />
+            Unread
+            <span className="h-px flex-1 bg-brass-text/40" />
+          </div>
+        )}
         <Message
           m={m}
           compact={compact}
@@ -502,6 +534,7 @@ function MessageRun({
           onOpenThread={onOpenThread}
           inThread={inThread}
           highlight={m._id === highlightId}
+          onMarkUnread={onMarkUnread && (() => onMarkUnread(m))}
         />
       </div>
     );
@@ -587,7 +620,8 @@ function ResizeHandle({
         let next = startW;
         const move = (ev: PointerEvent) => {
           next = clampThreadWidth(startW + startX - ev.clientX);
-          if (panel.current) panel.current.style.setProperty("--thread-w", `${next}px`);
+          if (panel.current)
+            panel.current.style.setProperty("--thread-w", `${next}px`);
         };
         const up = () => {
           handle.removeEventListener("pointermove", move);
@@ -738,7 +772,9 @@ function Thread({
           <Composer
             compact
             // Focusing opens the keyboard on phones, which gets in the way of reading.
-            autoFocus={window.matchMedia("(hover: hover) and (pointer: fine)").matches}
+            autoFocus={
+              window.matchMedia("(hover: hover) and (pointer: fine)").matches
+            }
             draftKey={`${slug}/${parentId}`}
             placeholder="Reply…"
             onTyping={onTyping}
