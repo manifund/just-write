@@ -46,18 +46,34 @@ export const feed = query({
       return at;
     };
 
-    const picked: { m: Doc<"messages">; kind: "mention" | "reply" }[] = [];
+    const picked: {
+      m: Doc<"messages">;
+      kind: "mention" | "reply";
+      text: string;
+      at: number;
+    }[] = [];
     for (const m of recent) {
       if (picked.length >= MAX_ITEMS) break;
-      if (m.authorId === me || !m.text) continue;
+      if (m.authorId === me) continue;
+      let text = m.text;
+      let at = m._creationTime;
+      // @Claude's reply card is an empty message filled in from its run, so it shows
+      // once the run has a reply, dated when the run finished.
+      if (!text && m.improvementId) {
+        const run = await ctx.db.get(m.improvementId);
+        text = run?.summary ?? run?.error ?? "";
+        at = run?.finishedAt ?? at;
+      }
+      if (!text) continue;
       const mentioned = mentionIds(JSON.parse(m.body) as RichNode).includes(me);
-      if (mentioned) picked.push({ m, kind: "mention" });
+      if (mentioned) picked.push({ m, kind: "mention", text, at });
       else if (m.parentId) {
-        const at = await joinedAt(m.parentId);
-        if (at !== null && m._creationTime > at)
-          picked.push({ m, kind: "reply" });
+        const joinedTime = await joinedAt(m.parentId);
+        if (joinedTime !== null && m._creationTime > joinedTime)
+          picked.push({ m, kind: "reply", text, at });
       }
     }
+    picked.sort((a, b) => b.at - a.at);
 
     const channels = new Map<Id<"channels">, Doc<"channels"> | null>();
     const gates = new Map<
@@ -65,7 +81,7 @@ export const feed = query({
       Awaited<ReturnType<typeof checkInGate>>
     >();
     const items = [];
-    for (const { m, kind } of picked) {
+    for (const { m, kind, text, at } of picked) {
       if (!channels.has(m.channelId))
         channels.set(m.channelId, await ctx.db.get(m.channelId));
       const channel = channels.get(m.channelId);
@@ -78,8 +94,8 @@ export const feed = query({
         _id: m._id,
         kind,
         authorId: m.authorId,
-        text: veil(m, gate, parent).text,
-        createdAt: m._creationTime,
+        text: veil({ ...m, text }, gate, parent).text,
+        createdAt: at,
         channel: { slug: channel.slug, name: channel.name },
         threadId: m.parentId ?? m._id,
         // The thread's first message, so replies make sense on their own.
