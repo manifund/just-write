@@ -140,7 +140,8 @@ export async function startFromMessage(
       );
   }
 
-  // A follow-up in a thread continues the earlier run's open PR.
+  // Whether this continues one of the thread's open PRs or starts a new one is decided
+  // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
   const previous = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
@@ -153,7 +154,6 @@ export async function startFromMessage(
     previous && (previous.status === "queued" || previous.status === "running")
       ? previous
       : null;
-  const continues = previous?.status === "pr" ? previous : null;
 
   const number = (recent[0]?.number ?? 0) + 1;
   const id = await ctx.db.insert("improvements", {
@@ -166,15 +166,12 @@ export async function startFromMessage(
     status: "queued",
     steps: [
       {
-        label: busy ? "Waiting for the request above to finish" : "Starting a sandbox",
+        label: busy ? "Waiting for the request above to finish" : "Getting started",
         state: "active",
       },
     ],
     waitingOn: busy?._id,
-    branch: continues?.branch ?? branchFor(number),
-    previousId: continues?._id,
-    prNumber: continues?.prNumber,
-    prUrl: continues?.prUrl,
+    branch: branchFor(number),
   });
   const replyMessageId = await postAsClaude(ctx, {
     channelId: args.channelId,
@@ -187,9 +184,9 @@ export async function startFromMessage(
   return replyMessageId;
 }
 
-// Called when a run ends (any final status). Starts the follow-up that was waiting on it,
-// continuing its PR if it left one open. The kick is delayed so the finished run's sandbox,
-// which the follow-up reuses, has time to stop first.
+// Called when a run ends (any final status). Starts the follow-up that was waiting on it.
+// The kick is delayed so the finished run's sandbox, which the follow-up may reuse, has time
+// to stop first.
 export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvements">) {
   const waiters = await ctx.db
     .query("improvements")
@@ -197,21 +194,12 @@ export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvemen
     .collect();
   for (const w of waiters) {
     if (w.waitingOn !== finished._id || w.status !== "queued") continue;
-    const continues = finished.status === "pr" ? finished : null;
     await ctx.db.patch(w._id, {
       waitingOn: undefined,
       steps: [
         ...w.steps.map((s) => (s.state === "active" ? { ...s, state: "done" as const } : s)),
-        { label: "Starting a sandbox", state: "active" as const },
+        { label: "Getting started", state: "active" as const },
       ],
-      ...(continues
-        ? {
-            branch: continues.branch,
-            previousId: continues._id,
-            prNumber: continues.prNumber,
-            prUrl: continues.prUrl,
-          }
-        : {}),
     });
     await ctx.scheduler.runAfter(60_000, internal.improvements.kick, { id: w._id });
   }

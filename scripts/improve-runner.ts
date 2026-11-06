@@ -27,6 +27,9 @@ type Brief = {
   branch: string;
   prNumber: number | null;
   resumeSessionId: string | null;
+  // The thread's open PRs from earlier runs. The route picked which one (if any) this
+  // continues before starting the sandbox (lib/improve-target.ts).
+  openPrs?: { run: number; prNumber: number; title: string }[];
   request: string;
   requester: string;
   channel: string;
@@ -162,7 +165,10 @@ function prompt() {
     `"""\n${brief.request}\n"""`,
     brief.thread.length > 1 ? `The thread so far:\n"""\n${thread}\n"""` : "",
     brief.prNumber
-      ? `This continues PR #${brief.prNumber}. Its earlier commits are already on this branch; build on them.`
+      ? `This continues PR #${brief.prNumber}, picked from the thread as the work this request is about. Its earlier commits are already on this branch; build on them.`
+      : "",
+    !brief.prNumber && brief.openPrs?.length
+      ? `This starts a new PR. The thread's other open PRs (${brief.openPrs.map((p) => `#${p.prNumber} "${p.title}"`).join(", ")}) were judged separate from this request. If it's really about one of them, say so in your chat reply and suggest naming it ("continue #${brief.openPrs[0].prNumber}"); members can also write "new PR" to force a fresh one.`
       : "",
   ]
     .filter(Boolean)

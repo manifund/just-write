@@ -117,7 +117,9 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
           Members can mention @Claude in chat to ask for a change to this site.
           Claude writes the code, and small changes go live after review. Add
           “effort: low” (or medium, high, xhigh, max) to the request to set how
-          hard it thinks.
+          hard it thinks. A reply in the same thread keeps working on that
+          thread’s open PR if it’s about the same change, or starts a new one if
+          not. Write “new PR” or “continue #40” to choose yourself.
         </p>
       </header>
 

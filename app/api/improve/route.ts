@@ -16,6 +16,7 @@ import {
   sandboxNameFor,
 } from "@/convex/lib/improve";
 import { serverSecret } from "@/lib/auth-server";
+import { pickTarget } from "@/lib/improve-target";
 
 export const maxDuration = 300;
 
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     id,
   });
   if (!claimed) return Response.json({ ok: true, skipped: true });
-  const brief = claimed;
+  const brief = { ...claimed };
 
   const report = (
     args: Omit<
@@ -56,6 +57,25 @@ export async function POST(req: Request) {
     >,
   ) =>
     convex.mutation(api.server.reportImprovement, { secret, id, ...args });
+
+  // Continue one of the thread's open PRs, or start a new one, depending on what was asked.
+  // Decided before the sandbox starts, since each branch has its own saved sandbox.
+  if (!brief.prNumber && brief.openPrs.length > 0) {
+    const target = await pickTarget(brief);
+    console.log("improve: target", id, target.pr?.prNumber ?? "new", target.why);
+    const continued = target.pr
+      ? await convex.mutation(api.server.continuePr, {
+          secret,
+          id,
+          previousId: target.pr.id as Id<"improvements">,
+        })
+      : null;
+    if (continued) {
+      Object.assign(brief, continued);
+      await report({ step: `Continuing PR #${continued.prNumber}` }).catch(() => {});
+    } else await report({ step: "Starting a new PR" }).catch(() => {});
+  }
+  await report({ step: "Starting a sandbox" }).catch(() => {});
 
   // Starting a sandbox sometimes fails for a moment (Vercel hiccups, the last run's
   // sandbox still stopping), so try a few times before giving up.
