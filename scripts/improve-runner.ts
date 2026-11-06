@@ -20,6 +20,7 @@ import {
   previewUrlFor,
 } from "../convex/lib/improve";
 import { comment, createPr, mergePr } from "../lib/github";
+import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 type Brief = {
   number: number;
@@ -50,26 +51,43 @@ type Report = {
   patch?: Record<string, unknown>;
 };
 
-let lastStep = "";
-async function report(r: Report) {
-  if (r.step) lastStep = r.step;
-  if (DRY) return console.log("[report]", JSON.stringify(r));
+// Calls a convex/server.ts mutation for this run. Null if it failed; callers keep working.
+async function serverMutation(path: string, args: Record<string, unknown> = {}) {
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        path: "server:reportImprovement",
+        path,
         format: "json",
-        args: { secret: env.CONVEX_SERVER_SECRET, id: env.IMPROVEMENT_ID, ...r },
+        args: { secret: env.CONVEX_SERVER_SECRET, id: env.IMPROVEMENT_ID, ...args },
       }),
     });
-    if (!res.ok) console.error("report failed", res.status, await res.text());
+    if (!res.ok) {
+      console.error(path, "failed", res.status, await res.text());
+      return null;
+    }
+    return ((await res.json()) as { value?: unknown }).value ?? null;
   } catch (err) {
-    console.error("report failed", err); // keep working; the card just lags
+    console.error(path, "failed", err);
+    return null;
   }
 }
+
+let lastStep = "";
+async function report(r: Report) {
+  if (r.step) lastStep = r.step;
+  if (DRY) return console.log("[report]", JSON.stringify(r));
+  await serverMutation("server:reportImprovement", r); // on failure the card just lags
+}
 const step = (label: string) => report({ step: label });
+
+// Follow-ups members sent in the thread since the run started (server.claimFollowUps).
+async function claimFollowUps() {
+  if (DRY) return [];
+  const rows = await serverMutation("server:claimFollowUps");
+  return (Array.isArray(rows) ? rows : []) as { author: string; text: string }[];
+}
 
 // --- Shell ------------------------------------------------------------------------------
 
@@ -178,15 +196,52 @@ function dirtyFiles() {
     .filter(Boolean);
 }
 
+const FOLLOW_UP_POLL_MS = 4000;
+
+const userMessage = (
+  text: string,
+  priority?: SDKUserMessage["priority"],
+): SDKUserMessage => ({
+  type: "user",
+  message: { role: "user", content: text },
+  parent_tool_use_id: null,
+  priority,
+});
+
+// The agent's input: the prompt, then any follow-ups from the thread while it works. They go
+// in at priority "next", so the agent reads them after its current tool call, like a message
+// typed into Claude Code mid-task. The stream ends once the agent has returned its result;
+// later follow-ups wait and start as their own run (convex/improvements.ts#releaseWaiting).
+async function* agentInput(first: string, isDone: () => boolean, waitForDone: Promise<void>) {
+  yield userMessage(first);
+  while (!isDone()) {
+    await Promise.race([
+      new Promise((r) => setTimeout(r, FOLLOW_UP_POLL_MS)),
+      waitForDone,
+    ]);
+    if (isDone()) return;
+    for (const f of await claimFollowUps()) {
+      await step(`Reading a follow-up from ${f.author}`);
+      yield userMessage(
+        `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
+        "next",
+      );
+    }
+  }
+}
+
 async function runAgent(input: string, resume?: string) {
   const { query } = await import("@anthropic-ai/claude-agent-sdk");
+  let done = false;
+  let markDone = () => {};
+  const waitForDone = new Promise<void>((r) => (markDone = r));
 
   const reported = new Set(dirtyFiles());
   let typechecked = false;
   let final: Final = { title: null, summary: "", details: "" };
   let sessionId = resume ?? "";
   const q = query({
-    prompt: input,
+    prompt: agentInput(input, () => done, waitForDone),
     options: {
       cwd: ROOT,
       model: AGENT_MODEL,
@@ -240,12 +295,18 @@ async function runAgent(input: string, resume?: string) {
         }
     }
     if (msg.type === "result") {
+      // Stop taking follow-ups. One sent just before this still gets its own turn, and its
+      // result (the last one) is what counts.
+      done = true;
+      markDone();
       sessionId = msg.session_id;
       if (msg.subtype === "success")
         final = parseFinal(msg.structured_output, msg.result);
       else throw new Error(`The agent stopped early (${msg.subtype}).`);
     }
   }
+  done = true;
+  markDone();
   return { final, sessionId };
 }
 

@@ -146,10 +146,13 @@ export async function startFromMessage(
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
     .first();
-  if (previous && (previous.status === "queued" || previous.status === "running"))
-    return await reply(
-      "I’m still working on the request above. Ask again here once it’s done and I’ll build on it.",
-    );
+  // If that run is still going, this one waits. The runner hands it to the agent mid-run
+  // (server.claimFollowUps); if the agent has already finished, it starts when the run ends
+  // (releaseWaiting).
+  const busy =
+    previous && (previous.status === "queued" || previous.status === "running")
+      ? previous
+      : null;
   const continues = previous?.status === "pr" ? previous : null;
 
   const number = (recent[0]?.number ?? 0) + 1;
@@ -161,7 +164,13 @@ export async function startFromMessage(
     requestMessageId: args.messageId,
     request: args.text.slice(0, 8000),
     status: "queued",
-    steps: [{ label: "Starting a sandbox", state: "active" }],
+    steps: [
+      {
+        label: busy ? "Waiting for the request above to finish" : "Starting a sandbox",
+        state: "active",
+      },
+    ],
+    waitingOn: busy?._id,
     branch: continues?.branch ?? branchFor(number),
     previousId: continues?._id,
     prNumber: continues?.prNumber,
@@ -174,8 +183,38 @@ export async function startFromMessage(
     improvementId: id,
   });
   await ctx.db.patch(id, { replyMessageId });
-  await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
+  if (!busy) await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
   return replyMessageId;
+}
+
+// Called when a run ends (any final status). Starts the follow-up that was waiting on it,
+// continuing its PR if it left one open. The kick is delayed so the finished run's sandbox,
+// which the follow-up reuses, has time to stop first.
+export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvements">) {
+  const waiters = await ctx.db
+    .query("improvements")
+    .withIndex("by_thread", (q) => q.eq("threadId", finished.threadId))
+    .collect();
+  for (const w of waiters) {
+    if (w.waitingOn !== finished._id || w.status !== "queued") continue;
+    const continues = finished.status === "pr" ? finished : null;
+    await ctx.db.patch(w._id, {
+      waitingOn: undefined,
+      steps: [
+        ...w.steps.map((s) => (s.state === "active" ? { ...s, state: "done" as const } : s)),
+        { label: "Starting a sandbox", state: "active" as const },
+      ],
+      ...(continues
+        ? {
+            branch: continues.branch,
+            previousId: continues._id,
+            prNumber: continues.prNumber,
+            prUrl: continues.prUrl,
+          }
+        : {}),
+    });
+    await ctx.scheduler.runAfter(60_000, internal.improvements.kick, { id: w._id });
+  }
 }
 
 // Asks Next.js to start the sandbox. The route returns once the runner is going.
@@ -216,6 +255,7 @@ export const markFailed = internalMutation({
         s.state === "active" ? { ...s, state: "failed" as const } : s,
       ),
     });
+    await releaseWaiting(ctx, { ...r, status: "failed" });
   },
 });
 
@@ -232,8 +272,9 @@ export const reapStale = internalMutation({
     for (const r of rows)
       if (
         (r.status === "queued" || r.status === "running") &&
+        !r.waitingOn && // waiting its turn, not stuck
         (r.startedAt ?? r._creationTime) < cutoff
-      )
+      ) {
         await ctx.db.patch(r._id, {
           status: "failed",
           error: "The sandbox stopped before finishing.",
@@ -242,6 +283,8 @@ export const reapStale = internalMutation({
             s.state === "active" ? { ...s, state: "failed" as const } : s,
           ),
         });
+        await releaseWaiting(ctx, { ...r, status: "failed" });
+      }
   },
 });
 
@@ -251,6 +294,7 @@ export function cardOf(r: Doc<"improvements">) {
     _id: r._id,
     number: r.number,
     status: r.status,
+    waiting: !!r.waitingOn,
     steps: r.steps,
     branch: r.branch,
     title: r.title ?? null,
