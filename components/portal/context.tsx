@@ -50,3 +50,8 @@ export function useMember(id: Id<"members"> | string | null | undefined) {
   const { roster } = usePortal();
   return id ? (roster.get(id) ?? null) : null;
 }
+
+// Like usePortal, but null outside the portal (public pages seen while signed out).
+export function useOptionalPortal() {
+  return useContext(PortalContext);
+}

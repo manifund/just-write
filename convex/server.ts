@@ -243,6 +243,7 @@ export const claimImprovement = mutation({
       latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
       request: r.request,
       requester: requester?.name ?? "A member",
+      requesterHandle: requester?.handle ?? null,
       channel: channel?.name ?? "chat",
       threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
       thread,
