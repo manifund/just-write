@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from "react";
 import { authClient } from "@/lib/auth-client";
+import { pushChatUrl } from "@/lib/chat-url";
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -107,8 +108,15 @@ function NotificationClicks() {
     const onMessage = (e: MessageEvent) => {
       if (e.data?.type !== "navigate") return;
       const url = new URL(e.data.url, window.location.href);
-      if (url.origin === window.location.origin)
-        router.push(url.pathname + url.search);
+      if (url.origin !== window.location.origin) return;
+      const to = url.pathname + url.search;
+      // Chat to chat switches in place, like the sidebar (lib/chat-url.ts).
+      if (
+        to.startsWith("/chat/") &&
+        window.location.pathname.startsWith("/chat/")
+      )
+        pushChatUrl(to);
+      else router.push(to);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () =>

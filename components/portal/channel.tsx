@@ -7,7 +7,6 @@ import {
   usePaginatedQuery,
   useQuery,
 } from "convex/react";
-import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -25,6 +24,7 @@ import {
   PAGE_SIZE,
 } from "@/convex/lib/channels";
 import { cleanBody, mentionIds } from "@/convex/lib/richtext";
+import { pushChatUrl, replaceChatUrl, useChatUrl } from "@/lib/chat-url";
 import { errorMessage } from "@/lib/convex";
 import { closeNotifications } from "@/lib/push";
 import { Avatar } from "./avatar";
@@ -37,26 +37,25 @@ import { dayLabel, PENDING, useNow } from "./util";
 const GROUP_MS = 5 * 60 * 1000;
 
 export function ChannelFromUrl() {
-  // From the path rather than useParams: the sidebar switches channels with pushState
-  // (see switchChannel in frame.tsx), which updates the path but not the route params.
+  // From lib/chat-url rather than the router: switching channels and opening threads
+  // change the URL there without a router navigation (see that file for why).
   // /chat/<slug>/<thread id> is the open thread, so it can be linked and works with
   // Back/Forward. Older links used /chat/<slug>?thread=<id>, which still works.
-  const parts = usePathname().split("/");
+  const { pathname, search } = useChatUrl();
+  const parts = pathname.split("/");
   const slug = decodeURIComponent(parts[2] ?? "");
-  const params = useSearchParams();
-  const legacy = params.get("thread");
+  const legacy = search.get("thread");
   const inPath = parts[3] ? decodeURIComponent(parts[3]) : null;
   const thread = (inPath || legacy || null) as Id<"messages"> | null;
   // ?message=<id> is a reply in that thread, from a shared link.
-  const reply = params.get("message") as Id<"messages"> | null;
+  const reply = search.get("message") as Id<"messages"> | null;
   // Rewrite an old ?thread= link to the path form, keeping any other params.
   useEffect(() => {
     if (!legacy || inPath) return;
     const url = new URL(window.location.href);
     url.searchParams.delete("thread");
     url.pathname = threadUrl(slug, legacy as Id<"messages">);
-    // A fresh state object: Next ignores the URL change if it carries Next's own keys.
-    window.history.replaceState(null, "", url);
+    replaceChatUrl(url.pathname + url.search);
   }, [legacy, inPath, slug]);
   return <Channel key={slug} slug={slug} threadId={thread} replyId={reply} />;
 }
@@ -77,22 +76,17 @@ function openThread(slug: string, id: Id<"messages">, current: string | null) {
   if (current === id) return;
   if (current) {
     // Switching threads replaces the entry, so one Back still returns to the channel.
-    // Pass a fresh object: Next ignores the URL change if the state carries its own keys.
     const opened = window.history.state?.[OPENED] === true;
-    window.history.replaceState(
-      opened ? { [OPENED]: true } : null,
-      "",
-      threadUrl(slug, id),
-    );
+    replaceChatUrl(threadUrl(slug, id), opened ? { [OPENED]: true } : undefined);
   } else {
-    window.history.pushState({ [OPENED]: true }, "", threadUrl(slug, id));
+    pushChatUrl(threadUrl(slug, id), { [OPENED]: true });
   }
 }
 
 function closeThread(slug: string) {
   lastThread.delete(slug);
   if (window.history.state?.[OPENED]) window.history.back();
-  else window.history.replaceState(null, "", threadUrl(slug, null));
+  else replaceChatUrl(threadUrl(slug, null));
 }
 
 // Keeps lastThread up to date, and restores it when arriving at a channel on a wide screen.
@@ -104,7 +98,7 @@ function useRememberThread(slug: string, threadId: Id<"messages"> | null) {
     if (arrived && !threadId) {
       const last = lastThread.get(slug);
       if (last && window.matchMedia(WIDE).matches) {
-        window.history.replaceState(null, "", threadUrl(slug, last));
+        replaceChatUrl(threadUrl(slug, last));
         return;
       }
     }
