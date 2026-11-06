@@ -444,7 +444,7 @@ function SimilarWriters() {
                 href={
                   p.member.handle ? `/members/${p.member.handle}` : "/members"
                 }
-                className="flex gap-3 bg-cream-deep p-3.5 no-underline transition-colors hover:bg-[#ecd5d1]"
+                className="flex gap-3 bg-cream-deep p-3.5 no-underline transition-colors hover:bg-cream-hover"
               >
                 <Avatar member={p.member} size={42} />
                 <span className="flex min-w-0 flex-col gap-0.5">

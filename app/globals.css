@@ -3,6 +3,8 @@
 @theme {
   --color-cream: #f9eeec;
   --color-cream-deep: #f1e0dd;
+  --color-cream-hover: #ecd5d1;
+  --color-paper: #ffffff;
   --color-ink: #38213f;
   --color-ink-muted: #644f6b;
   --color-wash: #ab90b3;
@@ -16,7 +18,28 @@
   --font-body: var(--font-atkinson), system-ui, sans-serif;
 }
 
+/* Dark mode: lib/theme.ts sets data-theme="dark" on <html> when the member
+   picks Dark in /settings, or picks Device (the default) and the device is dark. */
 @layer base {
+  :root {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --color-cream: #1f1524;
+    --color-cream-deep: #2b1e31;
+    --color-cream-hover: #37283e;
+    --color-paper: #33253a;
+    --color-ink: #f3e7e9;
+    --color-ink-muted: #bca8c2;
+    --color-wash: #7d6585;
+    --color-wash-light: #45334c;
+    --color-brass: #f66e5e;
+    --color-brass-light: #ff8878;
+    --color-brass-numeral: #fa8a7c;
+    --color-brass-text: #ff9e91;
+  }
+
   body {
     background: var(--color-cream);
     color: var(--color-ink);
@@ -167,7 +190,7 @@ body {
 }
 .rich hr {
   border: 0;
-  border-top: 1px solid rgb(56 33 63 / 0.2);
+  border-top: 1px solid color-mix(in srgb, var(--color-ink) 20%, transparent);
 }
 .rich .mention {
   background: rgb(246 110 94 / 0.14);
