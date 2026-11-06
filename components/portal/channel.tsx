@@ -8,6 +8,8 @@ import {
   useQuery,
 } from "convex/react";
 import {
+  type CSSProperties,
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -532,6 +534,90 @@ function ChannelStart({ slug, empty }: { slug: string; empty: boolean }) {
   );
 }
 
+// The thread panel's width on wide screens, kept per device. Unset means the default.
+const THREAD_WIDTH_KEY = "jwThreadWidth";
+const THREAD_MIN = 320;
+const THREAD_MAX_FRACTION = 0.6; // of the window, so the channel stays usable
+
+function clampThreadWidth(w: number) {
+  return Math.round(
+    Math.max(THREAD_MIN, Math.min(w, window.innerWidth * THREAD_MAX_FRACTION)),
+  );
+}
+
+function useThreadWidth() {
+  const [width, setWidth] = useState<number | null>(() => {
+    const saved = Number(localStorage.getItem(THREAD_WIDTH_KEY));
+    return saved > 0 ? saved : null;
+  });
+  const save = useCallback((w: number | null) => {
+    setWidth(w);
+    if (w === null) localStorage.removeItem(THREAD_WIDTH_KEY);
+    else localStorage.setItem(THREAD_WIDTH_KEY, String(w));
+  }, []);
+  return [width, save] as const;
+}
+
+function ResizeHandle({
+  panel,
+  width,
+  onResize,
+}: {
+  panel: RefObject<HTMLElement | null>;
+  width: number | null;
+  onResize: (w: number | null) => void;
+}) {
+  const current = () => width ?? panel.current?.offsetWidth ?? 440;
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize thread"
+      aria-valuenow={width ?? undefined}
+      tabIndex={0}
+      title="Drag to resize. Double-click to reset."
+      className="group absolute inset-y-0 -left-1.5 z-10 hidden w-3 cursor-col-resize touch-none focus:outline-none lg:block"
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        const handle = e.currentTarget;
+        handle.setPointerCapture(e.pointerId);
+        const startX = e.clientX;
+        const startW = current();
+        let next = startW;
+        const move = (ev: PointerEvent) => {
+          next = clampThreadWidth(startW + startX - ev.clientX);
+          if (panel.current) panel.current.style.setProperty("--thread-w", `${next}px`);
+        };
+        const up = () => {
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", up);
+          handle.removeEventListener("pointercancel", up);
+          document.body.style.removeProperty("cursor");
+          document.body.style.removeProperty("user-select");
+          if (next !== startW) onResize(next);
+        };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+      }}
+      onDoubleClick={() => onResize(null)}
+      onKeyDown={(e) => {
+        const step = e.shiftKey ? 80 : 20;
+        if (e.key === "ArrowLeft") onResize(clampThreadWidth(current() + step));
+        else if (e.key === "ArrowRight")
+          onResize(clampThreadWidth(current() - step));
+        else return;
+        e.preventDefault();
+      }}
+    >
+      <span className="mx-auto block h-full w-0.5 bg-transparent transition-colors group-hover:bg-brass/50 group-focus-visible:bg-brass/70 group-active:bg-brass/70" />
+    </div>
+  );
+}
+
 function Thread({
   slug,
   parentId,
@@ -566,6 +652,7 @@ function Thread({
   const [openedAt] = useState(() => Date.now());
   const end = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
+  const [width, setWidth] = useThreadWidth();
   const jumped = useRef(false);
   const count = data?.replies.length ?? 0;
 
@@ -599,8 +686,14 @@ function Thread({
     <aside
       ref={panel}
       aria-label="Thread"
-      className="fixed inset-0 z-30 flex flex-col bg-cream md:left-[264px] lg:static lg:z-auto lg:w-[min(440px,40vw)] lg:shrink-0 lg:border-l lg:border-ink/10"
+      style={
+        width === null
+          ? undefined
+          : ({ "--thread-w": `${width}px` } as CSSProperties)
+      }
+      className="fixed inset-0 z-30 flex flex-col bg-cream md:left-[264px] lg:relative lg:inset-auto lg:z-auto lg:w-(--thread-w,min(440px,40vw)) lg:max-w-[60vw] lg:min-w-[320px] lg:shrink-0 lg:border-l lg:border-ink/10"
     >
+      <ResizeHandle panel={panel} width={width} onResize={setWidth} />
       <header className="flex items-center justify-between border-b border-ink/10 px-5 py-3.5">
         <h2 className="font-display text-[22px] font-[450]">
           Thread{" "}
