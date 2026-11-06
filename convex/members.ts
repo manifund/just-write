@@ -8,6 +8,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import {
+  adminEmails,
   canEnter,
   getViewer,
   isAdminEmail,
@@ -15,6 +16,7 @@ import {
   publicMember,
   requireMember,
 } from "./lib/viewer";
+import { getClaude } from "./lib/claude";
 import { SIGNUPS_CLOSE, SIGNUPS_CLOSED_MESSAGE } from "./lib/program";
 import { EMAIL_RE, HANDLE_RE, parseWebsite, slugify } from "./lib/util";
 
@@ -343,10 +345,15 @@ export const roster = query({
       .query("members")
       .withIndex("by_status", (q) => q.eq("status", "committed"))
       .collect();
-    // Admins may not be committed but still post, and Claude (the bot) posts too.
-    const others = (await ctx.db.query("members").collect()).filter(
-      (m) => m.status !== "committed" && (isAdminEmail(m.email) || m.bot),
-    );
+    // Admins may not be committed but still post, and Claude (the bot) posts too. Looked
+    // up by email so this never reads the whole table (every member subscribes to it).
+    const others = [];
+    for (const email of adminEmails()) {
+      const m = await memberByEmail(ctx, email);
+      if (m && m.status !== "committed") others.push(m);
+    }
+    const claude = await getClaude(ctx);
+    if (claude && claude.status !== "committed") others.push(claude);
     return [...rows, ...others].map(publicMember);
   },
 });

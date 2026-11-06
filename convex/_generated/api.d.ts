@@ -19,6 +19,7 @@ import type * as gcal from "../gcal.js";
 import type * as http from "../http.js";
 import type * as ideas from "../ideas.js";
 import type * as improvements from "../improvements.js";
+import type * as lib_activity from "../lib/activity.js";
 import type * as lib_channels from "../lib/channels.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_ics from "../lib/ics.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   ideas: typeof ideas;
   improvements: typeof improvements;
+  "lib/activity": typeof lib_activity;
   "lib/channels": typeof lib_channels;
   "lib/email": typeof lib_email;
   "lib/ics": typeof lib_ics;
