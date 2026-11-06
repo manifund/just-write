@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
+import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { fillSlots } from "./lib/program";
@@ -149,6 +150,7 @@ export const remove = mutation({
           .withIndex("by_message", (q) => q.eq("messageId", m._id))
           .collect();
         for (const r of reacts) await ctx.db.delete(r._id);
+        await forgetActivity(ctx, m._id);
         await ctx.db.delete(m._id);
       }
     }

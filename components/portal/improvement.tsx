@@ -1,17 +1,34 @@
 "use client";
 
+import { useQuery } from "convex/react";
 import { useState, useTransition } from "react";
 import {
   closeImprovement,
   mergeImprovement,
   revertImprovement,
 } from "@/app/(portal)/improvements/actions";
+import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import type { ImprovementCard as Card } from "@/convex/improvements";
 import { useNow } from "./util";
 
 function duration(ms: number) {
   const s = Math.max(0, Math.round(ms / 1000));
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+// The card for a chat message: it subscribes to its run itself, so progress updates re-run
+// only this, not the message list (see improvements.card).
+export function LiveImprovementCard({
+  id,
+  isAdmin,
+}: {
+  id: Id<"improvements">;
+  isAdmin: boolean;
+}) {
+  const card = useQuery(api.improvements.card, { id });
+  if (!card) return null;
+  return <ImprovementCard card={card} isAdmin={isAdmin} />;
 }
 
 // Claude's reply to an @Claude request: a live checklist while it works, then the result.

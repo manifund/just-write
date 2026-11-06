@@ -5,7 +5,14 @@ import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { improvementStatus, status } from "./schema";
-import { mention, paragraph, postAsClaude, releaseWaiting, txt } from "./improvements";
+import {
+  endRun,
+  mention,
+  paragraph,
+  postAsClaude,
+  releaseWaiting,
+  txt,
+} from "./improvements";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -300,11 +307,10 @@ export const claimFollowUps = mutation({
     const out = [];
     for (const w of rows) {
       if (w.waitingOn !== id || w.status !== "queued") continue;
-      await ctx.db.patch(w._id, {
+      await endRun(ctx, w, {
         status: "answered",
         waitingOn: undefined,
         summary: `Passed this along to run #${r.number} while it was working.`,
-        finishedAt: Date.now(),
         steps: w.steps.map((s) =>
           s.state === "active" ? { ...s, state: "done" as const } : s,
         ),
@@ -359,11 +365,8 @@ export const reportImprovement = mutation({
     }
     const final = patch.status && patch.status !== "running" && patch.status !== "queued";
     if (final && !fail) steps = finish("done");
-    await ctx.db.patch(id, {
-      ...patch,
-      steps,
-      ...(final && !r.finishedAt ? { finishedAt: Date.now() } : {}),
-    });
+    if (final) await endRun(ctx, r, { ...patch, steps });
+    else await ctx.db.patch(id, { ...patch, steps });
 
     // A follow-up that produced new work takes over the earlier run's card.
     if (

@@ -12,7 +12,7 @@ import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { EmojiPicker } from "./emoji-picker";
 import { useMember, usePortal } from "./context";
-import { ImprovementCard } from "./improvement";
+import { LiveImprovementCard } from "./improvement";
 import {
   useEditMessage,
   useRemoveMessage,
@@ -215,8 +215,8 @@ export function Message({
               </p>
             )}
           </div>
-        ) : m.improvement ? (
-          <ImprovementCard card={m.improvement} isAdmin={viewer.isAdmin} />
+        ) : m.improvementId ? (
+          <LiveImprovementCard id={m.improvementId} isAdmin={viewer.isAdmin} />
         ) : m.essay ? (
           <EssayPost essay={m.essay} />
         ) : m.event ? (

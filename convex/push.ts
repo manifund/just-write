@@ -10,9 +10,9 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { checkInGate, unreadCounts, veil } from "./chat";
+import { involvement } from "./lib/activity";
 import { channelRoom, notificationTag } from "./lib/channels";
 import { pushEndpoint } from "./lib/pushEndpoint";
-import { mentionIds, type RichNode } from "./lib/richtext";
 import { canEnter, isAdminEmail, requireMember } from "./lib/viewer";
 import { presence } from "./presence";
 import { notifyLevel } from "./schema";
@@ -99,16 +99,9 @@ export const recipients = internalQuery({
     // No text means nothing to show yet, like the status card @Claude fills in as it works.
     if (!m || !channel || !author || !m.text) return null;
 
-    const direct = new Set<string>(mentionIds(JSON.parse(m.body) as RichNode));
+    const { mentioned, inThread } = await involvement(ctx, m);
+    const direct = new Set([...mentioned, ...inThread]);
     const parent = m.parentId ? await ctx.db.get(m.parentId) : null;
-    if (m.parentId) {
-      if (parent) direct.add(parent.authorId);
-      const replies = await ctx.db
-        .query("messages")
-        .withIndex("by_parent", (q) => q.eq("parentId", m.parentId))
-        .collect();
-      for (const r of replies) direct.add(r.authorId);
-    }
     const watching = new Set(
       (await presence.listRoom(ctx, channelRoom(channel.slug), true)).map(
         (p) => p.userId,
