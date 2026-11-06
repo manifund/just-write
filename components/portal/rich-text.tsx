@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { isSafeSrc, type RichNode } from "@/convex/lib/richtext";
+import { chatLinkClick } from "@/lib/chat-url";
 
 // Renders a (server-cleaned) Tiptap JSON document as React elements, without raw HTML.
 export function RichText({ body }: { body: string }) {
@@ -181,7 +182,11 @@ function renderMarks(n: RichNode, key: number): ReactNode {
         const local = sitePath(href);
         if (local) {
           // Links to this site (e.g. a copied message link) navigate in place.
-          out = <Link href={local}>{out}</Link>;
+          out = (
+            <Link href={local} onClick={(e) => chatLinkClick(e, local)}>
+              {out}
+            </Link>
+          );
         } else if (/^(https?:|mailto:)/i.test(href)) {
           out = (
             <a
@@ -194,7 +199,11 @@ function renderMarks(n: RichNode, key: number): ReactNode {
           );
         } else if (/^\/(?!\/)/.test(href)) {
           // In-site links (only Claude's posts have these; cleanBody drops them from members').
-          out = <Link href={href}>{out}</Link>;
+          out = (
+            <Link href={href} onClick={(e) => chatLinkClick(e, href)}>
+              {out}
+            </Link>
+          );
         }
         break;
       }
