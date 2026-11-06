@@ -78,7 +78,7 @@ export const feed = query({
         _id: m._id,
         kind,
         authorId: m.authorId,
-        text: veil(m, gate).text,
+        text: veil(m, gate, parent).text,
         createdAt: m._creationTime,
         channel: { slug: channel.slug, name: channel.name },
         threadId: m.parentId ?? m._id,
