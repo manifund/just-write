@@ -50,6 +50,7 @@ export const viewer = query({
             status: member.status,
             email: member.email,
             notify: member.notify ?? "mentions",
+            optIns: member.optIns ?? {},
           }
         : null,
       isAdmin,
@@ -397,5 +398,17 @@ export const setCheckInReminders = mutation({
   handler: async (ctx, { on }) => {
     const { member } = await requireMember(ctx);
     await ctx.db.patch(member._id, { checkInReminders: on || undefined });
+  },
+});
+
+// /settings: turn an opt-in (lib/opt-ins.ts) on or off for yourself.
+export const setOptIn = mutation({
+  args: { key: v.string(), on: v.boolean() },
+  handler: async (ctx, { key, on }) => {
+    const { member } = await requireMember(ctx);
+    if (!/^[a-z0-9-]{1,40}$/.test(key)) throw new ConvexError("Unknown option.");
+    const optIns = { ...member.optIns, [key]: on };
+    if (Object.keys(optIns).length > 200) throw new ConvexError("Too many options.");
+    await ctx.db.patch(member._id, { optIns });
   },
 });

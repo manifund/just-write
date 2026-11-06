@@ -14,6 +14,7 @@ import {
   subscribeDevice,
   unsubscribeDevice,
 } from "@/lib/push";
+import { OPT_INS, optInOn } from "@/lib/opt-ins";
 import { getTheme, setTheme, subscribeTheme } from "@/lib/theme";
 import { PhotoCrop } from "./crop";
 
@@ -186,6 +187,75 @@ function Reminders() {
           </span>
         </span>
       </label>
+      {error && (
+        <p role="alert" className="text-[16px] text-brass-text">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function OptIns() {
+  const { me } = usePortal();
+  const setOptIn = useMutation(api.members.setOptIn).withOptimisticUpdate(
+    (store, { key, on }) => {
+      const viewer = store.getQuery(api.members.viewer, {});
+      if (!viewer?.member) return;
+      store.setQuery(
+        api.members.viewer,
+        {},
+        {
+          ...viewer,
+          member: {
+            ...viewer.member,
+            optIns: { ...viewer.member.optIns, [key]: on },
+          },
+        },
+      );
+    },
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <section className="flex flex-col gap-3 border-t border-ink/15 pt-6">
+      <h2 className={label}>Just for me</h2>
+      <p className="text-[16px] text-ink-muted">
+        Changes members asked @Claude to make “just for me”. They’re on for the
+        person who asked and off for everyone else. Turn any of them on to try
+        them.
+      </p>
+      {OPT_INS.length === 0 && (
+        <p className="text-[16px] text-ink-muted">
+          None yet. Ask @Claude in #site for a change “just for me”.
+        </p>
+      )}
+      {OPT_INS.map((o) => (
+        <label
+          key={o.key}
+          className="flex cursor-pointer items-start gap-3 text-[18px]"
+        >
+          <input
+            type="checkbox"
+            checked={optInOn(o.key, me)}
+            onChange={async (e) => {
+              setError(null);
+              try {
+                await setOptIn({ key: o.key, on: e.target.checked });
+              } catch (err) {
+                setError(errorMessage(err));
+              }
+            }}
+            className="mt-1.5 size-4 shrink-0 accent-ink"
+          />
+          <span className="flex flex-col gap-0.5">
+            <span>{o.label}</span>
+            <span className="text-[14px] text-ink-muted">
+              {o.for === me.handle ? "Made for you" : `Made for ${o.by}`}
+            </span>
+          </span>
+        </label>
+      ))}
       {error && (
         <p role="alert" className="text-[16px] text-brass-text">
           {error}
@@ -443,6 +513,7 @@ export function Settings() {
       <Appearance />
       <Reminders />
       <Notifications />
+      <OptIns />
 
       <div className="border-t border-ink/15 pt-6">
         <button

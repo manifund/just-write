@@ -221,6 +221,7 @@ export const claimImprovement = mutation({
       resumeSessionId: previous?.sessionId ?? null,
       request: r.request,
       requester: requester?.name ?? "A member",
+      requesterHandle: requester?.handle ?? null,
       channel: channel?.name ?? "chat",
       threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
       thread,

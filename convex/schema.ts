@@ -57,6 +57,9 @@ export default defineSchema({
     icsToken: v.optional(v.string()),
     // Opted in (on /settings) to a daily email when they haven't posted in #check-ins yet.
     checkInReminders: v.optional(v.boolean()),
+    // Opt-ins (lib/opt-ins.ts) this member turned on (true) or off (false) in /settings.
+    // Unset keys use the default: on only for the member it was made for.
+    optIns: v.optional(v.record(v.string(), v.boolean())),
   })
     .index("by_email", ["email"])
     .index("by_altEmail", ["altEmail"])

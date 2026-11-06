@@ -2,7 +2,7 @@
 
 Written Nov 6 in response to Vlad in #site: "a plugin system so I can ask for frontend-only changes for any part of the website in a way that would apply only to me by default, so I can iterate on my experience faster without waiting for admin approval."
 
-This is a design only. Nothing here is built yet.
+Update, Nov 6: Vlad picked the opt-in flags version, which is now built. See "What was built" at the end.
 
 ## Goal
 
@@ -132,3 +132,14 @@ A third reviewer agent looked for holes. Most serious first:
 ## Where this leaves it
 
 All three reviews agree the full design is a lot of security-sensitive work for the time left. Items 1, 4, 7 and 8 above, and the `SENSITIVE_PATHS` bug, apply to today's @Claude setup and are worth fixing on their own. For Vlad's request, the safest quick win is personal CSS. Next would be opt-in flags on `main`, which go through the existing merge checks.
+
+## What was built
+
+The opt-in flags version:
+
+- `lib/opt-ins.ts` lists opt-ins (`key`, `label`, `for` handle, `by` name). Client code checks one with `useOptIn(key)` from `components/portal/opt-ins.ts`.
+- An opt-in is on for the member it was made for and off for everyone else. Anyone can switch any opt-in on or off in /settings under "Just for me". Choices are stored in `members.optIns` (key → on/off). An unset key falls back to the default.
+- When a request says "just for me", the runner tells the agent to build it as an opt-in, using the requester's handle. It must keep the site unchanged with the opt-in off and stick to client components and CSS.
+- The classifier may auto-merge such changes, even larger ones, when the site is unchanged with the opt-in off and no server code is touched. Everything else follows the normal policy and `SENSITIVE_PATHS`.
+
+Not done: personal CSS, the security fixes listed above, and cleaning up old opt-ins after November. The code still runs on the main site, so it relies on the classifier, not isolation.

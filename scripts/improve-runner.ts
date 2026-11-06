@@ -28,6 +28,7 @@ type Brief = {
   resumeSessionId: string | null;
   request: string;
   requester: string;
+  requesterHandle?: string | null; // for "just for me" opt-ins (lib/opt-ins.ts)
   channel: string;
   threadUrl: string;
   thread: { author: string; text: string; at: number }[];
@@ -108,6 +109,11 @@ How this run works:
 - Keep the change focused on what was asked, and follow CLAUDE.md and the site's existing patterns, design tokens, and plain copy style.
 - If the request is unclear, far too large, would hurt members, or touches payments, terms, or other members' private data, don't change code: explain briefly in your final message instead. If it's a question, just answer it.
 - Changes under convex/ deploy automatically when merged, but previews share the live backend, so a preview won't show them until then. If that matters for this change, say so in one short clause in your chat reply.
+
+"Just for me" requests:
+- If the member says the change is just for them (e.g. "just for me", "only for me", "for myself"), or this thread already made one, build it as an opt-in: add an entry to \`OPT_INS\` in lib/opt-ins.ts (a new kebab-case \`key\`, a short plain \`label\`, \`for: ${JSON.stringify(brief.requesterHandle ?? "")}\`, \`by: ${JSON.stringify(brief.requester)}\`), and gate every visible difference with \`useOptIn("<key>")\` from components/portal/opt-ins.ts. It's on for them and off for everyone else, who can turn it on in /settings. In a follow-up, keep using the same key.
+- With the opt-in off, the site must look and work exactly as before. Keep it to client components and CSS: don't change convex/, server code, routes, or dependencies. If the request can't be done that way (it needs new data, or a backend change), say so in your reply and don't change code.
+- In your chat reply, say it's on just for them and that others can turn it on in Settings.${brief.requesterHandle ? "" : "\n- This member has no handle yet, so ask them to set one in Settings first and don't change code."}
 
 When you're done, return the structured result:
 - title: a short imperative commit title, under 70 characters. Empty if you changed no files.
@@ -278,7 +284,8 @@ async function classify(diff: string): Promise<{ merge: boolean; why: string }> 
             role: "system",
             content:
               'You review diffs to a small community website before they go live without human review. Answer with JSON {"decision": "auto" | "review", "reason": "<under 15 words>"}. ' +
-              '"auto" only if the change is small and clearly safe: UI, copy, styling, or self-contained features with no risk of losing or exposing data, no new dependencies, and no changes to auth, payments, terms, email, schema, permissions, or environment. Anything else, or anything you are unsure about, is "review".',
+              '"auto" only if the change is small and clearly safe: UI, copy, styling, or self-contained features with no risk of losing or exposing data, no new dependencies, and no changes to auth, payments, terms, email, schema, permissions, or environment. Anything else, or anything you are unsure about, is "review". ' +
+              'A change that only adds an opt-in to lib/opt-ins.ts and gates new client-side UI behind useOptIn(...) can be "auto" even if it is larger, as long as the site is unchanged for members with the opt-in off, and it touches no server code, routes, or backend.',
           },
           {
             role: "user",
