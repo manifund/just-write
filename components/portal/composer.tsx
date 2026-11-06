@@ -229,6 +229,7 @@ export function Composer({
         },
       }),
       // Enter sends, Shift+Enter breaks the line (lists and code blocks keep their own Enter).
+      // On touch screens there's no Shift key, so Enter adds a new line and the Send button sends.
       Extension.create({
         name: "sendOnEnter",
         priority: 1000, // ahead of the built-in Enter (split paragraph)
@@ -238,6 +239,7 @@ export function Composer({
               if (mentionRef.current) return false;
               if (editor.isActive("codeBlock") || editor.isActive("listItem"))
                 return false;
+              if (isTouchScreen()) return false;
               sendRef.current();
               return true;
             },
@@ -569,6 +571,11 @@ function writeDraft(key: string, editor: Editor, images: Attachment[]) {
   } catch {
     // Storage can be full or blocked; the draft just isn't kept.
   }
+}
+
+// Phones and tablets without a mouse: Enter should add a new line, not send.
+function isTouchScreen() {
+  return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 }
 
 // Shift+Enter adds line breaks inside one paragraph, so a list or quote would wrap
