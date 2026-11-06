@@ -606,6 +606,29 @@ export const markRead = mutation({
   },
 });
 
+// Records that the viewer has seen a thread's replies up to now (used by /activity).
+export const markThreadRead = mutation({
+  args: { parentId: v.id("messages") },
+  handler: async (ctx, { parentId }) => {
+    // Allowed in read-only previews: it only records what this person has seen.
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const read = await ctx.db
+      .query("threadReads")
+      .withIndex("by_member_thread", (q) =>
+        q.eq("memberId", member._id).eq("threadId", parentId),
+      )
+      .unique();
+    const now = Date.now();
+    if (read) await ctx.db.patch(read._id, { lastReadAt: now });
+    else
+      await ctx.db.insert("threadReads", {
+        memberId: member._id,
+        threadId: parentId,
+        lastReadAt: now,
+      });
+  },
+});
+
 // Mark a top-level message and everything after it as unread, by moving the
 // member's read marker to just before it.
 export const markUnread = mutation({
