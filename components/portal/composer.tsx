@@ -11,10 +11,10 @@ import {
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Fragment, Slice, type Node as PmNode } from "@tiptap/pm/model";
-import type { Transaction } from "@tiptap/pm/state";
-import type {
-  SuggestionKeyDownProps,
-  SuggestionProps,
+import { PluginKey, type Transaction } from "@tiptap/pm/state";
+import Suggestion, {
+  type SuggestionKeyDownProps,
+  type SuggestionProps,
 } from "@tiptap/suggestion";
 import { useMutation } from "convex/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -22,6 +22,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { PublicMember } from "@/convex/lib/viewer";
 import { errorMessage } from "@/lib/convex";
+import {
+  emojiFor,
+  loadShortcodes,
+  searchShortcodes,
+  type ShortcodeMatch,
+} from "@/lib/emoji-shortcodes";
 import { Avatar } from "./avatar";
 import { usePortal } from "./context";
 
@@ -31,6 +37,15 @@ type MentionState = {
   rect: DOMRect | null;
   command: (m: PublicMember) => void;
 } | null;
+
+type EmojiState = {
+  items: ShortcodeMatch[];
+  index: number;
+  rect: DOMRect | null;
+  command: (e: ShortcodeMatch) => void;
+} | null;
+
+const emojiKey = new PluginKey("emojiShortcode");
 
 // An image attached to the message being written. `id` is the uploaded file's
 // storage id, missing while it uploads (when `src` is a local preview).
@@ -77,6 +92,8 @@ export function Composer({
   // the latest props and state through these refs (kept current by the effect below).
   const rosterRef = useRef(roster);
   const mentionRef = useRef<MentionState>(null);
+  const [emoji, setEmoji] = useState<EmojiState>(null);
+  const emojiRef = useRef<EmojiState>(null);
   const sendRef = useRef<() => void>(() => {});
   const cancelRef = useRef(onCancel);
   const typingRef = useRef(onTyping);
@@ -177,6 +194,88 @@ export function Composer({
           },
         },
       }),
+      // Slack-style emoji shortcodes: typing ":th" suggests emoji, and a full
+      // code like ":thinking:" turns into 🤔 as soon as the closing colon is typed.
+      Extension.create({
+        name: "emojiShortcodes",
+        addProseMirrorPlugins() {
+          return [
+            Suggestion<ShortcodeMatch>({
+              editor: this.editor,
+              char: ":",
+              pluginKey: emojiKey,
+              allow: ({ editor }) =>
+                !editor.isActive("code") && !editor.isActive("codeBlock"),
+              items: async ({ query }) => {
+                const list = await loadShortcodes();
+                return query.length < 2 ? [] : searchShortcodes(list, query);
+              },
+              command: ({ editor, range, props }) => {
+                editor
+                  .chain()
+                  .focus()
+                  .insertContentAt(range, `${props.emoji} `)
+                  .run();
+              },
+              render: () => {
+                const update = (p: SuggestionProps<ShortcodeMatch>) =>
+                  setEmoji((prev) => ({
+                    items: p.items,
+                    index:
+                      prev && prev.items.length === p.items.length
+                        ? prev.index
+                        : 0,
+                    rect: p.clientRect?.() ?? null,
+                    command: (e) => p.command(e),
+                  }));
+                return {
+                  onStart: update,
+                  onUpdate: update,
+                  onExit: () => setEmoji(null),
+                  onKeyDown: ({ event }: SuggestionKeyDownProps) => {
+                    const s = emojiRef.current;
+                    if (!s || s.items.length === 0) return false;
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      const d = event.key === "ArrowDown" ? 1 : -1;
+                      setEmoji({
+                        ...s,
+                        index: (s.index + d + s.items.length) % s.items.length,
+                      });
+                      return true;
+                    }
+                    if (event.key === "Enter" || event.key === "Tab") {
+                      s.command(s.items[s.index]);
+                      return true;
+                    }
+                    if (event.key === "Escape") {
+                      setEmoji(null);
+                      return true;
+                    }
+                    return false;
+                  },
+                };
+              },
+            }),
+          ];
+        },
+        addInputRules() {
+          return [
+            new InputRule({
+              find: /(?:^|\s)(:([a-z0-9_+-]+):)$/i,
+              handler: ({ match, range, chain }) => {
+                const found = emojiFor(match[2]);
+                if (!found) return null;
+                chain()
+                  .insertContentAt(
+                    { from: range.to - match[1].length + 1, to: range.to },
+                    found,
+                  )
+                  .run();
+              },
+            }),
+          ];
+        },
+      }),
       // Nested lists: Tab / Shift+Tab indent and outdent a list item (and stay in the
       // editor even when they can't, e.g. on the first item), and typing "- " at the
       // start of a list item nests it under the item above, which also works on phones.
@@ -186,7 +285,11 @@ export function Composer({
         addKeyboardShortcuts() {
           return {
             Tab: ({ editor }) => {
-              if (mentionRef.current || !editor.isActive("listItem"))
+              if (
+                mentionRef.current ||
+                emojiRef.current?.items.length ||
+                !editor.isActive("listItem")
+              )
                 return false;
               editor.commands.sinkListItem("listItem");
               return true;
@@ -237,7 +340,8 @@ export function Composer({
         addKeyboardShortcuts() {
           return {
             Enter: ({ editor }) => {
-              if (mentionRef.current) return false;
+              if (mentionRef.current || emojiRef.current?.items.length)
+                return false;
               if (editor.isActive("codeBlock") || editor.isActive("listItem"))
                 return false;
               if (isTouchScreen()) return false;
@@ -385,6 +489,7 @@ export function Composer({
   useLayoutEffect(() => {
     rosterRef.current = roster;
     mentionRef.current = mention;
+    emojiRef.current = emoji;
     cancelRef.current = onCancel;
     typingRef.current = onTyping;
     sendRef.current = send;
@@ -503,6 +608,39 @@ export function Composer({
                 }`}
               >
                 <Avatar member={m} size={22} /> {m.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {emoji && emoji.items.length > 0 && emoji.rect && (
+        <ul
+          role="listbox"
+          className="fixed z-50 w-64 border border-ink/20 bg-cream py-1 shadow-[0_8px_24px_-8px_rgb(56_33_63/0.35)]"
+          style={{
+            left: Math.max(
+              8,
+              Math.min(emoji.rect.left, window.innerWidth - 256 - 8),
+            ),
+            bottom: window.innerHeight - emoji.rect.top + 6,
+          }}
+        >
+          {emoji.items.map((e, i) => (
+            <li key={e.code} role="option" aria-selected={i === emoji.index}>
+              <button
+                type="button"
+                onMouseDown={(ev) => {
+                  ev.preventDefault();
+                  emoji.command(e);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[16px] ${
+                  i === emoji.index ? "bg-cream-deep" : ""
+                }`}
+              >
+                <span className="w-[22px] text-center text-[18px] leading-none">
+                  {e.emoji}
+                </span>
+                <span className="truncate">:{e.code}:</span>
               </button>
             </li>
           ))}
