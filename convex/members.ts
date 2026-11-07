@@ -15,7 +15,13 @@ import {
   publicMember,
   requireMember,
 } from "./lib/viewer";
-import { SIGNUPS_CLOSE, SIGNUPS_CLOSED_MESSAGE } from "./lib/program";
+import { CHECK_IN_SLUG } from "./lib/channels";
+import {
+  PROGRAM_START,
+  SIGNUPS_CLOSE,
+  SIGNUPS_CLOSED_MESSAGE,
+} from "./lib/program";
+import { ptDayKey } from "./lib/time";
 import { EMAIL_RE, HANDLE_RE, parseWebsite, slugify } from "./lib/util";
 
 // Picks an unused handle based on the name: "kit-when", then "kit-when-2", ...
@@ -137,7 +143,9 @@ export const signTerms = mutation({
     const viewer = await getViewer(ctx);
     if (!viewer) throw new ConvexError("Please sign in first.");
     if (viewer.readonly)
-      throw new ConvexError("This is a read-only preview, so changes aren’t saved.");
+      throw new ConvexError(
+        "This is a read-only preview, so changes aren’t saved.",
+      );
     const signature = args.signature.trim().replace(/\s+/g, " ").slice(0, 200);
     if (!signature)
       throw new ConvexError("Please type your full name to sign.");
@@ -192,6 +200,36 @@ export const directory = query({
       }),
     );
     return out.sort((a, b) => (a.committedAt ?? 0) - (b.committedAt ?? 0));
+  },
+});
+
+// /members: the Pacific days each member posted a top-level check-in since `since` (the
+// start of the current week, from the client so this query doesn't depend on the clock).
+// Only counts days, never the check-ins' text, which stays behind the #check-ins gate.
+export const checkInDays = query({
+  args: { since: v.number() },
+  handler: async (ctx, { since }) => {
+    const channel = await ctx.db
+      .query("channels")
+      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+      .unique();
+    if (!channel) return {};
+    const posts = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent", (q) =>
+        q
+          .eq("channelId", channel._id)
+          .eq("parentId", undefined)
+          .gte("_creationTime", Math.max(since, PROGRAM_START)),
+      )
+      .collect();
+    const days: Record<string, string[]> = {};
+    for (const m of posts) {
+      const key = ptDayKey(m._creationTime);
+      const list = (days[m.authorId] ??= []);
+      if (!list.includes(key)) list.push(key);
+    }
+    return days;
   },
 });
 

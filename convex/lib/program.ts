@@ -6,6 +6,9 @@ export const DEADLINES = [
   Date.UTC(2026, 11, 1, 5), // Mon Nov 30
 ] as const;
 
+// Sun Nov 1, 2026, midnight PT (PDT, UTC−7, until 2am that day).
+export const PROGRAM_START = Date.UTC(2026, 10, 1, 7);
+
 export const DEADLINE_LABELS = ["Nov 9", "Nov 16", "Nov 23", "Nov 30"] as const;
 
 export type Slot = {
