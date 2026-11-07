@@ -499,10 +499,10 @@ function Chip({
       } ${e.canceled ? "line-through opacity-45" : ""}`}
     >
       <span className="shrink-0 tabular-nums opacity-75">{fmtTime(e.start)}</span>
-      <span className="min-w-0 truncate">{e.title}</span>
+      <span className="line-clamp-2 min-w-0 break-words">{e.title}</span>
       {counts ? (
         <span
-          className={`ml-auto flex shrink-0 items-center gap-0.5 self-center pl-0.5 text-[12px] tabular-nums ${
+          className={`ml-auto flex shrink-0 items-center gap-0.5 pl-0.5 text-[12px] tabular-nums ${
             mine ? (online ? "text-brass-text" : "text-brass-light") : "opacity-65"
           }`}
         >
