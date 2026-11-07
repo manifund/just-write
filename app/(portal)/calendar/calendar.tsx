@@ -481,13 +481,17 @@ function Chip({
   onOpen: (e: CalendarEvent) => void;
 }) {
   const online = isOnline(e);
-  const going = e.myRsvp === "yes" || e.myRsvp === "maybe";
+  const mine = e.myRsvp === "yes" || e.myRsvp === "maybe";
+  const going = e.rsvps.yes.length;
+  const maybe = e.rsvps.maybe.length;
+  const counts =
+    going || maybe ? `${going} going${maybe ? `, ${maybe} maybe` : ""}` : "";
   return (
     <button
       type="button"
       data-opens-panel
       onClick={() => onOpen(e)}
-      title={`${fmtTimeRange(e.start, e.end)} ${e.title}`}
+      title={`${fmtTimeRange(e.start, e.end)} ${e.title}${counts ? ` · ${counts}` : ""}`}
       className={`flex w-full cursor-pointer items-baseline gap-1.5 px-1.5 py-1 text-left text-[13px] leading-tight transition-colors ${
         online
           ? "border border-ink/40 hover:border-ink"
@@ -496,13 +500,33 @@ function Chip({
     >
       <span className="shrink-0 tabular-nums opacity-75">{fmtTime(e.start)}</span>
       <span className="min-w-0 truncate">{e.title}</span>
-      {going && (
+      {counts ? (
         <span
-          className="ml-auto size-1.5 shrink-0 self-center rounded-full bg-brass-light"
-          aria-label={e.myRsvp === "yes" ? "You’re going" : "You might go"}
-        />
-      )}
+          className={`ml-auto flex shrink-0 items-center gap-0.5 self-center pl-0.5 text-[12px] tabular-nums ${
+            mine ? (online ? "text-brass-text" : "text-brass-light") : "opacity-65"
+          }`}
+        >
+          <PersonIcon />
+          <span aria-hidden="true">
+            {going}
+            {maybe > 0 && <span className="opacity-60">+{maybe}</span>}
+          </span>
+          <span className="sr-only">
+            {counts}
+            {mine ? (e.myRsvp === "yes" ? ", including you" : ", you might go") : ""}
+          </span>
+        </span>
+      ) : null}
     </button>
+  );
+}
+
+function PersonIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 12 12" className="size-[11px]" fill="currentColor">
+      <circle cx="6" cy="3.5" r="2.25" />
+      <path d="M1.5 11c0-2.5 2-4.25 4.5-4.25S10.5 8.5 10.5 11z" />
+    </svg>
   );
 }
 
