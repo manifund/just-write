@@ -46,14 +46,23 @@ function useNarrow() {
   );
 }
 
-const monthOf = (ms: number) => {
-  const p = ptParts(ms);
-  return { year: p.year, month: p.month };
-};
-
-// The program runs through the first week of December (the wrap party is Dec 2), so in
-// November's grid those days look like part of the month.
+// The program is one month: the grid always shows Sun Nov 1 through the first week of
+// December (the wrap party is Dec 2). Sessions just outside stretch it by up to two weeks;
+// anything further out is only in the list view.
+const PROGRAM_FIRST = "2026-11-01";
 const PROGRAM_END = "2026-12-05";
+const GRID_MIN = "2026-10-18";
+const GRID_MAX = "2026-12-19";
+
+const shortMonth = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+
+// "Austin", "Austin and Sam", "Austin, Sam, and Lee", "Austin, Sam, and 2 others".
+export function firstNames(people: { name: string }[]) {
+  const n = people.map((p) => p.name.split(" ")[0]);
+  if (n.length <= 2) return n.join(" and ");
+  if (n.length === 3) return `${n[0]}, ${n[1]}, and ${n[2]}`;
+  return `${n[0]}, ${n[1]}, and ${n.length - 2} others`;
+}
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthName = new Intl.DateTimeFormat("en-US", {
@@ -76,8 +85,6 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
   const narrow = useNarrow();
   const [pickedView, setView] = useState<"month" | "list" | null>(null);
   const view = pickedView ?? (narrow ? "list" : "month");
-  const [picked, setMonth] = useState<{ year: number; month: number } | null>(null);
-  const month = picked ?? (now ? monthOf(now) : { year: 2026, month: 11 });
   const [panel, setPanelState] = useState<Panel | null>(null);
 
   // An open session lives at /calendar/<slug>, so it can be linked from chat, email, and Google Calendar.
@@ -107,10 +114,7 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
     // The URL is only readable after hydration, so this can't be initial state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPanel({ kind: "event", key: decodeURIComponent(key) });
-    // A linked session also shows its month.
-    const e = initial.find((x) => x.slug === key || x._id === key);
-    if (e) setMonth(monthOf(e.start));
-  }, [setPanel, initial]);
+  }, [setPanel]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -119,6 +123,14 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
       map.set(k, [...(map.get(k) ?? []), e]);
     }
     return map;
+  }, [events]);
+
+  // "14 sessions, hosted by 9 members. "
+  const summary = useMemo(() => {
+    const sessions = events.filter((e) => e.kind !== "deadline" && !e.canceled);
+    if (!sessions.length) return "";
+    const hosts = new Set(sessions.flatMap((e) => e.hosts.map((h) => h._id))).size;
+    return `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}, hosted by ${hosts} ${hosts === 1 ? "member" : "members"}. `;
   }, [events]);
 
   const open = (e: CalendarEvent) => setPanel({ kind: "event", key: e.slug });
@@ -137,30 +149,13 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
     <div className="flex min-h-full">
       <main className="mx-auto flex w-full max-w-[84rem] min-w-0 flex-col gap-6 px-[clamp(16px,3.5vw,48px)] py-[clamp(20px,4vh,44px)]">
         <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-          <div className="flex items-center gap-4">
-            <h1 className="font-display text-[clamp(38px,5.5vw,64px)] leading-[0.95] font-[330] tracking-[-0.03em] tabular-nums">
-              {view === "month"
-                ? `${monthName.format(Date.UTC(month.year, month.month - 1, 1))} ${month.year}`
-                : "Sessions"}
+          <div className="flex flex-col gap-2">
+            <h1 className="font-display text-[clamp(38px,5.5vw,64px)] leading-[0.95] font-[330] tracking-[-0.03em]">
+              November <span className="wonk text-brass-numeral">2026</span>
             </h1>
-            {view === "month" && (
-              <MonthNav
-                onPrev={() =>
-                  setMonth(() =>
-                    month.month === 1
-                      ? { year: month.year - 1, month: 12 }
-                      : { ...month, month: month.month - 1 },
-                  )
-                }
-                onNext={() =>
-                  setMonth(() =>
-                    month.month === 12
-                      ? { year: month.year + 1, month: 1 }
-                      : { ...month, month: month.month + 1 },
-                  )
-                }
-              />
-            )}
+            <p className="text-[16px] text-ink-muted">
+              {summary}Essays are due Mondays at 9pm. All times are Pacific.
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ViewToggle view={view} onChange={setView} />
@@ -187,12 +182,13 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
           </div>
         </header>
 
-        <Legend />
+        {view === "month" && now && <ComingUp events={events} now={now} onOpen={open} />}
+
+        {view === "month" && <Legend />}
 
         {view === "month" ? (
           <MonthGrid
-            year={month.year}
-            month={month.month}
+            events={events}
             today={today}
             byDay={byDay}
             onOpen={open}
@@ -254,21 +250,6 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
   );
 }
 
-function MonthNav({ onPrev, onNext }: { onPrev: () => void; onNext: () => void }) {
-  const btn =
-    "flex size-10 cursor-pointer items-center justify-center border border-ink/20 text-[18px] transition-colors hover:border-ink/60";
-  return (
-    <div className="flex gap-1.5 self-center">
-      <button type="button" onClick={onPrev} className={btn} aria-label="Previous month">
-        ‹
-      </button>
-      <button type="button" onClick={onNext} className={btn} aria-label="Next month">
-        ›
-      </button>
-    </div>
-  );
-}
-
 function ViewToggle({
   view,
   onChange,
@@ -299,18 +280,118 @@ function Legend() {
   return (
     <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-muted">
       <li className="flex items-center gap-2">
-        <span aria-hidden="true" className="h-3 w-5 bg-ink" />
+        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(false, false)}`} />
         In person
       </li>
       <li className="flex items-center gap-2">
-        <span aria-hidden="true" className="h-3 w-5 border border-ink/50" />
+        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(true, false)}`} />
         Online
       </li>
       <li className="flex items-center gap-2">
+        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(false, true)}`} />
+        You’re going
+      </li>
+      <li className="flex items-center gap-2">
         <span aria-hidden="true" className="h-[3px] w-5 bg-brass" />
-        Essay due, 9pm PT
+        Essay due, 9pm
       </li>
     </ul>
+  );
+}
+
+// Shared by chips and the legend: a soft lavender block in person, an outline online,
+// and a brass edge on anything you've said yes or maybe to.
+function chipLook(online: boolean, mine: boolean) {
+  return `border-l-[3px] ${mine ? "border-l-brass" : online ? "border-l-wash" : "border-l-ink-muted"} ${
+    online
+      ? "outline outline-1 -outline-offset-1 outline-ink/15 hover:bg-ink/[0.04]"
+      : "bg-wash-light/60 hover:bg-wash-light"
+  }`;
+}
+
+// The next few sessions, with who's hosting and who's going.
+function ComingUp({
+  events,
+  now,
+  onOpen,
+}: {
+  events: CalendarEvent[];
+  now: number;
+  onOpen: (e: CalendarEvent) => void;
+}) {
+  const next = events
+    .filter((e) => e.kind !== "deadline" && !e.canceled && e.end >= now)
+    .slice(0, 3);
+  if (!next.length) return null;
+  const today = ptDayKey(now);
+  return (
+    <section aria-labelledby="coming-up" className="flex flex-col gap-3">
+      <h2 id="coming-up" className="text-[13px] tracking-[0.14em] text-brass-text uppercase">
+        Coming up
+      </h2>
+      <ul className="grid gap-3 md:grid-cols-3">
+        {next.map((e) => {
+          const p = ptParts(e.start);
+          const day = ptDayKey(e.start);
+          const live = e.start <= now;
+          const going = e.rsvps.yes;
+          const mine = e.myRsvp === "yes" || e.myRsvp === "maybe";
+          return (
+            <li key={e._id} className="flex">
+              <button
+                type="button"
+                data-opens-panel
+                onClick={() => onOpen(e)}
+                className={`flex w-full cursor-pointer gap-4 border border-ink/10 bg-paper p-4 text-left transition-colors hover:border-ink/30 ${
+                  mine ? "border-l-[3px] border-l-brass" : ""
+                }`}
+              >
+                <span className="flex w-11 shrink-0 flex-col items-center">
+                  <span className="text-[13px] text-ink-muted">
+                    {day === today ? <span className="text-brass-text">Today</span> : WEEKDAYS[p.weekday]}
+                  </span>
+                  <span className="font-display text-[34px] leading-none font-[330] tabular-nums">
+                    {p.day}
+                  </span>
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <span className="line-clamp-2 font-display text-[19px] leading-tight font-[430]">
+                    {e.title}
+                  </span>
+                  <span className="text-[14px] text-ink-muted tabular-nums">
+                    {live ? <span className="text-brass-text">Happening now</span> : fmtTimeRange(e.start, e.end)}
+                    {" · "}
+                    {e.location ?? (isOnline(e) ? "Online" : "In person")}
+                  </span>
+                  <span className="mt-auto flex items-center gap-2 pt-1 text-[14px]">
+                    <span className="flex -space-x-1.5">
+                      {e.hosts.slice(0, 3).map((h) => (
+                        <Avatar key={h._id} member={h} size={22} className="ring-2 ring-paper" />
+                      ))}
+                    </span>
+                    <span className="min-w-0 truncate">
+                      <span className="text-ink-muted">Hosted by </span>
+                      {firstNames(e.hosts)}
+                    </span>
+                  </span>
+                  {going.length > 0 && (
+                    <span className="flex items-center gap-2 text-[14px] text-ink-muted">
+                      <span className="flex -space-x-1.5">
+                        {going.slice(0, 5).map((m) => (
+                          <Avatar key={m._id} member={m} size={18} className="ring-2 ring-paper" />
+                        ))}
+                      </span>
+                      {going.length} going
+                      {e.myRsvp === "yes" && <span className="text-brass-text">· including you</span>}
+                    </span>
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -318,41 +399,54 @@ function Legend() {
 export const isOnline = (e: CalendarEvent) => e.hasLink && !e.hasLocation;
 
 function MonthGrid({
-  year,
-  month,
+  events,
   today,
   byDay,
   onOpen,
   onNew,
 }: {
-  year: number;
-  month: number;
+  events: CalendarEvent[];
   today: string;
   byDay: Map<string, CalendarEvent[]>;
   onOpen: (e: CalendarEvent) => void;
   onNew?: (day: string) => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const first = ptParts(ptToUtc(year, month, 1, 12)).weekday;
-  const daysIn = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const total = Math.ceil((first + daysIn) / 7) * 7;
+  // Whole weeks from the program's first Sunday, stretched for sessions just outside it.
+  let from = PROGRAM_FIRST;
+  let to = PROGRAM_END;
+  for (const e of events) {
+    if (e.canceled) continue;
+    const k = ptDayKey(e.start);
+    if (k < from && k >= GRID_MIN) from = k;
+    if (k > to && k <= GRID_MAX) to = k;
+  }
+  const a = new Date(`${from}T00:00:00Z`);
+  a.setUTCDate(a.getUTCDate() - a.getUTCDay());
+  const b = new Date(`${to}T00:00:00Z`);
+  b.setUTCDate(b.getUTCDate() + 6 - b.getUTCDay());
+  const total = Math.round((b.getTime() - a.getTime()) / 86_400_000) + 1;
   const cells = Array.from({ length: total }, (_, i) => {
-    const d = new Date(Date.UTC(year, month - 1, 1 + i - first));
+    const d = new Date(a.getTime() + i * 86_400_000);
     const key = d.toISOString().slice(0, 10);
-    const inMonth = d.getUTCMonth() === month - 1;
-    const active = inMonth || (i >= first && key <= PROGRAM_END);
-    return { key, day: d.getUTCDate(), inMonth, active };
+    const active = key >= PROGRAM_FIRST && key <= PROGRAM_END;
+    // Days outside November get their month next to the numeral.
+    const label =
+      d.getUTCMonth() !== 10 && (i === 0 || d.getUTCDate() === 1)
+        ? shortMonth.format(d)
+        : null;
+    return { key, day: d.getUTCDate(), label, active };
   });
   const selectedEvents = selected ? (byDay.get(selected) ?? []) : [];
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="border-t border-l border-ink/15">
+      <div className="border-t border-l border-ink/10">
         <div className="grid grid-cols-7">
           {WEEKDAYS.map((w) => (
             <div
               key={w}
-              className="border-r border-b border-ink/15 px-2 py-1.5 text-[13px] text-ink-muted md:px-3"
+              className="border-r border-b border-ink/10 px-2 py-2 text-[13px] text-ink-muted md:px-3"
             >
               {w}
             </div>
@@ -368,12 +462,19 @@ function MonthGrid({
             return (
               <div
                 key={c.key}
-                className={`group relative flex min-h-[4.5rem] flex-col gap-1 border-r border-b border-ink/15 p-1 md:min-h-[8.5rem] md:p-2 ${
-                  c.active ? "" : "bg-ink/[0.025]"
-                } ${deadline ? "bg-brass/[0.07]" : ""}`}
+                className={`group relative flex min-h-[4.5rem] flex-col gap-1 border-r border-b border-ink/10 p-1 md:min-h-[9rem] md:p-1.5 ${
+                  deadline && !past
+                    ? "bg-brass/[0.07]"
+                    : past || !c.active
+                      ? ""
+                      : "bg-paper"
+                } ${isToday ? "ring-1 ring-ink/50 ring-inset" : ""}`}
               >
                 {deadline && (
-                  <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px] bg-brass" />
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-x-0 top-0 h-[3px] bg-brass ${past ? "opacity-40" : ""}`}
+                  />
                 )}
                 <div className="flex items-start justify-between gap-1">
                   {/* On small screens the numeral selects the day; the day's sessions list below. */}
@@ -393,8 +494,8 @@ function MonthGrid({
                   >
                     {c.day}
                   </button>
-                  {c.active && !c.inMonth && c.day === 1 && (
-                    <span className="mr-auto self-center text-[13px] text-ink-muted">Dec</span>
+                  {c.label && (
+                    <span className="mr-auto self-center text-[13px] text-ink-muted">{c.label}</span>
                   )}
                   {onNew && !past && c.active && (
                     <button
@@ -413,14 +514,14 @@ function MonthGrid({
                     type="button"
                     data-opens-panel
                     onClick={() => onOpen(deadline)}
-                    className="hidden cursor-pointer text-left text-[13px] leading-tight font-bold text-brass-text hover:underline md:block"
+                    className={`hidden cursor-pointer px-1 text-left text-[13px] leading-tight font-bold text-brass-text hover:underline md:block ${past ? "opacity-60" : ""}`}
                   >
                     {deadline.title}
                   </button>
                 )}
                 <ul className="hidden flex-col gap-1 md:flex">
                   {sessions.map((e) => (
-                    <li key={e._id}>
+                    <li key={e._id} className={past ? "opacity-55" : ""}>
                       <Chip event={e} onOpen={onOpen} />
                     </li>
                   ))}
@@ -431,7 +532,7 @@ function MonthGrid({
                   {sessions.map((e) => (
                     <span
                       key={e._id}
-                      className={`size-2 ${e.canceled ? "opacity-30" : ""} ${isOnline(e) ? "border border-ink/60" : "bg-ink"}`}
+                      className={`size-2 ${e.canceled ? "opacity-30" : ""} ${isOnline(e) ? "border border-ink-muted" : "bg-ink-muted"}`}
                     />
                   ))}
                 </div>
@@ -491,32 +592,43 @@ function Chip({
       type="button"
       data-opens-panel
       onClick={() => onOpen(e)}
-      title={`${fmtTimeRange(e.start, e.end)} ${e.title}${counts ? ` · ${counts}` : ""}`}
-      className={`flex w-full cursor-pointer items-baseline gap-1.5 px-1.5 py-1 text-left text-[13px] leading-tight transition-colors ${
-        online
-          ? "border border-ink/40 hover:border-ink"
-          : "bg-ink text-cream hover:bg-ink-muted"
-      } ${e.canceled ? "line-through opacity-45" : ""}`}
+      title={`${fmtTimeRange(e.start, e.end)} ${e.title}, hosted by ${firstNames(e.hosts)}${counts ? ` · ${counts}` : ""}`}
+      className={`flex w-full cursor-pointer flex-col gap-0.5 px-1.5 py-1 text-left text-[13px] leading-tight transition-colors ${chipLook(online, mine)} ${
+        e.canceled ? "opacity-45" : ""
+      }`}
     >
-      <span className="shrink-0 tabular-nums opacity-75">{fmtTime(e.start)}</span>
-      <span className="line-clamp-2 min-w-0 break-words">{e.title}</span>
-      {counts ? (
-        <span
-          className={`ml-auto flex shrink-0 items-center gap-0.5 pl-0.5 text-[12px] tabular-nums ${
-            mine ? (online ? "text-brass-text" : "text-brass-light") : "opacity-65"
-          }`}
-        >
-          <PersonIcon />
-          <span aria-hidden="true">
-            {going}
-            {maybe > 0 && <span className="opacity-60">+{maybe}</span>}
+      <span className="flex items-center gap-1.5 text-[12px] text-ink-muted">
+        <span className="tabular-nums">{fmtTime(e.start)}</span>
+        {online && <span>· Online</span>}
+        {counts ? (
+          <span
+            className={`ml-auto flex shrink-0 items-center gap-0.5 tabular-nums ${mine ? "text-brass-text" : ""}`}
+          >
+            <PersonIcon />
+            <span aria-hidden="true">
+              {going}
+              {maybe > 0 && <span className="opacity-60">+{maybe}</span>}
+            </span>
+            <span className="sr-only">
+              {counts}
+              {mine ? (e.myRsvp === "yes" ? ", including you" : ", you might go") : ""}
+            </span>
           </span>
-          <span className="sr-only">
-            {counts}
-            {mine ? (e.myRsvp === "yes" ? ", including you" : ", you might go") : ""}
+        ) : null}
+      </span>
+      <span className={`line-clamp-2 min-w-0 font-bold break-words ${e.canceled ? "line-through" : ""}`}>
+        {e.title}
+      </span>
+      {e.hosts.length > 0 && (
+        <span className="flex min-w-0 items-center gap-1 text-[12px] text-ink-muted">
+          <span className="flex shrink-0 -space-x-1">
+            {e.hosts.slice(0, 2).map((h) => (
+              <Avatar key={h._id} member={h} size={15} />
+            ))}
           </span>
+          <span className="truncate">{firstNames(e.hosts)}</span>
         </span>
-      ) : null}
+      )}
     </button>
   );
 }
