@@ -10,6 +10,7 @@ import {
   type Editor,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { Fragment, Slice, type Node as PmNode } from "@tiptap/pm/model";
 import type { Transaction } from "@tiptap/pm/state";
 import type {
   SuggestionKeyDownProps,
@@ -272,6 +273,25 @@ export function Composer({
         return true;
       },
       transformPastedHTML: cleanPastedHtml,
+      // Pasted plain text: single line breaks stay line breaks (like Shift+Enter)
+      // and only blank lines start a new paragraph, so lines don't get spaced out.
+      clipboardTextParser: (text, $context, _plain, view) => {
+        const { schema } = view.state;
+        const marks = $context.marks();
+        const blocks = text
+          .replace(/\r\n?/g, "\n")
+          .replace(/^(?:[ \t\u00a0]*\n)+|(?:\n[ \t\u00a0]*)+$/g, "")
+          .split(/\n(?:[ \t\u00a0]*\n)+/);
+        const paragraphs = blocks.map((block) => {
+          const content: PmNode[] = [];
+          block.split("\n").forEach((line, i) => {
+            if (i) content.push(schema.nodes.hardBreak.create());
+            if (line) content.push(schema.text(line, marks));
+          });
+          return schema.nodes.paragraph.create(null, content);
+        });
+        return new Slice(Fragment.from(paragraphs), 1, 1);
+      },
       handleDrop: (_view, event) => {
         const files = imageFiles(event.dataTransfer);
         if (!files.length) return false;
@@ -514,18 +534,37 @@ function hasText(data: DataTransfer | null): boolean {
   return !!data.getData("text/plain").trim();
 }
 
-// Tidies pasted HTML: drops the styles and metadata Office apps include, and the
-// empty paragraphs they use for blank lines, which would show as large gaps.
+// Tidies pasted HTML: drops the styles and metadata Office apps include. OneNote
+// (and Word's "No Spacing") puts each line in its own paragraph with no margin and
+// uses empty paragraphs for blank lines; chat spaces paragraphs apart, so runs of
+// such lines are joined with line breaks and the empty paragraphs are dropped.
 function cleanPastedHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc
     .querySelectorAll("style, meta, title, script, link, xml")
     .forEach((el) => el.remove());
+  const blank = (el: Element) =>
+    !el.querySelector("img") && !el.textContent?.replace(/[\s\u00a0]/g, "");
+  const tight = (el: Element) => {
+    if (el.tagName !== "P" || blank(el)) return false;
+    if (el.classList.contains("MsoNoSpacing")) return true;
+    const { marginTop, marginBottom } = (el as HTMLElement).style;
+    return (
+      marginBottom !== "" &&
+      parseFloat(marginBottom) === 0 &&
+      (marginTop === "" || parseFloat(marginTop) === 0)
+    );
+  };
+  doc.body.querySelectorAll("p").forEach((p) => {
+    const prev = p.previousElementSibling;
+    if (!prev || !tight(prev) || !tight(p)) return;
+    prev.append(doc.createElement("br"), ...Array.from(p.childNodes));
+    p.remove();
+  });
   doc.body
     .querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li")
     .forEach((el) => {
-      if (el.querySelector("img")) return;
-      if (!el.textContent?.replace(/[\s\u00a0]/g, "")) el.remove();
+      if (blank(el)) el.remove();
     });
   return doc.body.innerHTML;
 }
