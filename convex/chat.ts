@@ -687,3 +687,34 @@ export const typing = query({
       }));
   },
 });
+
+// /check-ins: the viewer's own top-level #check-ins posts, newest first. Only their own,
+// so nothing here is behind the gate.
+export const myCheckIns = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const channel = await ctx.db
+      .query("channels")
+      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+      .unique();
+    if (!channel) return [];
+    const posts = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent_author", (q) =>
+        q
+          .eq("channelId", channel._id)
+          .eq("parentId", undefined)
+          .eq("authorId", member._id),
+      )
+      .order("desc")
+      .collect();
+    return posts.map((m) => ({
+      _id: m._id,
+      _creationTime: m._creationTime,
+      body: m.body,
+      text: m.text,
+      replyCount: m.replyCount ?? 0,
+    }));
+  },
+});
