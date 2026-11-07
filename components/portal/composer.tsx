@@ -263,12 +263,15 @@ export function Composer({
         class: `rich composer-input ${compact ? "max-h-[30vh]" : "max-h-[40vh]"} min-h-[24px] overflow-y-auto outline-none`,
         "aria-label": placeholder,
       },
+      // OneNote, Word, and other Office apps put a picture of the copied text on
+      // the clipboard next to the text itself; paste the text in that case.
       handlePaste: (_view, event) => {
         const files = imageFiles(event.clipboardData);
-        if (!files.length) return false;
+        if (!files.length || hasText(event.clipboardData)) return false;
         filesRef.current(files);
         return true;
       },
+      transformPastedHTML: cleanPastedHtml,
       handleDrop: (_view, event) => {
         const files = imageFiles(event.dataTransfer);
         if (!files.length) return false;
@@ -497,6 +500,34 @@ function imageFiles(data: { files: FileList | null } | null): File[] {
   return [...(data?.files ?? [])].filter(
     (f) => f.type.startsWith("image/") && !f.type.includes("svg"),
   );
+}
+
+// Whether pasted data carries text, not just an image (a copied web image comes
+// with HTML that is only an <img>).
+function hasText(data: DataTransfer | null): boolean {
+  if (!data) return false;
+  const html = data.getData("text/html");
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return !!doc.body.textContent?.replace(/[\s\u00a0]/g, "");
+  }
+  return !!data.getData("text/plain").trim();
+}
+
+// Tidies pasted HTML: drops the styles and metadata Office apps include, and the
+// empty paragraphs they use for blank lines, which would show as large gaps.
+function cleanPastedHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc
+    .querySelectorAll("style, meta, title, script, link, xml")
+    .forEach((el) => el.remove());
+  doc.body
+    .querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li")
+    .forEach((el) => {
+      if (el.querySelector("img")) return;
+      if (!el.textContent?.replace(/[\s\u00a0]/g, "")) el.remove();
+    });
+  return doc.body.innerHTML;
 }
 
 function imageSize(src: string): Promise<{ width?: number; height?: number }> {
