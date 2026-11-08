@@ -40,6 +40,13 @@ export function fillSlots<
 }
 
 // New sign-ups and commitments close at 11:59pm PT (PST, UTC−8) on Wed Nov 4, 2026.
+// The landing page's interest form closes then. /commit also closes then unless
+// COMMITMENTS_OPEN is true, which quietly lets people who get the link sign and pay.
 export const SIGNUPS_CLOSE = Date.UTC(2026, 10, 5, 8);
 export const SIGNUPS_CLOSED_MESSAGE =
   "Sign-ups for Just Write closed on Nov 4 at 11:59pm PT.";
+export const COMMITMENTS_OPEN = true;
+export const COMMITMENTS_CLOSED_MESSAGE =
+  "Commitments for Just Write closed on Nov 4 at 11:59pm PT.";
+export const commitmentsClosed = (now = Date.now()) =>
+  !COMMITMENTS_OPEN && now >= SIGNUPS_CLOSE;

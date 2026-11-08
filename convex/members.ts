@@ -20,6 +20,8 @@ import { getClaude } from "./lib/claude";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import {
   PROGRAM_START,
+  COMMITMENTS_CLOSED_MESSAGE,
+  commitmentsClosed,
   SIGNUPS_CLOSE,
   SIGNUPS_CLOSED_MESSAGE,
 } from "./lib/program";
@@ -157,7 +159,8 @@ export const signTerms = mutation({
       return { memberId: member._id, email, alreadyCommitted: true };
     }
     const now = Date.now();
-    if (now >= SIGNUPS_CLOSE) throw new ConvexError(SIGNUPS_CLOSED_MESSAGE);
+    if (commitmentsClosed(now))
+      throw new ConvexError(COMMITMENTS_CLOSED_MESSAGE);
     if (member) {
       await ctx.db.patch(member._id, {
         signedName: signature,
