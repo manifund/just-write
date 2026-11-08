@@ -386,6 +386,51 @@ export const thread = query({
   },
 });
 
+// A short preview of one message, for links to it posted in chat. Takes a plain string
+// because it comes from a pasted link; a bad id reads as deleted (null). Follows the
+// #check-ins gate like everywhere else.
+const LINK_PREVIEW_CHARS = 280;
+export const linkPreview = query({
+  args: { messageId: v.string() },
+  handler: async (ctx, args) => {
+    const { member } = await requireMember(ctx);
+    const id = ctx.db.normalizeId("messages", args.messageId);
+    const m = id && (await ctx.db.get(id));
+    if (!m) return null;
+    const c = await ctx.db.get(m.channelId);
+    if (!c) return null;
+    const parent = m.parentId ? await ctx.db.get(m.parentId) : null;
+    const gate = await checkInGate(ctx, c, member);
+    const shown = veil(m, gate, parent);
+    const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
+    const event = m.eventId ? await ctx.db.get(m.eventId) : null;
+    const flat = (
+      essay
+        ? `published an essay: ${essay.title}`
+        : event
+          ? `scheduled a session: ${event.title}`
+          : m.kind === "joined"
+            ? "joined Just Write"
+            : shown.text
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    return {
+      _id: m._id,
+      _creationTime: m._creationTime,
+      authorId: m.authorId,
+      channelSlug: c.slug,
+      channelName: c.name,
+      inThread: !!m.parentId,
+      hidden: shown.hidden,
+      text:
+        flat.length > LINK_PREVIEW_CHARS
+          ? flat.slice(0, LINK_PREVIEW_CHARS).trimEnd() + "…"
+          : flat,
+    };
+  },
+});
+
 // Images in messages: the composer gets an upload URL, uploads the file, then
 // calls imageUrl to check it and get the address to show while composing.
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -582,7 +627,7 @@ export const markRead = mutation({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
     // Allowed in read-only previews: it only records what this person has seen.
-    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const { member } = await requireMember(ctx);
     const c = await channelBySlug(ctx, slug);
     const read = await ctx.db
       .query("reads")
@@ -606,7 +651,7 @@ export const markRead = mutation({
 export const markUnread = mutation({
   args: { messageId: v.id("messages") },
   handler: async (ctx, { messageId }) => {
-    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const { member } = await requireMember(ctx);
     const m = await ctx.db.get(messageId);
     if (!m) throw new ConvexError("That message was deleted.");
     if (m.parentId)
@@ -694,7 +739,7 @@ export const typing = query({
 export const myCheckIns = query({
   args: {},
   handler: async (ctx) => {
-    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const { member } = await requireMember(ctx);
     const channel = await ctx.db
       .query("channels")
       .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))

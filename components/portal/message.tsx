@@ -18,6 +18,7 @@ import {
   useRemoveMessage,
   useToggleReaction,
 } from "./optimistic";
+import { MessageLinkPreviews } from "./message-link-preview";
 import { RichText } from "./rich-text";
 import { clockTime, hostOf, PENDING, timeAgo } from "./util";
 
@@ -238,6 +239,7 @@ export function Message({
         ) : (
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
+            <MessageLinkPreviews body={m.body} />
           </div>
         )}
 
