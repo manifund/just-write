@@ -6,6 +6,7 @@ import {
   mutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import {
   adminEmails,
@@ -178,7 +179,34 @@ export const signTerms = mutation({
   },
 });
 
-// /members: the public directory of committed writers, with essay counts.
+// Pacific days each member posted a top-level check-in since `since`. Only counts days,
+// never the check-ins' text, which stays behind the #check-ins gate.
+async function checkInDaysSince(ctx: QueryCtx, since: number) {
+  const channel = await ctx.db
+    .query("channels")
+    .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+    .unique();
+  const days: Record<string, string[]> = {};
+  if (!channel) return days;
+  const posts = await ctx.db
+    .query("messages")
+    .withIndex("by_channel_parent", (q) =>
+      q
+        .eq("channelId", channel._id)
+        .eq("parentId", undefined)
+        .gte("_creationTime", Math.max(since, PROGRAM_START)),
+    )
+    .collect();
+  for (const m of posts) {
+    const key = ptDayKey(m._creationTime);
+    const list = (days[m.authorId] ??= []);
+    if (!list.includes(key)) list.push(key);
+  }
+  return days;
+}
+
+// /members: the public directory of committed writers, with essay counts. Ordered by score:
+// essays count double, plus the days they checked in during November.
 export const directory = query({
   args: {},
   handler: async (ctx) => {
@@ -186,6 +214,7 @@ export const directory = query({
       .query("members")
       .withIndex("by_status", (q) => q.eq("status", "committed"))
       .collect();
+    const checkIns = await checkInDaysSince(ctx, PROGRAM_START);
     const out = await Promise.all(
       rows.map(async (m) => {
         const essays = await ctx.db
@@ -194,45 +223,29 @@ export const directory = query({
           .collect();
         const visible = essays.filter((e) => e.review !== "rejected");
         const latest = visible.sort((a, b) => b.submittedAt - a.submittedAt)[0];
+        const checkInCount = checkIns[m._id]?.length ?? 0;
         return {
           ...publicMember(m),
           essayCount: visible.length,
+          checkInCount,
+          score: 2 * visible.length + checkInCount,
           latestEssay: latest ? { title: latest.title, url: latest.url } : null,
         };
       }),
     );
-    return out.sort((a, b) => (a.committedAt ?? 0) - (b.committedAt ?? 0));
+    return out.sort(
+      (a, b) =>
+        b.score - a.score ||
+        (a.committedAt ?? Infinity) - (b.committedAt ?? Infinity),
+    );
   },
 });
 
 // /members: the Pacific days each member posted a top-level check-in since `since` (the
 // start of the current week, from the client so this query doesn't depend on the clock).
-// Only counts days, never the check-ins' text, which stays behind the #check-ins gate.
 export const checkInDays = query({
   args: { since: v.number() },
-  handler: async (ctx, { since }) => {
-    const channel = await ctx.db
-      .query("channels")
-      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
-      .unique();
-    if (!channel) return {};
-    const posts = await ctx.db
-      .query("messages")
-      .withIndex("by_channel_parent", (q) =>
-        q
-          .eq("channelId", channel._id)
-          .eq("parentId", undefined)
-          .gte("_creationTime", Math.max(since, PROGRAM_START)),
-      )
-      .collect();
-    const days: Record<string, string[]> = {};
-    for (const m of posts) {
-      const key = ptDayKey(m._creationTime);
-      const list = (days[m.authorId] ??= []);
-      if (!list.includes(key)) list.push(key);
-    }
-    return days;
-  },
+  handler: async (ctx, { since }) => await checkInDaysSince(ctx, since),
 });
 
 // /members/[handle]: a committed member's public profile and essays.
