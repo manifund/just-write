@@ -10,10 +10,11 @@ import {
   type Editor,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import type { Transaction } from "@tiptap/pm/state";
-import type {
-  SuggestionKeyDownProps,
-  SuggestionProps,
+import { Fragment, Slice, type Node as PmNode } from "@tiptap/pm/model";
+import { PluginKey, type Transaction } from "@tiptap/pm/state";
+import Suggestion, {
+  type SuggestionKeyDownProps,
+  type SuggestionProps,
 } from "@tiptap/suggestion";
 import { useMutation } from "convex/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -21,6 +22,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { PublicMember } from "@/convex/lib/viewer";
 import { errorMessage } from "@/lib/convex";
+import {
+  emojiFor,
+  loadShortcodes,
+  searchShortcodes,
+  type ShortcodeMatch,
+} from "@/lib/emoji-shortcodes";
 import { Avatar } from "./avatar";
 import { usePortal } from "./context";
 
@@ -30,6 +37,15 @@ type MentionState = {
   rect: DOMRect | null;
   command: (m: PublicMember) => void;
 } | null;
+
+type EmojiState = {
+  items: ShortcodeMatch[];
+  index: number;
+  rect: DOMRect | null;
+  command: (e: ShortcodeMatch) => void;
+} | null;
+
+const emojiKey = new PluginKey("emojiShortcode");
 
 // An image attached to the message being written. `id` is the uploaded file's
 // storage id, missing while it uploads (when `src` is a local preview).
@@ -76,6 +92,8 @@ export function Composer({
   // the latest props and state through these refs (kept current by the effect below).
   const rosterRef = useRef(roster);
   const mentionRef = useRef<MentionState>(null);
+  const [emoji, setEmoji] = useState<EmojiState>(null);
+  const emojiRef = useRef<EmojiState>(null);
   const sendRef = useRef<() => void>(() => {});
   const cancelRef = useRef(onCancel);
   const typingRef = useRef(onTyping);
@@ -176,6 +194,88 @@ export function Composer({
           },
         },
       }),
+      // Slack-style emoji shortcodes: typing ":th" suggests emoji, and a full
+      // code like ":thinking:" turns into 🤔 as soon as the closing colon is typed.
+      Extension.create({
+        name: "emojiShortcodes",
+        addProseMirrorPlugins() {
+          return [
+            Suggestion<ShortcodeMatch>({
+              editor: this.editor,
+              char: ":",
+              pluginKey: emojiKey,
+              allow: ({ editor }) =>
+                !editor.isActive("code") && !editor.isActive("codeBlock"),
+              items: async ({ query }) => {
+                const list = await loadShortcodes();
+                return query.length < 2 ? [] : searchShortcodes(list, query);
+              },
+              command: ({ editor, range, props }) => {
+                editor
+                  .chain()
+                  .focus()
+                  .insertContentAt(range, `${props.emoji} `)
+                  .run();
+              },
+              render: () => {
+                const update = (p: SuggestionProps<ShortcodeMatch>) =>
+                  setEmoji((prev) => ({
+                    items: p.items,
+                    index:
+                      prev && prev.items.length === p.items.length
+                        ? prev.index
+                        : 0,
+                    rect: p.clientRect?.() ?? null,
+                    command: (e) => p.command(e),
+                  }));
+                return {
+                  onStart: update,
+                  onUpdate: update,
+                  onExit: () => setEmoji(null),
+                  onKeyDown: ({ event }: SuggestionKeyDownProps) => {
+                    const s = emojiRef.current;
+                    if (!s || s.items.length === 0) return false;
+                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                      const d = event.key === "ArrowDown" ? 1 : -1;
+                      setEmoji({
+                        ...s,
+                        index: (s.index + d + s.items.length) % s.items.length,
+                      });
+                      return true;
+                    }
+                    if (event.key === "Enter" || event.key === "Tab") {
+                      s.command(s.items[s.index]);
+                      return true;
+                    }
+                    if (event.key === "Escape") {
+                      setEmoji(null);
+                      return true;
+                    }
+                    return false;
+                  },
+                };
+              },
+            }),
+          ];
+        },
+        addInputRules() {
+          return [
+            new InputRule({
+              find: /(?:^|\s)(:([a-z0-9_+-]+):)$/i,
+              handler: ({ match, range, chain }) => {
+                const found = emojiFor(match[2]);
+                if (!found) return null;
+                chain()
+                  .insertContentAt(
+                    { from: range.to - match[1].length + 1, to: range.to },
+                    found,
+                  )
+                  .run();
+              },
+            }),
+          ];
+        },
+      }),
       // Nested lists: Tab / Shift+Tab indent and outdent a list item (and stay in the
       // editor even when they can't, e.g. on the first item), and typing "- " at the
       // start of a list item nests it under the item above, which also works on phones.
@@ -185,7 +285,11 @@ export function Composer({
         addKeyboardShortcuts() {
           return {
             Tab: ({ editor }) => {
-              if (mentionRef.current || !editor.isActive("listItem"))
+              if (
+                mentionRef.current ||
+                emojiRef.current?.items.length ||
+                !editor.isActive("listItem")
+              )
                 return false;
               editor.commands.sinkListItem("listItem");
               return true;
@@ -236,7 +340,8 @@ export function Composer({
         addKeyboardShortcuts() {
           return {
             Enter: ({ editor }) => {
-              if (mentionRef.current) return false;
+              if (mentionRef.current || emojiRef.current?.items.length)
+                return false;
               if (editor.isActive("codeBlock") || editor.isActive("listItem"))
                 return false;
               if (isTouchScreen()) return false;
@@ -263,11 +368,33 @@ export function Composer({
         class: `rich composer-input ${compact ? "max-h-[30vh]" : "max-h-[40vh]"} min-h-[24px] overflow-y-auto outline-none`,
         "aria-label": placeholder,
       },
+      // OneNote, Word, and other Office apps put a picture of the copied text on
+      // the clipboard next to the text itself; paste the text in that case.
       handlePaste: (_view, event) => {
         const files = imageFiles(event.clipboardData);
-        if (!files.length) return false;
+        if (!files.length || hasText(event.clipboardData)) return false;
         filesRef.current(files);
         return true;
+      },
+      transformPastedHTML: cleanPastedHtml,
+      // Pasted plain text: single line breaks stay line breaks (like Shift+Enter)
+      // and only blank lines start a new paragraph, so lines don't get spaced out.
+      clipboardTextParser: (text, $context, _plain, view) => {
+        const { schema } = view.state;
+        const marks = $context.marks();
+        const blocks = text
+          .replace(/\r\n?/g, "\n")
+          .replace(/^(?:[ \t\u00a0]*\n)+|(?:\n[ \t\u00a0]*)+$/g, "")
+          .split(/\n(?:[ \t\u00a0]*\n)+/);
+        const paragraphs = blocks.map((block) => {
+          const content: PmNode[] = [];
+          block.split("\n").forEach((line, i) => {
+            if (i) content.push(schema.nodes.hardBreak.create());
+            if (line) content.push(schema.text(line, marks));
+          });
+          return schema.nodes.paragraph.create(null, content);
+        });
+        return new Slice(Fragment.from(paragraphs), 1, 1);
       },
       handleDrop: (_view, event) => {
         const files = imageFiles(event.dataTransfer);
@@ -362,6 +489,7 @@ export function Composer({
   useLayoutEffect(() => {
     rosterRef.current = roster;
     mentionRef.current = mention;
+    emojiRef.current = emoji;
     cancelRef.current = onCancel;
     typingRef.current = onTyping;
     sendRef.current = send;
@@ -485,6 +613,39 @@ export function Composer({
           ))}
         </ul>
       )}
+      {emoji && emoji.items.length > 0 && emoji.rect && (
+        <ul
+          role="listbox"
+          className="fixed z-50 w-64 border border-ink/20 bg-cream py-1 shadow-[0_8px_24px_-8px_rgb(56_33_63/0.35)]"
+          style={{
+            left: Math.max(
+              8,
+              Math.min(emoji.rect.left, window.innerWidth - 256 - 8),
+            ),
+            bottom: window.innerHeight - emoji.rect.top + 6,
+          }}
+        >
+          {emoji.items.map((e, i) => (
+            <li key={e.code} role="option" aria-selected={i === emoji.index}>
+              <button
+                type="button"
+                onMouseDown={(ev) => {
+                  ev.preventDefault();
+                  emoji.command(e);
+                }}
+                className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[16px] ${
+                  i === emoji.index ? "bg-cream-deep" : ""
+                }`}
+              >
+                <span className="w-[22px] text-center text-[18px] leading-none">
+                  {e.emoji}
+                </span>
+                <span className="truncate">:{e.code}:</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -497,6 +658,53 @@ function imageFiles(data: { files: FileList | null } | null): File[] {
   return [...(data?.files ?? [])].filter(
     (f) => f.type.startsWith("image/") && !f.type.includes("svg"),
   );
+}
+
+// Whether pasted data carries text, not just an image (a copied web image comes
+// with HTML that is only an <img>).
+function hasText(data: DataTransfer | null): boolean {
+  if (!data) return false;
+  const html = data.getData("text/html");
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return !!doc.body.textContent?.replace(/[\s\u00a0]/g, "");
+  }
+  return !!data.getData("text/plain").trim();
+}
+
+// Tidies pasted HTML: drops the styles and metadata Office apps include. OneNote
+// (and Word's "No Spacing") puts each line in its own paragraph with no margin and
+// uses empty paragraphs for blank lines; chat spaces paragraphs apart, so runs of
+// such lines are joined with line breaks and the empty paragraphs are dropped.
+function cleanPastedHtml(html: string): string {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc
+    .querySelectorAll("style, meta, title, script, link, xml")
+    .forEach((el) => el.remove());
+  const blank = (el: Element) =>
+    !el.querySelector("img") && !el.textContent?.replace(/[\s\u00a0]/g, "");
+  const tight = (el: Element) => {
+    if (el.tagName !== "P" || blank(el)) return false;
+    if (el.classList.contains("MsoNoSpacing")) return true;
+    const { marginTop, marginBottom } = (el as HTMLElement).style;
+    return (
+      marginBottom !== "" &&
+      parseFloat(marginBottom) === 0 &&
+      (marginTop === "" || parseFloat(marginTop) === 0)
+    );
+  };
+  doc.body.querySelectorAll("p").forEach((p) => {
+    const prev = p.previousElementSibling;
+    if (!prev || !tight(prev) || !tight(p)) return;
+    prev.append(doc.createElement("br"), ...Array.from(p.childNodes));
+    p.remove();
+  });
+  doc.body
+    .querySelectorAll("p, div, h1, h2, h3, h4, h5, h6, li")
+    .forEach((el) => {
+      if (blank(el)) el.remove();
+    });
+  return doc.body.innerHTML;
 }
 
 function imageSize(src: string): Promise<{ width?: number; height?: number }> {

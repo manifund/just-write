@@ -3,16 +3,39 @@
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { Avatar } from "@/components/portal/avatar";
-import { hostOf } from "@/components/portal/util";
+import { hostOf, useNow } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
+import { DEADLINES, PROGRAM_START } from "@/convex/lib/program";
+import { ptParts, ptToUtc } from "@/convex/lib/time";
 
 type Row = (typeof api.members.directory._returnType)[number];
 
 const GOAL = 4;
 
+// The current Pacific week (Sunday to Saturday) and how many of its days have started,
+// or null outside November (and during SSR, since it depends on the clock).
+function currentWeek(now: number | null) {
+  if (
+    now === null ||
+    now < PROGRAM_START ||
+    now > DEADLINES[DEADLINES.length - 1]
+  )
+    return null;
+  const p = ptParts(now);
+  return {
+    since: ptToUtc(p.year, p.month, p.day - p.weekday),
+    days: p.weekday + 1,
+  };
+}
+
 // Server-rendered first, then live. Sized so the whole roster fits on one screen.
 export function Directory({ initial }: { initial: Row[] }) {
   const members = useQuery(api.members.directory) ?? initial;
+  const week = currentWeek(useNow(60_000));
+  const checkIns = useQuery(
+    api.members.checkInDays,
+    week ? { since: week.since } : "skip",
+  );
   const published = members.reduce(
     (n, m) => n + Math.min(m.essayCount, GOAL),
     0,
@@ -42,6 +65,12 @@ export function Directory({ initial }: { initial: Row[] }) {
                   {m.name}
                 </span>
                 <span className="flex items-center gap-2 text-[13px] text-ink-muted">
+                  {week && checkIns && (
+                    <CheckIns
+                      done={Math.min(checkIns[m._id]?.length ?? 0, week.days)}
+                      days={week.days}
+                    />
+                  )}
                   <Pips
                     filled={m.essayCount}
                     label={`${Math.min(m.essayCount, GOAL)} of ${GOAL} essays`}
@@ -57,13 +86,20 @@ export function Directory({ initial }: { initial: Row[] }) {
   );
 }
 
-function Pips({ filled, label }: { filled: number; label: string }) {
+function CheckIns({ done, days }: { done: number; days: number }) {
   return (
     <span
-      className="flex shrink-0 gap-[3px]"
-      role="img"
-      aria-label={label}
+      className="shrink-0 tabular-nums"
+      title={`Checked in on ${done} of ${days} days this week`}
     >
+      {done}/{days} check-ins
+    </span>
+  );
+}
+
+function Pips({ filled, label }: { filled: number; label: string }) {
+  return (
+    <span className="flex shrink-0 gap-[3px]" role="img" aria-label={label}>
       {Array.from({ length: GOAL }, (_, i) => (
         <span
           key={i}

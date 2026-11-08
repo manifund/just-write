@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ChatMessage } from "@/convex/chat";
@@ -219,9 +220,17 @@ export function Channel({
               {channel.description}
             </p>
           </div>
+          {slug === CHECK_IN_SLUG && (
+            <Link
+              href="/check-ins"
+              className="ml-auto shrink-0 text-[15px] text-ink-muted"
+            >
+              Your check-ins
+            </Link>
+          )}
           {here.length > 0 && (
             <div
-              className="ml-auto flex shrink-0 items-center gap-2"
+              className={`flex shrink-0 items-center gap-2 ${slug === CHECK_IN_SLUG ? "" : "ml-auto"}`}
               title={here.map((m) => m.name).join(", ")}
             >
               <span className="flex -space-x-2">

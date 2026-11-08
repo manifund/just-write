@@ -41,7 +41,7 @@ export function Avatar({
   const name = member?.name ?? "Someone";
   return (
     <span
-      className={`relative inline-flex shrink-0 ${className}`}
+      className={`relative inline-flex shrink-0 rounded-full ${className}`}
       style={{ width: size, height: size }}
     >
       {member?.image ? (

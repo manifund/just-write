@@ -33,10 +33,9 @@ export const PAGE_SIZE = 50;
 // each extra message here is read again on every change in that channel.
 export const RECENT_SIZE = 20;
 
-// #check-ins is gated: until you've posted a check-in of your own within this window,
-// other people's posts show only a short preview.
+// #check-ins is gated: until you've posted a check-in of your own today (Pacific time,
+// resetting at midnight), other people's posts show only a short preview.
 export const CHECK_IN_SLUG = "check-ins";
-export const CHECK_IN_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const CHECK_IN_PREVIEW_CHARS = 100;
 
 // The presence room for a channel. Push notifications skip members who are in it.

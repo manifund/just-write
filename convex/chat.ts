@@ -11,12 +11,12 @@ import {
 import {
   CHECK_IN_PREVIEW_CHARS,
   CHECK_IN_SLUG,
-  CHECK_IN_WINDOW_MS,
   DEFAULT_CHANNELS,
   RECENT_SIZE,
 } from "./lib/channels";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
+import { nextPtMidnight } from "./lib/time";
 import { isReaction } from "./lib/reactions";
 import { ensureClaude, startFromMessage } from "./improvements";
 import { getClaude } from "./lib/claude";
@@ -194,10 +194,10 @@ export const channel = query({
   },
 });
 
-// #check-ins is gated: until you've posted a top-level check-in yourself in the last 24
-// hours, everyone else's posts and thread replies show only their first 100 characters.
-// Posts you could already read stay readable: anything written before your last
-// check-in's 24 hours ran out, plus replies in those threads. The channel's oldest post,
+// #check-ins is gated: until you've posted a top-level check-in yourself today (Pacific
+// time; the day turns over at midnight), everyone else's posts and thread replies show
+// only their first 100 characters. Posts you could already read stay readable: anything
+// written before the end of the day of your last check-in, plus replies in those threads. The channel's oldest post,
 // when an admin wrote it, is the standing intro and always shows in full. Returns null
 // when nothing should be hidden from this viewer.
 type Gate = {
@@ -221,7 +221,7 @@ export async function checkInGate(
     )
     .order("desc")
     .first();
-  const seenUntil = lastOwn ? lastOwn._creationTime + CHECK_IN_WINDOW_MS : 0;
+  const seenUntil = lastOwn ? nextPtMidnight(lastOwn._creationTime) : 0;
   if (seenUntil > Date.now()) return null;
   const first = await ctx.db
     .query("messages")
@@ -686,5 +686,36 @@ export const typing = query({
         parentId: r.parentId ?? null,
         expiresAt: r.expiresAt,
       }));
+  },
+});
+
+// /check-ins: the viewer's own top-level #check-ins posts, newest first. Only their own,
+// so nothing here is behind the gate.
+export const myCheckIns = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const channel = await ctx.db
+      .query("channels")
+      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+      .unique();
+    if (!channel) return [];
+    const posts = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent_author", (q) =>
+        q
+          .eq("channelId", channel._id)
+          .eq("parentId", undefined)
+          .eq("authorId", member._id),
+      )
+      .order("desc")
+      .collect();
+    return posts.map((m) => ({
+      _id: m._id,
+      _creationTime: m._creationTime,
+      body: m.body,
+      text: m.text,
+      replyCount: m.replyCount ?? 0,
+    }));
   },
 });
