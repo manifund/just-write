@@ -195,6 +195,7 @@ function Shell({ children }: { children: ReactNode }) {
     <div ref={rootRef} className="flex h-dvh overflow-hidden">
       <aside
         ref={drawerRef}
+        data-sidebar
         className={`fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col bg-ink text-cream transition-transform duration-200 md:static md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
