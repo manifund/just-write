@@ -261,6 +261,7 @@ export const profile = query({
         url: e.url,
         wordCount: e.wordCount ?? null,
         submittedAt: e.submittedAt,
+        week: e.week,
       }));
     return { member: publicMember(m), essays };
   },

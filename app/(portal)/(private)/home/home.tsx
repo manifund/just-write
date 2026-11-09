@@ -8,7 +8,7 @@ import { usePortal } from "@/components/portal/context";
 import { confetti, hostOf, timeAgo, useNow } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { DEADLINES } from "@/convex/lib/program";
+import { canCountFor, DEADLINES, DEADLINE_LABELS } from "@/convex/lib/program";
 import { errorMessage } from "@/lib/convex";
 
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4"];
@@ -81,7 +81,10 @@ export function Home() {
 
       <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-[clamp(32px,5vh,48px)]">
-          <section aria-labelledby="progress" className="@container flex flex-col gap-5">
+          <section
+            aria-labelledby="progress"
+            className="@container flex flex-col gap-5"
+          >
             <div className="flex items-baseline justify-between gap-4">
               <h2 id="progress" className={h2}>
                 Your four essays
@@ -93,10 +96,8 @@ export function Home() {
               )}
             </div>
             <Slots mine={mine} now={now} />
-            <RegisterEssay />
-            {mine && mine.essays.length > 0 && (
-              <MyEssays essays={mine.essays} />
-            )}
+            <RegisterEssay now={now} />
+            {mine && mine.essays.length > 0 && <MyEssays mine={mine} />}
           </section>
           <Board />
         </div>
@@ -123,9 +124,11 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
           deadline,
           label: "",
           essayId: null,
+          essayIds: [] as string[],
         }))
       ).map((s, i) => {
-        const e = s.essayId ? essays.get(s.essayId) : null;
+        const es = s.essayIds.flatMap((id) => essays.get(id) ?? []);
+        const e = es[0] ?? null;
         const missed = !e && now !== null && now > s.deadline;
         const current =
           !e &&
@@ -159,14 +162,20 @@ function Slots({ mine, now }: { mine: Mine | undefined; now: number | null }) {
               )}
             </div>
             {e ? (
-              <a
-                href={e.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="line-clamp-3 font-display text-[17px] leading-[1.25] font-[450] [overflow-wrap:anywhere] no-underline hover:underline"
-              >
-                {e.title}
-              </a>
+              <ul className="flex flex-col gap-1.5">
+                {es.map((x) => (
+                  <li key={x._id}>
+                    <a
+                      href={x.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`font-display leading-[1.25] font-[450] [overflow-wrap:anywhere] no-underline hover:underline ${es.length > 1 ? "line-clamp-2 text-[15px]" : "line-clamp-3 text-[17px]"}`}
+                    >
+                      {x.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
             ) : (
               <p
                 className={`text-[15px] leading-[1.35] ${missed ? "text-brass-text" : "text-ink-muted"}`}
@@ -203,13 +212,14 @@ function sharedLink() {
   return link?.replace(/[.,!?)"'”’]+$/, "") ?? null;
 }
 
-function RegisterEssay() {
+function RegisterEssay({ now }: { now: number | null }) {
   const preview = useAction(api.essays.preview);
   const submit = useMutation(api.essays.submit);
   const [shared] = useState(sharedLink);
   const [url, setUrl] = useState(shared ?? "");
   const [title, setTitle] = useState("");
   const [words, setWords] = useState<number | null>(null);
+  const [week, setWeek] = useState("");
   const [checking, setChecking] = useState(!!shared);
   const [checkedUrl, setCheckedUrl] = useState<string | null>(shared);
   const [saving, setSaving] = useState(false);
@@ -246,11 +256,17 @@ function RegisterEssay() {
     setSaving(true);
     setError(null);
     try {
-      await submit({ url, title, wordCount: words });
+      await submit({
+        url,
+        title,
+        wordCount: words,
+        week: week ? Number(week) : undefined,
+      });
       confetti(buttonRef.current);
       setUrl("");
       setTitle("");
       setWords(null);
+      setWeek("");
       setCheckedUrl(null);
     } catch (err) {
       setError(errorMessage(err));
@@ -302,6 +318,30 @@ function RegisterEssay() {
             className={input}
           />
         </label>
+        <label className="flex flex-col gap-1.5 sm:col-span-2">
+          <span className="text-[13px] tracking-[0.12em] text-ink-muted uppercase">
+            Counts toward
+          </span>
+          <select
+            value={week}
+            onChange={(e) => setWeek(e.target.value)}
+            className={input}
+          >
+            <option value="">The next open week</option>
+            {now !== null &&
+              WEEKS.map((w, i) =>
+                canCountFor(i + 1, now) ? (
+                  <option key={w} value={i + 1}>
+                    {w} (due {DEADLINE_LABELS[i]})
+                  </option>
+                ) : null,
+              )}
+          </select>
+          <span className="text-[14px] text-ink-muted">
+            Pick a week to put this essay with others in that week, like two
+            500-word posts.
+          </span>
+        </label>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[15px] text-ink-muted" aria-live="polite">
@@ -333,8 +373,13 @@ function RegisterEssay() {
   );
 }
 
-function MyEssays({ essays }: { essays: Mine["essays"] }) {
+function MyEssays({ mine }: { mine: Mine }) {
+  const { essays, slots } = mine;
   const remove = useMutation(api.essays.remove);
+  const setWeek = useMutation(api.essays.setWeek);
+  const [error, setError] = useState<string | null>(null);
+  const weekOf = (id: string) =>
+    slots.find((s) => s.essayIds.includes(id))?.week;
   const [confirming, setConfirming] = useState<Id<"essays"> | null>(null);
   return (
     <details className="group text-[16px]">
@@ -364,8 +409,40 @@ function MyEssays({ essays }: { essays: Mine["essays"] }) {
                   ? " · not counted"
                   : ""}
             </span>
+            {e.review !== "rejected" && (
+              <select
+                aria-label={`Week for ${e.title}`}
+                value={
+                  e.week && canCountFor(e.week, e.submittedAt) ? e.week : ""
+                }
+                onChange={(ev) => {
+                  setError(null);
+                  setWeek({
+                    essayId: e._id,
+                    week: ev.target.value ? Number(ev.target.value) : null,
+                  }).catch((err) => setError(errorMessage(err)));
+                }}
+                className="ml-auto cursor-pointer border border-ink/20 bg-cream px-1.5 py-0.5 text-[14px]"
+              >
+                <option value="">
+                  {(() => {
+                    const w = weekOf(e._id);
+                    return w
+                      ? `Next open week (${WEEKS[w - 1]})`
+                      : "Next open week";
+                  })()}
+                </option>
+                {WEEKS.map((w, i) =>
+                  canCountFor(i + 1, e.submittedAt) ? (
+                    <option key={w} value={i + 1}>
+                      {w}
+                    </option>
+                  ) : null,
+                )}
+              </select>
+            )}
             {confirming === e._id ? (
-              <span className="ml-auto flex gap-3 text-[14px]">
+              <span className="flex gap-3 text-[14px]">
                 <button
                   type="button"
                   className="cursor-pointer text-brass-text underline"
@@ -384,7 +461,7 @@ function MyEssays({ essays }: { essays: Mine["essays"] }) {
             ) : (
               <button
                 type="button"
-                className="ml-auto cursor-pointer text-[14px] text-ink-muted underline"
+                className={`cursor-pointer text-[14px] text-ink-muted underline ${e.review === "rejected" ? "ml-auto" : ""}`}
                 onClick={() => setConfirming(e._id)}
               >
                 Remove
@@ -393,6 +470,11 @@ function MyEssays({ essays }: { essays: Mine["essays"] }) {
           </li>
         ))}
       </ul>
+      {error && (
+        <p role="alert" className="mt-2 text-[15px] text-brass-text">
+          {error}
+        </p>
+      )}
     </details>
   );
 }

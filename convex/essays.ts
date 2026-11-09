@@ -3,7 +3,7 @@ import { action, mutation, query } from "./_generated/server";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
-import { fillSlots } from "./lib/program";
+import { canCountFor, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import { publicMember, requireMember } from "./lib/viewer";
 
@@ -77,9 +77,13 @@ export const submit = mutation({
     url: v.string(),
     title: v.string(),
     wordCount: v.union(v.number(), v.null()),
+    week: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
+    const submittedAt = Date.now();
+    if (args.week !== undefined && !canCountFor(args.week, submittedAt))
+      throw new ConvexError("That week’s deadline has passed.");
     const url = parseWebsite(args.url);
     if (!url) throw new ConvexError("That link doesn’t look right.");
     const title = args.title.trim().slice(0, 200);
@@ -96,7 +100,8 @@ export const submit = mutation({
       url,
       title,
       wordCount: args.wordCount ?? undefined,
-      submittedAt: Date.now(),
+      submittedAt,
+      week: args.week,
       review: "pending",
     });
 
@@ -115,6 +120,20 @@ export const submit = mutation({
       });
     }
     return essayId;
+  },
+});
+
+// Puts one of the viewer's essays toward a week, or back to the earliest open week (null).
+export const setWeek = mutation({
+  args: { essayId: v.id("essays"), week: v.union(v.number(), v.null()) },
+  handler: async (ctx, { essayId, week }) => {
+    const { member } = await requireMember(ctx);
+    const essay = await ctx.db.get(essayId);
+    if (!essay || essay.memberId !== member._id)
+      throw new ConvexError("Not your essay.");
+    if (week !== null && !canCountFor(week, essay.submittedAt))
+      throw new ConvexError("That essay came in after that week’s deadline.");
+    await ctx.db.patch(essayId, { week: week ?? undefined });
   },
 });
 
@@ -191,10 +210,12 @@ export const board = query({
         return {
           member: publicMember(m),
           slots: fillSlots(essays).map((s) => {
-            const e = s.essayId ? byId.get(s.essayId) : undefined;
+            const es = s.essayIds.flatMap((id) => byId.get(id) ?? []);
             return {
               week: s.week,
-              essay: e ? { title: e.title, url: e.url } : null,
+              essay: es[0]
+                ? { title: es.map((e) => e.title).join(" + "), url: es[0].url }
+                : null,
             };
           }),
         };
