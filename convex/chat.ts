@@ -22,6 +22,7 @@ import { DEADLINES, fillSlots } from "./lib/program";
 import { isReaction } from "./lib/reactions";
 import { ensureClaude, startFromMessage } from "./improvements";
 import { getClaude } from "./lib/claude";
+import { handleUntaggedReply } from "./untagged";
 import {
   cleanBody,
   mentionIds,
@@ -581,6 +582,14 @@ export const send = mutation({
         channelId: c._id,
         messageId: id,
         parentId,
+        text,
+      });
+    else if (parentId)
+      await handleUntaggedReply(ctx, {
+        channel: c,
+        threadId: parentId,
+        messageId: id,
+        authorId: member._id,
         text,
       });
     return id;

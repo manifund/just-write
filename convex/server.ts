@@ -499,6 +499,8 @@ async function whoAndWhere(ctx: MutationCtx, r: Doc<"improvements">) {
   ]);
   return {
     request: r.request,
+    // The request didn't mention Claude; the classifier picked it up (convex/untagged.ts).
+    untagged: r.untagged ?? false,
     requester: requester?.name ?? "A member",
     channel: channel?.name ?? "chat",
     threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
@@ -675,6 +677,19 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     });
     const author = await ctx.db.get(w.requesterId);
     out.push({ author: author?.name ?? "A member", text: w.request });
+  }
+  // Untagged replies (convex/untagged.ts). They may be members talking to each
+  // other, and the runner tells the agent so.
+  if (r.untaggedReplies?.length) {
+    await ctx.db.patch(id, { untaggedReplies: undefined });
+    for (const u of r.untaggedReplies) {
+      const author = await ctx.db.get(u.authorId);
+      out.push({
+        author: author?.name ?? "A member",
+        text: u.text,
+        tagged: false,
+      });
+    }
   }
   return out;
 }

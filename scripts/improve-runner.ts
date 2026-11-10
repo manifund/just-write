@@ -58,6 +58,7 @@ type Brief = {
   // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
   effort?: string | null;
   request: string;
+  untagged?: boolean; // the request didn't mention @Claude (convex/untagged.ts)
   requester: string;
   channel: string;
   threadUrl: string;
@@ -151,14 +152,19 @@ const step = (label: string) => report({ step: label });
 // whether someone pressed Stop on the card (then `stoppedBy` is their name and the running
 // agent is stopped). Chat tasks don't take any: Convex ends those itself when stopped, and
 // follow-ups start as their own run when this one ends.
+type FollowUp = {
+  author: string;
+  text: string;
+  tagged?: boolean; // false: a reply that didn't mention @Claude
+};
 let stoppedBy: string | null = null;
 let stopAgent = () => {};
 async function claimFollowUps() {
   if (DRY || CHAT) return [];
   const res = await runnerMutation("runner:followUps");
-  if (Array.isArray(res)) return res as { author: string; text: string }[]; // older Convex
+  if (Array.isArray(res)) return res as FollowUp[]; // older Convex
   const { followUps, stop } = (res ?? {}) as {
-    followUps?: { author: string; text: string }[];
+    followUps?: FollowUp[];
     stop?: string | null;
   };
   if (stop && !stoppedBy) {
@@ -450,6 +456,9 @@ function prompt(extra = "") {
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
     brief.thread.length > 1 ? `The thread so far:\n"""\n${thread}\n"""` : "",
+    brief.untagged
+      ? `This reply didn't mention @Claude. A quick check judged it a request for you, so you were started on it. If it's really ${brief.requester} talking to someone else, change nothing and say in one short sentence that you'll stay out of it (members can write "@Claude !mute" to stop untagged replies reaching you in this thread).`
+      : "",
     brief.resumesFailedRun && RESUMES_WORK
       ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing (it ran out of steps or time, or someone stopped it). Its edits are still in the working tree and haven't been committed; check them with \`git status\` and \`git diff\`, then finish the job.`
       : "",
@@ -630,7 +639,9 @@ async function* agentInput(
       await step(`Reading a follow-up from ${f.author}`);
       log("info", `Follow-up from ${f.author}:\n${f.text}`);
       yield userMessage(
-        `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
+        f.tagged === false
+          ? `${f.author} replied in the thread while you were working, without mentioning @Claude:\n"""\n${f.text}\n"""\nThis may be members talking to each other ("looks good", "it works"). If it asks for something about this change, take it into account; otherwise ignore it. Then carry on. When you're done, return the structured result covering the whole change.`
+          : `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",
       );
     }
