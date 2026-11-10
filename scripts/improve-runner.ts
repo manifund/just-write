@@ -431,7 +431,7 @@ type Final = {
   post?: { channel: string; markdown: string };
 };
 
-function prompt() {
+function prompt(extra = "") {
   const thread = brief.thread.map((m) => `${m.author}: ${m.text}`).join("\n\n");
   return [
     `${brief.requester} asked you, in #${brief.channel}:`,
@@ -449,6 +449,7 @@ function prompt() {
     !CHAT && !brief.prNumber && brief.openPrs?.length
       ? `This starts a new PR. The thread's other open PRs (${brief.openPrs.map((p) => `#${p.prNumber} "${p.title}"`).join(", ")}) were judged separate from this request. If it's really about one of them, say so in your chat reply and suggest naming it ("continue #${brief.openPrs[0].prNumber}"); members can also write "new PR" to force a fresh one.`
       : "",
+    extra,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -808,15 +809,72 @@ async function runAgentSession(input: string, resume?: string) {
 
 // --- Checks ----------------------------------------------------------------------------
 
-function checks() {
+function checks(merge: Merge | null) {
   const tsc = sh("bun check");
   const lint = sh("bun lint");
+  const markers = merge ? conflictMarkers(merge) : [];
   return {
-    ok: tsc.ok && lint.ok,
-    output: [!tsc.ok && tail(tsc.out, 4000), !lint.ok && tail(lint.out, 4000)]
+    ok: tsc.ok && lint.ok && markers.length === 0,
+    output: [
+      !tsc.ok && tail(tsc.out, 4000),
+      !lint.ok && tail(lint.out, 4000),
+      markers.length &&
+        `Merge conflict markers are still in: ${markers.join(", ")}`,
+    ]
       .filter(Boolean)
       .join("\n\n"),
   };
+}
+
+// --- Merging main -----------------------------------------------------------------------
+
+// main merged into a PR's branch (not committed; the site commits it with both parents).
+type Merge = { main: string; conflicts: string[] };
+
+const unmerged = () =>
+  must("git diff --name-only --diff-filter=U").split("\n").filter(Boolean);
+
+// Brings main into a PR's branch, so the PR can merge after main has moved on. Null if the
+// branch already has everything on main. Conflicts are left in the tree for the agent.
+function mergeMain(): Merge | null {
+  const shallow =
+    sh("git rev-parse --is-shallow-repository", { quiet: true }).out.trim() ===
+    "true";
+  // Merging needs the history back to where the branch split from main.
+  must(`git fetch -q ${shallow ? "--unshallow " : ""}origin main`);
+  const main = must("git rev-parse FETCH_HEAD");
+  if (sh(`git merge-base --is-ancestor ${main} HEAD`).ok) return null;
+  const r = sh(
+    `git -c user.name=Claude -c user.email=noreply@anthropic.com merge -q --no-commit --no-ff ${main}`,
+  );
+  const conflicts = unmerged();
+  if (!r.ok && conflicts.length === 0)
+    throw new Error(`Couldn’t merge main:\n${r.out.slice(-1500)}`);
+  return { main, conflicts };
+}
+
+// A merge the saved sandbox was in the middle of (a resumed run keeps its edits).
+function mergeInProgress(): Merge | null {
+  const head = sh("git rev-parse -q --verify MERGE_HEAD", { quiet: true });
+  return head.ok ? { main: head.out.trim(), conflicts: unmerged() } : null;
+}
+
+// Files from the merge's conflicts that still have conflict markers in them.
+function conflictMarkers(merge: Merge) {
+  return merge.conflicts.filter((f) => {
+    try {
+      return /^(<{7}|>{7})( |$)/m.test(readFileSync(`${ROOT}/${f}`, "utf8"));
+    } catch {
+      return false; // deleted
+    }
+  });
+}
+
+function mergeNote(merge: Merge | null) {
+  if (!merge) return "";
+  if (!merge.conflicts.length)
+    return `main had moved on, so the harness merged it into this branch (cleanly; not committed yet, and it gets pushed as a real merge commit with your changes). Don't run \`git merge --abort\`, \`git reset\`, or \`git commit\`.`;
+  return `main had moved on, so the harness started merging it into this branch, and these files have conflicts: ${merge.conflicts.join(", ")}. Resolve them first: edit each file so it keeps what both sides meant (main's latest code plus this PR's change) and has no conflict markers left. The merge gets pushed as a real merge commit with your changes, so don't run \`git merge --abort\`, \`git reset\`, or \`git commit\`; the harness stages and commits everything.`;
 }
 
 // --- Main -------------------------------------------------------------------------------
@@ -835,6 +893,7 @@ type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps; never merged
+      merged?: string; // main's commit, merged in: the site commits with it as a second parent
     };
 
 const OUT_OF_TURNS = "I ran out of steps before finishing.";
@@ -967,6 +1026,15 @@ async function main(): Promise<RunnerResult> {
   // The site commits the changes on top of this. For a follow-up it's the branch's head on
   // GitHub, and the route checks it still is.
   const base = must("git rev-parse HEAD");
+  // Keep an open PR mergeable: bring main into its branch first.
+  let merge: Merge | null = null;
+  if (keepEdits) merge = mergeInProgress();
+  else if (brief.prNumber) {
+    await step("Merging the latest main into the branch");
+    merge = mergeMain();
+    if (merge?.conflicts.length)
+      await step(`Resolving conflicts in ${merge.conflicts.length} file(s)`);
+  }
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
   const resume = RESUMED_SANDBOX
@@ -974,17 +1042,18 @@ async function main(): Promise<RunnerResult> {
     : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
-  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch(
-    (err) => {
-      if (!resume) throw err;
-      console.error("resume failed; starting a new session", err);
-      log(
-        "error",
-        `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return runAgent(prompt());
-    },
-  );
+  let { final, sessionId, outOfTurns } = await runAgent(
+    prompt(mergeNote(merge)),
+    resume,
+  ).catch((err) => {
+    if (!resume) throw err;
+    console.error("resume failed; starting a new session", err);
+    log(
+      "error",
+      `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return runAgent(prompt(mergeNote(merge)));
+  });
 
   if (changedFiles(base).length === 0) {
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
@@ -992,7 +1061,7 @@ async function main(): Promise<RunnerResult> {
   }
 
   await step("Running the typecheck and linter");
-  let check = checks();
+  let check = checks(merge);
   // Out of steps: push what's there as an unfinished PR for a follow-up to finish, without
   // spending more turns on fixes.
   for (let attempt = 0; !outOfTurns && !check.ok && attempt < 2; attempt++) {
@@ -1002,7 +1071,7 @@ async function main(): Promise<RunnerResult> {
       sessionId,
     ));
     await step("Running the typecheck and linter again");
-    check = checks();
+    check = checks(merge);
   }
   const files = changedFiles(base);
   if (files.length === 0) {
@@ -1019,6 +1088,7 @@ async function main(): Promise<RunnerResult> {
       details: final.details,
       checksPassed: check.ok,
       unfinished: true,
+      merged: merge?.main,
     };
   return {
     outcome: "changes",
@@ -1028,6 +1098,7 @@ async function main(): Promise<RunnerResult> {
     summary: final.summary,
     details: final.details,
     checksPassed: check.ok,
+    merged: merge?.main,
   };
 }
 
