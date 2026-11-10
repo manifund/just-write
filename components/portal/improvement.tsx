@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   closeImprovement,
@@ -59,6 +60,8 @@ export function ImprovementCard({
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
         <Steps steps={card.steps} />
+        {card.activity && now && <Activity activity={card.activity} now={now} />}
+        {isAdmin && card.status === "running" && <LogLink id={card._id} />}
       </div>
     );
 
@@ -94,6 +97,7 @@ export function ImprovementCard({
             </ul>
           )}
           {card.verdict && isAdmin && <p>Decision: {card.verdict}</p>}
+          {isAdmin && card.startedAt && <LogLink id={card._id} />}
         </div>
       </details>
     </div>
@@ -124,6 +128,65 @@ function Steps({ steps }: { steps: Card["steps"] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// What the agent is doing between checklist lines: subagents it's waiting on, or a long tool
+// call (scripts/improve-runner.ts sends this at most every ~12s; times are computed here).
+const LONG_TOOL_MS = 20_000;
+
+function Activity({
+  activity,
+  now,
+}: {
+  activity: NonNullable<Card["activity"]>;
+  now: number;
+}) {
+  const running = activity.tasks.filter((t) => t.state === "running").length;
+  const finished = activity.tasks.length - running;
+  const toolFor = activity.tool ? now - activity.tool.since : 0;
+  const parts: string[] = [];
+  if (running) parts.push(`${running} task${running === 1 ? "" : "s"} running`);
+  if (finished) parts.push(`${finished} finished`);
+  if (activity.tool && toolFor > LONG_TOOL_MS)
+    parts.push(
+      `${activity.tool.name === "Bash" ? "running a command" : `using ${activity.tool.name}`} for ${duration(toolFor)}`,
+    );
+  if (parts.length === 0) return null;
+  const idle = now - activity.lastAt;
+  parts.push(idle < 5000 ? "active just now" : `last activity ${duration(idle)} ago`);
+  const line = parts.join(" · ");
+
+  return (
+    <div className="flex flex-col gap-0.5 text-[14px] text-ink-muted">
+      <p className="tabular-nums">{line.charAt(0).toUpperCase() + line.slice(1)}</p>
+      {activity.tasks.length > 0 && (
+        <ul className="flex flex-col gap-0.5 pl-6">
+          {activity.tasks.map((t, i) => (
+            <li key={i} className="min-w-0 break-words">
+              <span aria-hidden="true">{t.state === "running" ? "· " : t.state === "done" ? "✓ " : "✕ "}</span>
+              {t.label}
+              {t.state === "running" && t.summary ? `: ${t.summary}` : ""}
+              <span className="sr-only">
+                {t.state === "running" ? " (running)" : ` (${t.state})`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// Admins only: the run's detailed log (app/(portal)/(private)/improvements/[id]/log).
+function LogLink({ id }: { id: string }) {
+  return (
+    <Link
+      href={`/improvements/${id}/log`}
+      className="w-fit text-[14px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+    >
+      Log
+    </Link>
   );
 }
 

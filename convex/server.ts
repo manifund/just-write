@@ -15,6 +15,7 @@ import {
   txt,
 } from "./improvements";
 import { hashRunToken, parseEffort } from "./lib/improve";
+import { appendLogs } from "./lib/improveLogs";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -464,6 +465,9 @@ export async function applyReport(
   }
   const final = patch.status && patch.status !== "running" && patch.status !== "queued";
   if (final && !fail) steps = finish("done");
+  // Steps go in the run's log too, wherever they come from (runner, route, admin actions).
+  if (step && steps !== r.steps)
+    await appendLogs(ctx, id, [{ kind: "step", text: step }]);
   if (final) await endRun(ctx, r, { ...patch, steps });
   else await ctx.db.patch(id, { ...patch, steps });
 

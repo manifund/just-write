@@ -1,6 +1,8 @@
 // Runs one @Claude improvement inside a Vercel Sandbox (started by app/api/improve/route.ts).
 // Installs deps, runs the Claude Agent SDK on the request, and checks the result. Steps are
-// reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live.
+// reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live,
+// along with a light heartbeat of what the agent and its subagents are doing between steps
+// and a detailed log for admins (/improvements/<id>/log).
 // When it's done it sends the list of changed files to /api/improve, which reads them out of
 // the sandbox, pushes them, opens the PR, and decides whether it merges.
 //
@@ -93,6 +95,8 @@ let lastStep = "";
 async function report(r: Report) {
   if (r.step) lastStep = r.step;
   if (DRY) return console.log("[report]", JSON.stringify(r));
+  // Convex logs the step itself; send what came before it first, so the log stays in order.
+  if (r.step) await flushLogs();
   await runnerMutation("runner:report", r); // on failure the card just lags
 }
 const step = (label: string) => report({ step: label });
@@ -102,6 +106,158 @@ async function claimFollowUps() {
   if (DRY) return [];
   const rows = await runnerMutation("runner:followUps");
   return (Array.isArray(rows) ? rows : []) as { author: string; text: string }[];
+}
+
+// --- Log -------------------------------------------------------------------------------
+
+// Secrets this process knows, and the shapes of common API keys, are replaced before anything
+// goes into the log. The sandbox holds no site secrets (see the top), but the agent could still
+// print a key it finds.
+const SECRETS = [OPENROUTER_API_KEY, RUN_TOKEN].filter((s) => s.length >= 8);
+const SECRET_PATTERNS = [
+  /\bsk-(?:or|ant)-[\w-]{10,}/g, // OpenRouter, Anthropic
+  /\b(?:sk|rk)_(?:live|test)_\w{10,}/g, // Stripe
+  /\bwhsec_\w{10,}/g,
+  /\b(?:ghp|gho|ghs|ghu|github_pat)_\w{20,}/g, // GitHub
+  /\bBearer\s+[\w.~+/-]{16,}=*/gi,
+  /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, // JWTs
+  /\b(?:CONVEX_SERVER_SECRET|BETTER_AUTH_SECRET|[A-Z_]*(?:API_KEY|TOKEN|SECRET))=\S+/g,
+];
+function redact(text: string) {
+  let out = text;
+  for (const secret of SECRETS) out = out.split(secret).join("[redacted]");
+  for (const re of SECRET_PATTERNS) out = out.replace(re, "[redacted]");
+  return out;
+}
+
+const clip = (s: string, n: number) =>
+  s.length > n ? `${s.slice(0, n)}… [${s.length - n} more characters]` : s;
+
+// convex/lib/improveLogs.ts#LogKind (this file can't import it; see the top).
+type LogKind = "step" | "text" | "tool" | "result" | "task" | "shell" | "info" | "error";
+const LOG_LIMITS: Partial<Record<LogKind, number>> = { tool: 1500, result: 2000 };
+const LOG_FLUSH_MS = 3000;
+
+const logBuffer: { kind: LogKind; text: string; agent?: string; t: number }[] = [];
+function log(kind: LogKind, text: string, agent?: string) {
+  const t = redact(text).trim();
+  if (!t) return;
+  const entry = { kind, text: clip(t, LOG_LIMITS[kind] ?? 4000), agent, t: Date.now() };
+  if (DRY) console.log(`[log ${kind}${agent ? ` · ${agent}` : ""}]`, entry.text.slice(0, 300));
+  else logBuffer.push(entry);
+}
+
+// Sends the buffered events (convex/runner.ts#log). One send at a time, in order. Failed
+// batches are dropped: the log is best effort.
+let flushing = Promise.resolve();
+function flushLogs() {
+  flushing = flushing.then(async () => {
+    while (logBuffer.length) {
+      const now = Date.now();
+      const events = logBuffer
+        .splice(0, 100)
+        .map(({ t, agent, ...e }) => ({ ...e, ...(agent ? { agent } : {}), ago: now - t }));
+      await runnerMutation("runner:log", { events });
+    }
+  });
+  return flushing;
+}
+setInterval(() => void flushLogs(), LOG_FLUSH_MS).unref();
+
+// --- Activity ---------------------------------------------------------------------------
+// Between checklist lines the agent can be busy for minutes: waiting on a long command, or on
+// subagents it started in the background. The card shows that from a heartbeat
+// (convex/runner.ts#activity), sent when something changes, at most every ACTIVITY_MS.
+
+type TaskState = "running" | "done" | "failed" | "stopped";
+type Task = { label: string; state: TaskState; lastAt: number; summary?: string };
+const tasks = new Map<string, Task>(); // by SDK task id
+const taskByToolUse = new Map<string, string>(); // the Agent/Bash call that started it → task id
+const agentLabels = new Map<string, string>(); // Agent tool call id → its description
+const openTools = new Map<string, { name: string; since: number }>(); // the main agent's calls
+let lastEventAt = Date.now();
+const ACTIVITY_MS = 12_000;
+const FINISHED_TASK_SHOWN_MS = 10 * 60_000;
+let lastActivitySent = 0;
+let lastActivityEmpty = true;
+let activityTimer: ReturnType<typeof setTimeout> | null = null;
+
+function touch(toolUseId?: string | null) {
+  const now = Date.now();
+  lastEventAt = now;
+  const task = toolUseId ? tasks.get(taskByToolUse.get(toolUseId) ?? "") : undefined;
+  if (task) task.lastAt = now;
+  scheduleActivity();
+}
+
+function scheduleActivity() {
+  if (activityTimer) return;
+  activityTimer = setTimeout(
+    () => {
+      activityTimer = null;
+      lastActivitySent = Date.now();
+      void sendActivity();
+    },
+    Math.max(0, lastActivitySent + ACTIVITY_MS - Date.now()),
+  );
+  activityTimer.unref();
+}
+
+async function sendActivity() {
+  const now = Date.now();
+  const tool = [...openTools.values()].sort((a, b) => a.since - b.since)[0];
+  const shown = [...tasks.values()].filter(
+    (t) => t.state === "running" || now - t.lastAt < FINISHED_TASK_SHOWN_MS,
+  );
+  const payload = {
+    idleMs: now - lastEventAt,
+    ...(tool ? { tool: { name: tool.name, forMs: now - tool.since } } : {}),
+    tasks: shown.map((t) => ({
+      label: redact(t.label),
+      state: t.state,
+      idleMs: now - t.lastAt,
+      ...(t.summary ? { summary: redact(t.summary) } : {}),
+    })),
+  };
+  // Nothing to show, and the card already shows nothing: skip the write.
+  const empty = !tool && payload.tasks.length === 0;
+  if (empty && lastActivityEmpty) return;
+  lastActivityEmpty = empty;
+  if (DRY) return console.log("[activity]", JSON.stringify(payload));
+  await runnerMutation("runner:activity", payload);
+}
+
+// The agent session ended: nothing is open any more, so the card drops the line.
+async function clearActivity() {
+  if (activityTimer) clearTimeout(activityTimer);
+  activityTimer = null;
+  openTools.clear();
+  tasks.clear();
+  taskByToolUse.clear();
+  await sendActivity();
+}
+
+// Which subagent a message came from, for the log.
+const agentLabel = (toolUseId: string) =>
+  agentLabels.get(toolUseId) ?? tasks.get(taskByToolUse.get(toolUseId) ?? "")?.label ?? "subagent";
+
+function describeInput(name: string, input: unknown) {
+  const o = (input ?? {}) as Record<string, unknown>;
+  if (typeof o.command === "string")
+    return `${name}: $ ${o.command}${o.run_in_background ? " (background)" : ""}`;
+  if (typeof o.file_path === "string" && !("content" in o) && !("old_string" in o))
+    return `${name}: ${o.file_path}`;
+  return `${name}: ${JSON.stringify(o)}`;
+}
+
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((c: { type?: string; text?: string }) =>
+      c.type === "text" ? (c.text ?? "") : `[${c.type ?? "content"}]`,
+    )
+    .join("\n");
 }
 
 // --- Shell ------------------------------------------------------------------------------
@@ -114,7 +270,10 @@ function sh(cmd: string, opts: { quiet?: boolean } = {}) {
     env: { ...env, RUN_TOKEN: "" },
   });
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-  if (!opts.quiet) console.log(`$ ${cmd}\n${out.slice(-4000)}`);
+  if (!opts.quiet) {
+    console.log(`$ ${cmd}\n${out.slice(-4000)}`);
+    log("shell", `$ ${cmd}${r.status === 0 ? "" : ` (exit ${r.status})`}\n${tail(out.trim(), 2500)}`);
+  }
   return { ok: r.status === 0, out };
 }
 function must(cmd: string) {
@@ -242,6 +401,7 @@ async function* agentInput(first: string, isDone: () => boolean, waitForDone: Pr
     if (isDone()) return;
     for (const f of await claimFollowUps()) {
       await step(`Reading a follow-up from ${f.author}`);
+      log("info", `Follow-up from ${f.author}:\n${f.text}`);
       yield userMessage(
         `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",
@@ -267,6 +427,15 @@ async function saveSession(id: string) {
 
 // `outOfTurns`: the agent hit maxTurns before returning its result. Its edits are kept.
 async function runAgent(input: string, resume?: string) {
+  log("info", `${resume ? "Resuming the agent session with" : "Starting the agent with"}:\n${input}`);
+  try {
+    return await runAgentSession(input, resume);
+  } finally {
+    await clearActivity();
+  }
+}
+
+async function runAgentSession(input: string, resume?: string) {
   const { query } = await loadSdk();
   let done = false;
   let markDone = () => {};
@@ -285,6 +454,9 @@ async function runAgent(input: string, resume?: string) {
       resume,
       effort: EFFORT,
       maxTurns: 150,
+      // Subagents' own text and periodic summaries, for the log and the card's heartbeat.
+      forwardSubagentText: true,
+      agentProgressSummaries: true,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       settingSources: ["project"], // loads CLAUDE.md
@@ -305,18 +477,80 @@ async function runAgent(input: string, resume?: string) {
   });
 
   for await (const msg of q) {
-    if (msg.type === "system" && msg.subtype === "init") {
-      sessionId = msg.session_id;
-      await saveSession(sessionId);
+    if (msg.type === "system") {
+      const now = Date.now();
+      switch (msg.subtype) {
+        case "init":
+          sessionId = msg.session_id;
+          log("info", `Agent session ${resume ? "resumed" : "started"} (${msg.model})`);
+          await saveSession(sessionId);
+          break;
+        case "task_started":
+          if (msg.ambient || msg.skip_transcript) break;
+          tasks.set(msg.task_id, {
+            // Subagents show their description; background commands are marked as such.
+            label: msg.task_type === "local_bash" ? `Command: ${msg.description}` : msg.description,
+            state: "running",
+            lastAt: now,
+          });
+          if (msg.tool_use_id) taskByToolUse.set(msg.tool_use_id, msg.task_id);
+          log(
+            "task",
+            `Started ${msg.subagent_type ?? msg.task_type ?? "task"}${msg.is_backgrounded ? " in the background" : ""}: ${msg.description}`,
+          );
+          touch();
+          break;
+        case "task_progress": {
+          const task = tasks.get(msg.task_id);
+          if (!task) break;
+          task.lastAt = now;
+          if (msg.summary) task.summary = msg.summary;
+          touch();
+          break;
+        }
+        case "task_updated": {
+          const task = tasks.get(msg.task_id);
+          const s = msg.patch.status;
+          if (!task || !s) break;
+          if (s === "completed") task.state = "done";
+          else if (s === "failed") task.state = "failed";
+          else if (s === "killed") task.state = "stopped";
+          touch();
+          break;
+        }
+        case "task_notification": {
+          const task = tasks.get(msg.task_id);
+          if (!task) break;
+          task.state =
+            msg.status === "completed" ? "done" : msg.status === "failed" ? "failed" : "stopped";
+          task.lastAt = now;
+          const usage = msg.usage
+            ? ` (${msg.usage.tool_uses} tool calls, ${Math.round(msg.usage.duration_ms / 1000)}s)`
+            : "";
+          log("task", `${task.state === "done" ? "Finished" : task.state === "failed" ? "Failed" : "Stopped"}: ${task.label}${usage}\n${msg.summary}`);
+          touch();
+          break;
+        }
+      }
     }
-    if (msg.type === "assistant" && !msg.parent_tool_use_id) {
+    if (msg.type === "assistant") {
+      const sub = msg.parent_tool_use_id;
+      const agent = sub ? agentLabel(sub) : undefined;
+      touch(sub);
       for (const block of msg.message.content) {
-        // The agent narrates in short sentences between tool calls; those are its status lines.
         if (block.type === "text") {
-          const line = statusLine(block.text);
+          log("text", block.text, agent);
+          // The agent narrates in short sentences between tool calls; those are its status lines.
+          const line = sub ? null : statusLine(block.text);
           if (line) await step(line);
         } else if (block.type === "tool_use") {
-          const cmd = String((block.input as { command?: unknown }).command ?? "");
+          log("tool", describeInput(block.name, block.input), agent);
+          const input = (block.input ?? {}) as { command?: unknown; description?: unknown };
+          if (block.name === "Agent" || block.name === "Task")
+            agentLabels.set(block.id, String(input.description ?? "subagent").slice(0, 120));
+          if (sub) continue;
+          openTools.set(block.id, { name: block.name, since: Date.now() });
+          const cmd = String(input.command ?? "");
           console.log("[tool]", block.name, JSON.stringify(block.input).slice(0, 200));
           if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
             typechecked = true;
@@ -325,12 +559,23 @@ async function runAgent(input: string, resume?: string) {
         }
       }
     }
-    // Tool results are back: log newly changed files (the card lists files at the end).
+    // Tool results are back: log them, and newly changed files (the card lists files at the end).
     if (msg.type === "user") {
+      const sub = msg.parent_tool_use_id;
+      const agent = sub ? agentLabel(sub) : undefined;
+      touch(sub);
+      const content = msg.message.content;
+      if (Array.isArray(content))
+        for (const block of content) {
+          if (block.type !== "tool_result") continue;
+          if (!sub) openTools.delete(block.tool_use_id);
+          log(block.is_error ? "error" : "result", resultText(block.content), agent);
+        }
       for (const f of dirtyFiles())
         if (!reported.has(f)) {
           reported.add(f);
           console.log("[edited]", f);
+          log("info", `Changed ${f}`);
         }
     }
     if (msg.type === "result") {
@@ -339,6 +584,10 @@ async function runAgent(input: string, resume?: string) {
       done = true;
       markDone();
       sessionId = msg.session_id;
+      log(
+        msg.subtype === "success" ? "info" : "error",
+        `Agent finished (${msg.subtype}) after ${msg.num_turns} turns, ${Math.round(msg.duration_ms / 1000)}s`,
+      );
       await saveSession(sessionId);
       if (msg.subtype === "success")
         final = parseFinal(msg.structured_output, msg.result);
@@ -502,6 +751,7 @@ async function finish(result: RunnerResult) {
 main()
   .catch(async (err): Promise<RunnerResult> => {
     console.error(err);
+    log("error", err instanceof Error ? (err.stack ?? err.message) : String(err));
     // Usually saved already when the session started; make sure, before the key is retired.
     if (agentSessionId) await report({ sessionId: agentSessionId });
     const message = err instanceof Error ? err.message : String(err);
@@ -510,4 +760,9 @@ main()
       error: `Failed while ${lastStep.charAt(0).toLowerCase()}${lastStep.slice(1) || "starting"}: ${message.slice(0, 300)}`,
     };
   })
-  .then(finish);
+  .then(async (result) => {
+    // Finishing retires this run's key, so send the rest of the log first.
+    log("info", `Sending the result: ${result.outcome}`);
+    await flushLogs();
+    await finish(result);
+  });

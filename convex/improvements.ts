@@ -2,7 +2,7 @@
 // startFromMessage, which records a run, posts Claude's status card in the thread, and
 // asks the Next.js route /api/improve to start a Vercel Sandbox. The runner inside it
 // (scripts/improve-runner.ts) reports progress back through server.reportImprovement.
-import type { WithoutSystemFields } from "convex/server";
+import { paginationOptsValidator, type WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -14,6 +14,7 @@ import {
 } from "./_generated/server";
 import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
 import { recordActivity } from "./lib/activity";
+import { appendLogs } from "./lib/improveLogs";
 import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
@@ -243,10 +244,17 @@ export async function endRun(
   await ctx.db.patch(r._id, {
     ...patch,
     runTokenHash: undefined, // the sandbox's key stops working
+    activity: undefined,
     ...(first ? { finishedAt: Date.now() } : {}),
   });
   if (!first) return;
   const after = { ...r, ...patch };
+  await appendLogs(ctx, r._id, [
+    {
+      kind: after.status === "failed" ? "error" : "info",
+      text: `Run ended: ${after.status}${after.error ? `. ${after.error}` : ""}`,
+    },
+  ]);
   const reply = r.replyMessageId && (await ctx.db.get(r.replyMessageId));
   if (reply && (after.summary || after.error))
     await recordActivity(ctx, reply, Date.now());
@@ -314,6 +322,7 @@ export function cardOf(r: Doc<"improvements">) {
     error: r.error ?? null,
     startedAt: r.startedAt ?? null,
     finishedAt: r.finishedAt ?? null,
+    activity: r.status === "running" ? (r.activity ?? null) : null,
   };
 }
 export type ImprovementCard = ReturnType<typeof cardOf>;
@@ -376,5 +385,47 @@ export const forAdmin = query({
       revertPrUrl: r.revertPrUrl ?? null,
       adminId: viewer.member?._id ?? null,
     };
+  },
+});
+
+// /improvements/<id>/log. Admins only: the agent reads files and chat, and its log can quote
+// any of it.
+// `id` comes from the URL, so it's checked here rather than by the validator.
+export const logRun = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const id = ctx.db.normalizeId("improvements", args.id);
+    const r = id && (await ctx.db.get(id));
+    if (!r) return null;
+    const [channel, previous, next] = await Promise.all([
+      ctx.db.get(r.channelId),
+      r.previousId ? ctx.db.get(r.previousId) : null,
+      // A later run that continued this one, if any.
+      ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .filter((q) => q.eq(q.field("previousId"), r._id))
+        .first(),
+    ]);
+    return {
+      ...cardOf(r),
+      request: r.request,
+      effort: r.effort ?? null,
+      threadHref: `/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+      previous: previous ? { id: previous._id, number: previous.number } : null,
+      next: next ? { id: next._id, number: next.number } : null,
+    };
+  },
+});
+
+export const logs = query({
+  args: { id: v.id("improvements"), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { id, paginationOpts }) => {
+    await requireAdmin(ctx);
+    return await ctx.db
+      .query("improvementLogs")
+      .withIndex("by_improvement", (q) => q.eq("improvementId", id))
+      .paginate(paginationOpts);
   },
 });
