@@ -48,7 +48,7 @@ const RUNNER_REF = /^[0-9a-f]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA ?? ""
 type Body = {
   secret?: string;
   id?: string;
-  stop?: string; // a chat task's sandbox, stopped by Convex when its run ends
+  stop?: string; // a sandbox Convex stops: a chat task's when it ends, or a code run that didn't stop when asked
   runToken?: string;
   finish?: unknown;
 };

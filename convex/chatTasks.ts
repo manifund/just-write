@@ -302,7 +302,8 @@ export const messages = query({
 });
 
 // Stops a chat task's sandbox through the route's existing stop request (the sandbox has
-// no credentials to do it itself). Scheduled by improvements.endRun.
+// no credentials to do it itself). Scheduled by improvements.endRun, and by
+// improvements.forceStop for a code run that didn't stop when asked.
 export const stopSandbox = internalAction({
   args: { name: v.string() },
   handler: async (_ctx, { name }) => {
