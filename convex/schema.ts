@@ -278,10 +278,13 @@ export default defineSchema({
       }),
     ),
     postId: v.optional(v.id("messages")), // Claude's post of the draft, if it went out
+    // Main can't be merged into this PR cleanly (lib/improve-sync.ts). Cleared once it can.
+    conflictsWithMain: v.optional(v.boolean()),
   })
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])
-    .index("by_requester", ["requesterId"]),
+    .index("by_requester", ["requesterId"])
+    .index("by_pr", ["prNumber"]),
 
   // The detailed log of each @Claude run, for members (convex/lib/improveLogs.ts).
   improvementLogs: defineTable({

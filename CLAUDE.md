@@ -125,6 +125,14 @@ Admin actions:
 - Admins get Merge/Close/Revert on the card (`app/(portal)/(private)/improvements/actions.ts`, via `lib/github.ts`).
 - If an admin's Merge fails because the PR conflicts with main, `server.fixConflicts` starts a follow-up in the PR's thread on its own (its card then has the Merge button).
 
+Keeping open PRs current:
+
+- `lib/improve-sync.ts#syncOpenPrs` merges main into every open `claude/*` PR that's behind, with GitHub's update-branch (a real merge commit).
+- It runs after each of our merges (`lib/improve-finish.ts`, the admin Merge button, via `after()`), and every 30 minutes from the `sync open PRs` cron (`convex/prSync.ts#sweep` → `IMPROVE_URL` + `/sync`, `app/api/improve/sync/route.ts`), for merges done on GitHub.
+- It skips a PR while any code run in its thread is queued or running (`prSync.prState`), since `finishRun` refuses to push to a branch that moved.
+- A PR whose update fails because it conflicts gets `conflictsWithMain` on its card ("conflicts with newer changes"); the next clean check clears it.
+- It doesn't start runs on its own: an admin's Merge on that card starts `server.fixConflicts` as usual.
+
 Follow-ups:
 
 - A reply with `@Claude` in the same thread may continue one of the thread's open PRs.

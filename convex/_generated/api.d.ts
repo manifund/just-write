@@ -38,6 +38,7 @@ import type * as lib_viewer from "../lib/viewer.js";
 import type * as members from "../members.js";
 import type * as presence from "../presence.js";
 import type * as previewAccess from "../previewAccess.js";
+import type * as prSync from "../prSync.js";
 import type * as push from "../push.js";
 import type * as pushAction from "../pushAction.js";
 import type * as reminders from "../reminders.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   members: typeof members;
   presence: typeof presence;
   previewAccess: typeof previewAccess;
+  prSync: typeof prSync;
   push: typeof push;
   pushAction: typeof pushAction;
   reminders: typeof reminders;
