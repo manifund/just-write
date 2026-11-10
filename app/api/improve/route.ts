@@ -82,9 +82,10 @@ export async function POST(req: Request) {
   const brief = { ...claimed };
   const report = reporter(convex, id);
 
-  // Continue one of the thread's open PRs, or start a new one, depending on what was asked.
-  // Decided before the sandbox starts, since each branch has its own saved sandbox.
-  if (!brief.prNumber && brief.openPrs.length > 0) {
+  // Continue one of the thread's open PRs or a run that failed partway, or start a new PR,
+  // depending on what was asked. Decided before the sandbox starts, since each branch has
+  // its own saved sandbox.
+  if (!brief.prNumber && (brief.openPrs.length > 0 || brief.failedRun)) {
     const target = await pickTarget(brief);
     console.log("improve: target", id, target.pr?.prNumber ?? "new", target.why);
     const continued = target.pr
@@ -96,7 +97,10 @@ export async function POST(req: Request) {
       : null;
     if (continued) {
       Object.assign(brief, continued);
-      await report({ step: `Continuing PR #${continued.prNumber}` }).catch(() => {});
+      const label = continued.resumesFailedRun
+        ? `Picking up run #${continued.resumesFailedRun}`
+        : `Continuing PR #${continued.prNumber}`;
+      await report({ step: label }).catch(() => {});
     } else await report({ step: "Starting a new PR" }).catch(() => {});
   }
   await report({ step: "Starting a sandbox" }).catch(() => {});

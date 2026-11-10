@@ -23,7 +23,9 @@ import {
   commitFiles,
   compareWithMain,
   createPr,
+  getPr,
   mergePr,
+  updatePr,
   type FileChange,
 } from "@/lib/github";
 
@@ -39,7 +41,10 @@ export type RunnerResult =
       summary: string;
       details: string;
       checksPassed: boolean;
+      unfinished?: boolean; // the agent ran out of steps: open the PR, never merge it
     };
+
+const UNFINISHED = "(unfinished)";
 
 type Run = NonNullable<FunctionReturnType<typeof api.server.startFinish>>;
 type Report = (
@@ -84,6 +89,7 @@ export function parseResult(x: unknown): RunnerResult | null {
     summary: str(o.summary, 4000),
     details: str(o.details, 20_000),
     checksPassed: o.checksPassed === true,
+    unfinished: o.unfinished === true,
   };
 }
 
@@ -100,7 +106,7 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error("GITHUB_TOKEN isn’t set.");
   const { branch, request, requester, channel, threadUrl } = run;
-  const { summary, details, checksPassed } = result;
+  const { summary, details, checksPassed, unfinished } = result;
   const title = result.title ?? request.slice(0, 60);
 
   await report({ step: `Pushing ${branch}` });
@@ -122,20 +128,26 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
   const quoted = request.replace(/\n/g, "\n> ");
   let prNumber = run.prNumber;
   let prUrl = prNumber ? `https://github.com/${REPO}/pull/${prNumber}` : "";
+  const note = unfinished
+    ? `\n\n**${UNFINISHED}** The agent ran out of steps before finishing, so this won't merge on its own. Reply @Claude continue in the thread to keep going.`
+    : "";
   if (prNumber) {
-    await comment(token, prNumber, `Follow-up from ${requester} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}`);
+    await comment(token, prNumber, `Follow-up from ${requester} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}${note}`);
+    await retitle(token, prNumber, !!unfinished);
   } else {
     await report({ step: "Opening a pull request" });
     const pr = await createPr(token, {
       branch,
-      title,
-      body: `Asked by ${requester} in #${channel} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}\n\nChecks (run in the sandbox): ${checksPassed ? "typecheck and lint pass" : "**typecheck or lint failed**"}.${touchesConvex ? "\n\nChanges `convex/`: the production build deploys it on merge." : ""}\n\nOpened by @Claude from Just Write chat.`,
+      title: unfinished ? `${UNFINISHED} ${title}` : title,
+      body: `Asked by ${requester} in #${channel} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}\n\nChecks (run in the sandbox): ${checksPassed ? "typecheck and lint pass" : "**typecheck or lint failed**"}.${touchesConvex ? "\n\nChanges `convex/`: the production build deploys it on merge." : ""}\n\nOpened by @Claude from Just Write chat.${note}`,
     });
     prNumber = pr.number;
     prUrl = pr.html_url;
   }
 
-  const verdict = await decide(token, branch, request, checksPassed);
+  const verdict = unfinished
+    ? { merge: false, why: "unfinished: the agent ran out of steps" }
+    : await decide(token, branch, request, checksPassed);
   const common = {
     title,
     summary,
@@ -153,6 +165,16 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
   } else {
     await report({ patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) } });
   }
+}
+
+// Keeps "(unfinished)" at the front of a PR's title only while its latest run is unfinished.
+async function retitle(token: string, prNumber: number, unfinished: boolean) {
+  const pr = await getPr(token, prNumber);
+  const marked = pr.title.startsWith(`${UNFINISHED} `);
+  if (marked === unfinished) return;
+  await updatePr(token, prNumber, {
+    title: unfinished ? `${UNFINISHED} ${pr.title}` : pr.title.slice(UNFINISHED.length + 1),
+  });
 }
 
 // The changed files' contents, read straight from the sandbox's clone.

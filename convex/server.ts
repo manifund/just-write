@@ -244,6 +244,10 @@ export const claimImprovement = mutation({
         title: e.title ?? e.request.slice(0, 100),
         request: e.request.slice(0, 500),
       }));
+    // The run right before this one, if it failed after its sandbox started (out of steps,
+    // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
+    // reply in the thread picks it up (lib/improve-target.ts).
+    const failed = runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
     return {
       number: r.number,
       branch: r.branch,
@@ -253,6 +257,17 @@ export const claimImprovement = mutation({
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
       latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
+      failedRun: failed
+        ? {
+            id: failed._id,
+            run: failed.number,
+            prNumber: failed.prNumber ?? null,
+            title: failed.title ?? failed.request.slice(0, 100),
+            request: failed.request.slice(0, 500),
+          }
+        : null,
+      // Set by continuePr when this picks up a failed run.
+      resumesFailedRun: null as number | null,
       ...(await whoAndWhere(ctx, r)),
       thread,
     };
@@ -309,8 +324,10 @@ export async function checkRunToken(
   return r;
 }
 
-// Points a just-claimed run at an earlier run's open PR in the same thread, so it builds on
-// that branch. Returns what the runner needs, or null if that PR isn't open anymore.
+// Points a just-claimed run at an earlier run in the same thread, so it builds on that
+// branch: one with an open PR, or the run right before this one if it failed after its
+// sandbox started (its saved sandbox may still have its uncommitted edits and agent
+// session). Returns what the runner needs, or null if that run can't be continued.
 export const continuePr = mutation({
   args: {
     secret: v.string(),
@@ -320,15 +337,17 @@ export const continuePr = mutation({
   handler: async (ctx, { secret, id, previousId }) => {
     checkServerSecret(secret);
     const [r, prev] = await Promise.all([ctx.db.get(id), ctx.db.get(previousId)]);
-    if (
-      !r ||
-      !prev ||
-      r.status !== "running" ||
-      prev.threadId !== r.threadId ||
-      prev.status !== "pr" ||
-      !prev.prNumber
-    )
-      return null;
+    if (!r || !prev || r.status !== "running" || prev.threadId !== r.threadId) return null;
+    const openPr = prev.status === "pr" && !!prev.prNumber;
+    const failed = prev.status === "failed" && !!prev.sandboxId && prev.number < r.number;
+    if (failed) {
+      const later = await ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .collect();
+      if (later.some((e) => e.number > prev.number && e.number < r.number)) return null;
+    }
+    if (!openPr && !failed) return null;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,
@@ -337,8 +356,9 @@ export const continuePr = mutation({
     });
     return {
       branch: prev.branch,
-      prNumber: prev.prNumber,
+      prNumber: prev.prNumber ?? null,
       resumeSessionId: prev.sessionId ?? null,
+      resumesFailedRun: failed ? prev.number : null,
     };
   },
 });
