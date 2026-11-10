@@ -1,5 +1,6 @@
 // Smoke test for @Claude improvements: starts a Vercel Sandbox like /api/improve does, uploads
-// your local runner, and runs it as a dry run (no Convex reports, no push, no PR). Streams logs.
+// your local runner, and runs it as a dry run (no Convex reports, no push, no PR). Streams logs,
+// then shows the change the site would have pushed.
 //   bun scripts/improve-try.ts "Add a tooltip to the Send button"
 // Needs VERCEL_OIDC_TOKEN (vercel env pull) and OPENROUTER_API_KEY in .env.local.
 import { readFileSync } from "node:fs";
@@ -9,7 +10,6 @@ import { REPO, SANDBOX_ROOT } from "../convex/lib/improve";
 const request = process.argv[2] ?? "Add a tooltip to the chat Send button that says “Enter to send”.";
 const upload = [
   "scripts/improve-runner.ts",
-  "lib/github.ts",
   "convex/lib/improve.ts",
   "package.json",
   "bun.lock",
@@ -62,7 +62,7 @@ try {
     stderr: process.stderr,
   });
   console.log("exit", run.exitCode);
-  const show = await sandbox.runCommand("git", ["-C", SANDBOX_ROOT, "show", "HEAD"]);
+  const show = await sandbox.runCommand("git", ["-C", SANDBOX_ROOT, "diff", "--cached", "HEAD"]);
   console.log(await show.stdout());
 } finally {
   await sandbox.stop();

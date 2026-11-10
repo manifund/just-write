@@ -199,6 +199,8 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    // SHA-256 of the sandbox's key for this run (convex/runner.ts). Cleared when the run ends.
+    runTokenHash: v.optional(v.string()),
     error: v.optional(v.string()),
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),

@@ -138,7 +138,7 @@ export async function startFromMessage(
     .order("desc")
     .first();
   // If that run is still going, this one waits. The runner hands it to the agent mid-run
-  // (server.claimFollowUps); if the agent has already finished, it starts when the run ends
+  // (runner.followUps); if the agent has already finished, it starts when the run ends
   // (releaseWaiting).
   const busy =
     previous && (previous.status === "queued" || previous.status === "running")
@@ -242,6 +242,7 @@ export async function endRun(
   const first = !r.finishedAt;
   await ctx.db.patch(r._id, {
     ...patch,
+    runTokenHash: undefined, // the sandbox's key stops working
     ...(first ? { finishedAt: Date.now() } : {}),
   });
   if (!first) return;
