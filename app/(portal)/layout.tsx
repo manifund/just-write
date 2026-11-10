@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 // Root layout for the portal, separate from app/(site) so it can read the session cookie
 // on every request without making the public pages dynamic. Everything the sidebar links
 // to lives under it (member-only pages in (private), plus the public /members and
-// /improvements), so those are client-side navigations; coming in from the landing page
+// /calendar), so those are client-side navigations; coming in from the landing page
 // or /sign-in is a full page load, which is fine.
 //
 // The token streams in beside the page rather than wrapping it, so the page itself stays
