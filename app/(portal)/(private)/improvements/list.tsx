@@ -129,6 +129,12 @@ function List({ rows }: { rows: Row[] }) {
           not. Write “new PR” or “continue #40” to choose yourself. A reply that
           continues a PR keeps its effort unless it sets its own.
         </p>
+        <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
+          Write “chat task” instead to have Claude read the club’s chat, essays,
+          and calendar to answer a question or post something, like a weekly
+          recap in #published. Claude’s post says who asked for it, and they can
+          delete it.
+        </p>
       </header>
 
       <div className="flex flex-col border border-ink/15">

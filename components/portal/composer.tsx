@@ -60,6 +60,30 @@ type Attachment = {
 const MAX_IMAGES = 10;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+// Message boxes on screen, by saved-draft key, so addToComposer can reach them.
+const liveComposers = new Map<string, (doc: JSONContent) => void>();
+
+// Adds a (server-cleaned) Tiptap document to the end of a member's message box, e.g.
+// "Use this draft" on a chat task's card (improvement.tsx). Goes straight into the box if
+// it's on screen, otherwise into its saved draft, which it reads when it next opens.
+export function addToComposer(memberId: string, draftKey: string, body: string) {
+  const key = `jw-draft:${memberId}:${draftKey}`;
+  const content = ((JSON.parse(body) as JSONContent).content ?? []).filter(
+    (n) => n.type !== "image",
+  );
+  const live = liveComposers.get(key);
+  if (live) return live({ type: "doc", content });
+  try {
+    const saved = readDraft(key);
+    localStorage.setItem(
+      key,
+      JSON.stringify({ type: "doc", content: [...(saved?.content ?? []), ...content] }),
+    );
+  } catch {
+    // Storage can be full or blocked.
+  }
+}
+
 export function Composer({
   placeholder,
   onSend,
@@ -501,6 +525,22 @@ export function Composer({
     if (storageKey && editor && !editor.isDestroyed)
       writeDraft(storageKey, editor, images);
   }, [images, storageKey, editor]);
+
+  // Lets addToComposer add to this box while it's on screen.
+  useEffect(() => {
+    if (!storageKey || !editor) return;
+    const add = (doc: JSONContent) => {
+      if (editor.isDestroyed) return;
+      if (editor.isEmpty) editor.commands.setContent(doc);
+      else editor.commands.insertContentAt(editor.state.doc.content.size, doc.content ?? []);
+      editor.commands.focus("end");
+      writeDraft(storageKey, editor, imagesRef.current);
+    };
+    liveComposers.set(storageKey, add);
+    return () => {
+      if (liveComposers.get(storageKey) === add) liveComposers.delete(storageKey);
+    };
+  }, [storageKey, editor]);
 
   useLayoutEffect(() => {
     rosterRef.current = roster;
