@@ -2,7 +2,7 @@
 // Installs deps, runs the Claude Agent SDK on the request, and checks the result. Steps are
 // reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live,
 // along with a light heartbeat of what the agent and its subagents are doing between steps
-// and a detailed log for admins (/improvements/<id>/log).
+// and a detailed log for members (/improvements/<id>/log).
 // When it's done it sends the list of changed files to /api/improve, which reads them out of
 // the sandbox, pushes them, opens the PR, and decides whether it merges.
 //

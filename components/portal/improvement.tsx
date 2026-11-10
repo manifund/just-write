@@ -61,7 +61,7 @@ export function ImprovementCard({
         </p>
         <Steps steps={card.steps} />
         {card.activity && now && <Activity activity={card.activity} now={now} />}
-        {isAdmin && card.status === "running" && <LogLink id={card._id} />}
+        {card.status === "running" && <LogLink id={card._id} />}
       </div>
     );
 
@@ -97,7 +97,7 @@ export function ImprovementCard({
             </ul>
           )}
           {card.verdict && isAdmin && <p>Decision: {card.verdict}</p>}
-          {isAdmin && card.startedAt && <LogLink id={card._id} />}
+          {card.startedAt && <LogLink id={card._id} />}
         </div>
       </details>
     </div>
@@ -178,7 +178,7 @@ function Activity({
   );
 }
 
-// Admins only: the run's detailed log (app/(portal)/(private)/improvements/[id]/log).
+// The run's detailed log, for members (app/(portal)/(private)/improvements/[id]/log).
 function LogLink({ id }: { id: string }) {
   return (
     <Link

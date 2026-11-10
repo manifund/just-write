@@ -243,7 +243,7 @@ export default defineSchema({
     .index("by_thread", ["threadId"])
     .index("by_requester", ["requesterId"]),
 
-  // The detailed log of each @Claude run, for admins (convex/lib/improveLogs.ts).
+  // The detailed log of each @Claude run, for members (convex/lib/improveLogs.ts).
   improvementLogs: defineTable({
     improvementId: v.id("improvements"),
     seq: v.number(), // 1, 2, 3… within the run

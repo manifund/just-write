@@ -1,4 +1,4 @@
-// The detailed log of an @Claude run (/improvements/<id>/log, admins only). The runner sends
+// The detailed log of an @Claude run (/improvements/<id>/log, members only). The runner sends
 // what the agent does in batches (convex/runner.ts#log); checklist steps and the final status
 // are added here as they're reported, so the route's own steps (push, PR) show up too.
 import { v, type Infer } from "convex/values";

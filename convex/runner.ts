@@ -2,7 +2,7 @@
 // The sandbox never sees CONVEX_SERVER_SECRET: /api/improve gives it a random key for its own
 // run, and these accept only that key, only for that run, and only while it's going. They can
 // add checklist lines to the run's card, save the agent's session id, pick up follow-ups,
-// show what the agent is doing between lines, and add to the run's log (admins only).
+// show what the agent is doing between lines, and add to the run's log.
 // Everything else (pushing, the PR, the merge decision, the final status) happens in
 // /api/improve, which holds the real secrets.
 import { v } from "convex/values";

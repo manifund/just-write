@@ -3,11 +3,10 @@
 import { usePaginatedQuery, useQuery } from "convex/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { usePortal } from "@/components/portal/context";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 
-// The detailed log of one @Claude run, admins only (convex/improvements.ts#logs). Live while
+// The detailed log of one @Claude run, for members (convex/improvements.ts#logs). Live while
 // the run is going: new events land at the end of the last loaded page.
 const PAGE_SIZE = 300;
 // Results longer than this start folded.
@@ -37,13 +36,6 @@ const KIND: Record<Doc<"improvementLogs">["kind"], string> = {
 };
 
 export function RunLog() {
-  const { viewer } = usePortal();
-  if (!viewer.isAdmin)
-    return <p className="p-10 text-[18px] text-ink-muted">Admins only.</p>;
-  return <Log />;
-}
-
-function Log() {
   const { id } = useParams<{ id: string }>();
   const run = useQuery(api.improvements.logRun, { id });
   const paged = usePaginatedQuery(

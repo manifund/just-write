@@ -11,6 +11,7 @@ import {
   internalMutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
 import { recordActivity } from "./lib/activity";
@@ -388,13 +389,20 @@ export const forAdmin = query({
   },
 });
 
-// /improvements/<id>/log. Admins only: the agent reads files and chat, and its log can quote
-// any of it.
+// /improvements/<id>/log. Members only, like /improvements: the coding agent has no live site
+// data (no GitHub token or server secret in the sandbox, only public queries), so the member
+// content a log can hold is the chat thread it was asked in and its follow-ups, which every
+// member can already read. Runs that read club data (e.g. read-only chat tasks, PR #87) should
+// get admin-only logs: gate them in `canReadLog`.
+async function canReadLog(ctx: QueryCtx) {
+  await requireMember(ctx, { allowReadonly: true });
+}
+
 // `id` comes from the URL, so it's checked here rather than by the validator.
 export const logRun = query({
   args: { id: v.string() },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await canReadLog(ctx);
     const id = ctx.db.normalizeId("improvements", args.id);
     const r = id && (await ctx.db.get(id));
     if (!r) return null;
@@ -422,7 +430,7 @@ export const logRun = query({
 export const logs = query({
   args: { id: v.id("improvements"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { id, paginationOpts }) => {
-    await requireAdmin(ctx);
+    await canReadLog(ctx);
     return await ctx.db
       .query("improvementLogs")
       .withIndex("by_improvement", (q) => q.eq("improvementId", id))
