@@ -159,7 +159,8 @@ export async function startFromMessage(
   // waits for the other.
   const busy =
     earlier.find(
-      (r) => r.kind === kind && (r.status === "queued" || r.status === "running"),
+      (r) =>
+        r.kind === kind && (r.status === "queued" || r.status === "running"),
     ) ?? null;
 
   const number = (recent[0]?.number ?? 0) + 1;
@@ -174,7 +175,9 @@ export async function startFromMessage(
     status: "queued",
     steps: [
       {
-        label: busy ? "Waiting for the request above to finish" : "Getting started",
+        label: busy
+          ? "Waiting for the request above to finish"
+          : "Getting started",
         state: "active",
       },
     ],
@@ -188,14 +191,18 @@ export async function startFromMessage(
     improvementId: id,
   });
   await ctx.db.patch(id, { replyMessageId });
-  if (!busy) await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
+  if (!busy)
+    await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
   return replyMessageId;
 }
 
 // Called when a run ends (any final status). Starts the follow-up that was waiting on it.
 // The kick is delayed so the finished run's sandbox, which the follow-up may reuse, has time
 // to stop first.
-export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvements">) {
+export async function releaseWaiting(
+  ctx: MutationCtx,
+  finished: Doc<"improvements">,
+) {
   const waiters = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", finished.threadId))
@@ -205,13 +212,17 @@ export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvemen
     await ctx.db.patch(w._id, {
       waitingOn: undefined,
       steps: [
-        ...w.steps.map((s) => (s.state === "active" ? { ...s, state: "done" as const } : s)),
+        ...w.steps.map((s) =>
+          s.state === "active" ? { ...s, state: "done" as const } : s,
+        ),
         { label: "Getting started", state: "active" as const },
       ],
     });
     // No sandbox to wait for after a chat task: each one gets a throwaway sandbox.
     const delay = finished.kind === "chat" ? 1000 : 60_000;
-    await ctx.scheduler.runAfter(delay, internal.improvements.kick, { id: w._id });
+    await ctx.scheduler.runAfter(delay, internal.improvements.kick, {
+      id: w._id,
+    });
   }
 }
 
@@ -237,10 +248,14 @@ export const kick = internalAction({
     if (error) {
       console.error(`improve kick failed (attempt ${attempt})`, id, error);
       if (attempt < KICK_ATTEMPTS) {
-        await ctx.scheduler.runAfter(30_000 * attempt, internal.improvements.kick, {
-          id,
-          attempt: attempt + 1,
-        });
+        await ctx.scheduler.runAfter(
+          30_000 * attempt,
+          internal.improvements.kick,
+          {
+            id,
+            attempt: attempt + 1,
+          },
+        );
         return;
       }
       await ctx.runMutation(internal.improvements.markFailed, {
@@ -317,8 +332,11 @@ export const stop = mutation({
     const r = await ctx.db.get(id);
     if (!r) throw new ConvexError("That request is gone.");
     if (r.requesterId !== viewer.member._id && !viewer.isAdmin)
-      throw new ConvexError("Only the person who asked, or an admin, can stop this.");
-    if ((r.status !== "queued" && r.status !== "running") || r.stopRequestedAt) return;
+      throw new ConvexError(
+        "Only the person who asked, or an admin, can stop this.",
+      );
+    if ((r.status !== "queued" && r.status !== "running") || r.stopRequestedAt)
+      return;
     const now = Date.now();
     const stopped = { stoppedBy: viewer.member._id, stopRequestedAt: now };
     if (r.status === "queued" || r.kind === "chat")
@@ -329,11 +347,20 @@ export const stop = mutation({
     await ctx.db.patch(id, {
       ...stopped,
       steps: [
-        ...r.steps.map((s) => (s.state === "active" ? { ...s, state: "done" as const } : s)),
-        { label: `Stopping, as ${viewer.member.name} asked`, state: "active" as const },
+        ...r.steps.map((s) =>
+          s.state === "active" ? { ...s, state: "done" as const } : s,
+        ),
+        {
+          label: `Stopping, as ${viewer.member.name} asked`,
+          state: "active" as const,
+        },
       ].slice(-40),
     });
-    await ctx.scheduler.runAfter(STOP_GRACE_MS, internal.improvements.forceStop, { id });
+    await ctx.scheduler.runAfter(
+      STOP_GRACE_MS,
+      internal.improvements.forceStop,
+      { id },
+    );
   },
 });
 
@@ -347,7 +374,9 @@ export const forceStop = internalMutation({
     const by = r.stoppedBy && (await ctx.db.get(r.stoppedBy));
     await failRun(ctx, r, `Stopped by ${by?.name ?? "a member"}.`);
     if (r.kind !== "chat" && r.sandboxId)
-      await ctx.scheduler.runAfter(0, internal.chatTasks.stopSandbox, { name: r.sandboxId });
+      await ctx.scheduler.runAfter(0, internal.chatTasks.stopSandbox, {
+        name: r.sandboxId,
+      });
   },
 });
 
@@ -382,7 +411,8 @@ export function cardOf(r: Doc<"improvements">) {
     status: r.status,
     waiting: !!r.waitingOn,
     requesterId: r.requesterId,
-    stopping: !!r.stopRequestedAt && (r.status === "queued" || r.status === "running"),
+    stopping:
+      !!r.stopRequestedAt && (r.status === "queued" || r.status === "running"),
     stopped: !!r.stoppedBy,
     steps: r.steps,
     branch: r.branch,
@@ -451,7 +481,9 @@ export const forAdmin = query({
     const viewer = await requireAdmin(ctx);
     // A query, but it gates the Merge/Close/Revert actions, so read-only sessions can't use it.
     if (viewer.readonly)
-      throw new ConvexError("This is a read-only preview, so changes aren’t saved.");
+      throw new ConvexError(
+        "This is a read-only preview, so changes aren’t saved.",
+      );
     const r = await ctx.db.get(id);
     if (!r) return null;
     return {

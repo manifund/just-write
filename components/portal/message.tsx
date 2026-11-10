@@ -457,24 +457,24 @@ export function Message({
               )}
               {(mine || viewer.isAdmin || m.postedFor?.memberId === me._id) &&
                 !m.essay && (
-                <ActionButton
-                  label="Delete"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
+                  <ActionButton
+                    label="Delete"
+                    onClick={() => setConfirmDelete(true)}
                   >
-                    <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" />
-                  </svg>
-                </ActionButton>
-              )}
+                    <svg
+                      aria-hidden="true"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                    >
+                      <path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13" />
+                    </svg>
+                  </ActionButton>
+                )}
             </>
           )}
         </div>

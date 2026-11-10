@@ -74,7 +74,10 @@ const startedAt = Date.now();
 // The firewall in front of a chat task decrypts model API requests to add the key, so make
 // sure Node and Bun trust the system's certificates, where its certificate would be.
 if (CHAT && !env.NODE_EXTRA_CA_CERTS)
-  for (const f of ["/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt"])
+  for (const f of [
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/certs/ca-certificates.crt",
+  ])
     if (existsSync(f)) {
       env.NODE_EXTRA_CA_CERTS = f;
       break;
@@ -98,7 +101,10 @@ type Report = {
 };
 
 // Calls a convex/runner.ts mutation for this run. Null if it failed; callers keep working.
-async function runnerMutation(path: string, args: Record<string, unknown> = {}) {
+async function runnerMutation(
+  path: string,
+  args: Record<string, unknown> = {},
+) {
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
@@ -165,8 +171,7 @@ function sh(cmd: string, opts: { quiet?: boolean } = {}) {
 }
 function must(cmd: string) {
   const r = sh(cmd);
-  if (!r.ok)
-    throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
+  if (!r.ok) throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
   return r.out.trim();
 }
 const tail = (s: string, n = 6000) => (s.length > n ? `…${s.slice(-n)}` : s);
@@ -236,9 +241,7 @@ type Final = {
 };
 
 function prompt() {
-  const thread = brief.thread
-    .map((m) => `${m.author}: ${m.text}`)
-    .join("\n\n");
+  const thread = brief.thread.map((m) => `${m.author}: ${m.text}`).join("\n\n");
   return [
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
@@ -264,7 +267,10 @@ function prompt() {
 function statusLine(text: string) {
   const t = text.trim();
   if (!t) return null;
-  const first = t.split(/(?<=[.!?:])\s|\n/)[0].replace(/[:.]$/, "").trim();
+  const first = t
+    .split(/(?<=[.!?:])\s|\n/)[0]
+    .replace(/[:.]$/, "")
+    .trim();
   // Long sentences are usually reasoning, not narration; skip them rather than truncate.
   return first.length >= 8 && first.length <= 100 ? first : null;
 }
@@ -272,7 +278,8 @@ function statusLine(text: string) {
 // The agent's structured result, or (if it somehow didn't return one) its last message.
 function parseFinal(structured: unknown, text: string): Final {
   const o = (structured ?? {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+  const str = (k: string) =>
+    typeof o[k] === "string" ? (o[k] as string).trim() : "";
   if (CHAT && str("chat"))
     return {
       title: null,
@@ -286,7 +293,11 @@ function parseFinal(structured: unknown, text: string): Final {
         : undefined,
     };
   if (str("chat"))
-    return { title: str("title").slice(0, 100) || null, summary: str("chat"), details: str("details") };
+    return {
+      title: str("title").slice(0, 100) || null,
+      summary: str("chat"),
+      details: str("details"),
+    };
   // Fallback: a "TITLE: ..." line anywhere in the text, everything else as the summary.
   const m = text.match(/^TITLE:\s*(.+)$/m);
   const title = m?.[1].trim();
@@ -323,7 +334,11 @@ const userMessage = (
 // in at priority "next", so the agent reads them after its current tool call, like a message
 // typed into Claude Code mid-task. The stream ends once the agent has returned its result;
 // later follow-ups wait and start as their own run (convex/improvements.ts#releaseWaiting).
-async function* agentInput(first: string, isDone: () => boolean, waitForDone: Promise<void>) {
+async function* agentInput(
+  first: string,
+  isDone: () => boolean,
+  waitForDone: Promise<void>,
+) {
   yield userMessage(first);
   while (!isDone()) {
     await Promise.race([
@@ -347,7 +362,9 @@ async function loadSdk() {
   const path = createRequire(`${CHAT ? AGENT_DIR : ROOT}/package.json`).resolve(
     "@anthropic-ai/claude-agent-sdk",
   );
-  return (await import(pathToFileURL(path).href)) as typeof import("@anthropic-ai/claude-agent-sdk");
+  return (await import(
+    pathToFileURL(path).href
+  )) as typeof import("@anthropic-ai/claude-agent-sdk");
 }
 
 // The latest agent session, saved to the run as soon as it starts so a failed run (out of
@@ -365,7 +382,10 @@ async function runAgent(input: string, resume?: string) {
   // A chat task has to finish before its sandbox stops.
   const abortController = new AbortController();
   const timer = CHAT
-    ? setTimeout(() => abortController.abort(), Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()))
+    ? setTimeout(
+        () => abortController.abort(),
+        Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()),
+      )
     : null;
   timer?.unref();
   let done = false;
@@ -427,8 +447,14 @@ async function runAgent(input: string, resume?: string) {
             const line = statusLine(block.text);
             if (line) await step(line);
           } else if (block.type === "tool_use") {
-            const cmd = String((block.input as { command?: unknown }).command ?? "");
-            console.log("[tool]", block.name, JSON.stringify(block.input).slice(0, 200));
+            const cmd = String(
+              (block.input as { command?: unknown }).command ?? "",
+            );
+            console.log(
+              "[tool]",
+              block.name,
+              JSON.stringify(block.input).slice(0, 200),
+            );
             if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
               typechecked = true;
               await step("Typechecking");
@@ -454,7 +480,8 @@ async function runAgent(input: string, resume?: string) {
         if (msg.subtype === "success")
           final = parseFinal(msg.structured_output, msg.result);
         else if (msg.subtype === "error_max_turns") outOfTurns = true;
-        else if (!stoppedBy) throw new Error(`The agent stopped early (${msg.subtype}).`);
+        else if (!stoppedBy)
+          throw new Error(`The agent stopped early (${msg.subtype}).`);
       }
     }
   } catch (err) {
@@ -505,8 +532,11 @@ const OUT_OF_TURNS = "I ran out of steps before finishing.";
 // Every file that differs from `base` (tracked, new, and deleted), with its git file mode.
 function changedFiles(base: string): ChangedFile[] {
   must("git add -A");
-  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, { quiet: true });
-  if (!r.ok) throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
+  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, {
+    quiet: true,
+  });
+  if (!r.ok)
+    throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
   // -z output: ":<old mode> <new mode> <old sha> <new sha> <status>" NUL "<path>" NUL ...
   const parts = r.out.split("\0");
   const files: ChangedFile[] = [];
@@ -517,7 +547,8 @@ function changedFiles(base: string): ChangedFile[] {
     const [, mode] = meta.slice(1).split(" ");
     if (meta.endsWith("D")) files.push({ path, mode: null });
     else if (mode === "100644" || mode === "100755") files.push({ path, mode });
-    else throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
+    else
+      throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
   }
   return files;
 }
@@ -530,7 +561,9 @@ function postProblem(post: Final["post"]) {
   if (!post) return null;
   let channels: string[] = [];
   try {
-    const about = JSON.parse(readFileSync(`${CLUB_DIR}/about.json`, "utf8")) as {
+    const about = JSON.parse(
+      readFileSync(`${CLUB_DIR}/about.json`, "utf8"),
+    ) as {
       channels?: { slug: string }[];
     };
     channels = (about.channels ?? []).map((c) => c.slug);
@@ -547,7 +580,11 @@ function postProblem(post: Final["post"]) {
 }
 
 type ChatResult =
-  | { outcome: "answered"; summary: string; post?: { channel: string; markdown: string } }
+  | {
+      outcome: "answered";
+      summary: string;
+      post?: { channel: string; markdown: string };
+    }
   | { outcome: "failed"; error: string };
 
 async function chatMain(): Promise<ChatResult> {
@@ -578,7 +615,11 @@ async function chatMain(): Promise<ChatResult> {
 // Sends a chat task's result to Convex (chatTasks.finish), which posts it and ends the run.
 // A few tries: if it never gets through, the run is marked failed when it goes stale.
 async function finishChat(result: ChatResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt));
     if (await runnerMutation("chatTasks:finish", result)) return;
@@ -618,17 +659,22 @@ async function main(): Promise<RunnerResult> {
   const base = must("git rev-parse HEAD");
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
-  const resume = RESUMED_SANDBOX ? (brief.resumeSessionId ?? undefined) : undefined;
+  const resume = RESUMED_SANDBOX
+    ? (brief.resumeSessionId ?? undefined)
+    : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
-  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch((err) => {
-    if (!resume) throw err;
-    console.error("resume failed; starting a new session", err);
-    return runAgent(prompt());
-  });
+  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch(
+    (err) => {
+      if (!resume) throw err;
+      console.error("resume failed; starting a new session", err);
+      return runAgent(prompt());
+    },
+  );
 
   if (changedFiles(base).length === 0) {
-    if (stoppedBy) return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
+    if (stoppedBy)
+      return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
     return { outcome: "answered", summary: final.summary };
   }
@@ -638,7 +684,11 @@ async function main(): Promise<RunnerResult> {
   // Out of steps: push what's there as an unfinished PR for a follow-up to finish, without
   // spending more turns on fixes.
   // Stopped: the same, without asking the agent for anything more.
-  for (let attempt = 0; !outOfTurns && !stoppedBy && !check.ok && attempt < 2; attempt++) {
+  for (
+    let attempt = 0;
+    !outOfTurns && !stoppedBy && !check.ok && attempt < 2;
+    attempt++
+  ) {
     await step("Fixing typecheck and lint errors");
     ({ final, sessionId, outOfTurns } = await runAgent(
       `The harness's checks failed:\n\n${check.output}\n\nFix these, run the checks again, and return the structured result again, covering the whole change.`,
@@ -649,7 +699,8 @@ async function main(): Promise<RunnerResult> {
   }
   const files = changedFiles(base);
   if (files.length === 0) {
-    if (stoppedBy) return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
+    if (stoppedBy)
+      return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
     return { outcome: "answered", summary: final.summary };
   }
@@ -677,12 +728,20 @@ async function main(): Promise<RunnerResult> {
 
 // Hands the result to /api/improve, which pushes it, updates the card, and stops this sandbox.
 async function finish(result: RunnerResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   try {
     const res = await fetch(env.IMPROVE_URL!, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: env.IMPROVEMENT_ID, runToken: RUN_TOKEN, finish: result }),
+      body: JSON.stringify({
+        id: env.IMPROVEMENT_ID,
+        runToken: RUN_TOKEN,
+        finish: result,
+      }),
     });
     if (!res.ok) console.error("finish failed", res.status, await res.text());
   } catch (err) {

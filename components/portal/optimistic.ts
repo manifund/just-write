@@ -92,9 +92,7 @@ export function useEditMessage() {
       }
       if (!cleaned.text) return;
       updateMessages(store, (m) =>
-        m._id === messageId
-          ? { ...m, ...cleaned, editedAt: Date.now() }
-          : m,
+        m._id === messageId ? { ...m, ...cleaned, editedAt: Date.now() } : m,
       );
     },
   );
@@ -123,7 +121,9 @@ export function useRemoveMessage() {
 export function useToggleVote() {
   return useMutation(api.ideas.toggleVote).withOptimisticUpdate(
     (store, { ideaId }) => {
-      const flip = <T extends { _id: Id<"ideas">; votes: number; voted: boolean }>(
+      const flip = <
+        T extends { _id: Id<"ideas">; votes: number; voted: boolean },
+      >(
         list: T[],
       ) =>
         list.map((i) =>

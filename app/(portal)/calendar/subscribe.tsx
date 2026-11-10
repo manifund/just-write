@@ -36,11 +36,12 @@ export function Subscribe({ onClose }: { onClose: () => void }) {
               >
                 Open in Google Calendar
               </a>
-
             </>
           ) : (
             <p className="text-[16px] text-ink-muted">
-              {info === undefined ? "Loading…" : "Not set up yet. Use the link below."}
+              {info === undefined
+                ? "Loading…"
+                : "Not set up yet. Use the link below."}
             </p>
           )}
         </section>
@@ -48,8 +49,8 @@ export function Subscribe({ onClose }: { onClose: () => void }) {
         <section className="flex flex-col gap-3">
           <h3 className={h3}>Apple Calendar, Outlook, and others</h3>
           <p className="text-[16px] leading-[1.5]">
-            Subscribe with your personal link. It updates about hourly. Keep it private, since it
-            includes addresses.
+            Subscribe with your personal link. It updates about hourly. Keep it
+            private, since it includes addresses.
           </p>
           {url ? (
             <div className="flex flex-col gap-2">

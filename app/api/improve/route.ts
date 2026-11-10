@@ -23,7 +23,11 @@ import {
   sandboxNameFor,
 } from "@/convex/lib/improve";
 import { serverSecret } from "@/lib/auth-server";
-import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "@/lib/chat-task-sandbox";
+import {
+  KEY_PLACEHOLDER,
+  SETUP,
+  chatTaskPolicy,
+} from "@/lib/chat-task-sandbox";
 import { readClub } from "@/lib/club-snapshot";
 import { finishRun, parseResult } from "@/lib/improve-finish";
 import { pickTarget } from "@/lib/improve-target";
@@ -41,7 +45,9 @@ const RETRY_DELAYS_MS = [10_000, 30_000];
 // The runner is always the one from the commit this site was deployed from, not whatever is
 // in the sandbox's clone (a saved sandbox is on a PR's branch, which can have an older one).
 const RUNNER_DIR = "/tmp/improve-runner";
-const RUNNER_REF = /^[0-9a-f]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA ?? "")
+const RUNNER_REF = /^[0-9a-f]{40}$/.test(
+  process.env.VERCEL_GIT_COMMIT_SHA ?? "",
+)
   ? process.env.VERCEL_GIT_COMMIT_SHA!
   : "main";
 
@@ -101,7 +107,12 @@ export async function POST(req: Request) {
   // its own saved sandbox.
   if (!brief.prNumber && (brief.openPrs.length > 0 || brief.failedRun)) {
     const target = await pickTarget(brief);
-    console.log("improve: target", id, target.pr?.prNumber ?? "new", target.why);
+    console.log(
+      "improve: target",
+      id,
+      target.pr?.prNumber ?? "new",
+      target.why,
+    );
     const continued = target.pr
       ? await convex.mutation(api.server.continuePr, {
           secret,
@@ -133,10 +144,18 @@ export async function POST(req: Request) {
     try {
       // A saved sandbox that failed once (for example its snapshot is gone) gets replaced.
       const sandbox = await startSandbox({ discardSaved: resumeFailed });
-      return Response.json({ ok: true, sandbox: sandbox.name, attempt: attempt + 1 });
+      return Response.json({
+        ok: true,
+        sandbox: sandbox.name,
+        attempt: attempt + 1,
+      });
     } catch (err) {
       lastError = err;
-      console.error(`improve: couldn't start (attempt ${attempt + 1})`, id, err);
+      console.error(
+        `improve: couldn't start (attempt ${attempt + 1})`,
+        id,
+        err,
+      );
     }
   }
   console.error("improve: giving up", id, lastError);
@@ -174,17 +193,25 @@ export async function POST(req: Request) {
         // A second try (up to ~150s) that can't finish within this function's 300s would
         // leave the run stuck until it's reaped.
         if (Date.now() - requestStart > 130_000) break;
-        await report({ step: "Couldn’t start the sandbox, trying again (2 of 2)" }).catch(
-          () => {},
-        );
+        await report({
+          step: "Couldn’t start the sandbox, trying again (2 of 2)",
+        }).catch(() => {});
         await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[0]));
       }
       try {
         const sandbox = await startChatSandbox(files);
-        return Response.json({ ok: true, sandbox: sandbox.name, attempt: attempt + 1 });
+        return Response.json({
+          ok: true,
+          sandbox: sandbox.name,
+          attempt: attempt + 1,
+        });
       } catch (err) {
         lastError = err;
-        console.error(`improve: couldn't start chat task (attempt ${attempt + 1})`, id, err);
+        console.error(
+          `improve: couldn't start chat task (attempt ${attempt + 1})`,
+          id,
+          err,
+        );
       }
     }
     console.error("improve: giving up", id, lastError);
@@ -199,7 +226,11 @@ export async function POST(req: Request) {
     let sandbox: Sandbox | null = null;
     try {
       sandbox = await Sandbox.create({
-        source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 1 },
+        source: {
+          type: "git",
+          url: `https://github.com/${REPO}.git`,
+          depth: 1,
+        },
         resources: { vcpus: 2 },
         timeout: CHAT_TIMEOUT_MS,
         persistent: false,
@@ -225,7 +256,10 @@ export async function POST(req: Request) {
         ),
       });
       await sandbox.writeFiles([
-        { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
+        {
+          path: "/tmp/brief.json",
+          content: Buffer.from(JSON.stringify(brief)),
+        },
         ...files,
       ]);
       await sandbox.runCommand({
@@ -251,7 +285,11 @@ export async function POST(req: Request) {
     }
   }
 
-  async function startSandbox({ discardSaved }: { discardSaved: boolean }): Promise<Sandbox> {
+  async function startSandbox({
+    discardSaved,
+  }: {
+    discardSaved: boolean;
+  }): Promise<Sandbox> {
     let sandbox: Sandbox | null = null;
     let fresh = false;
     try {
@@ -267,7 +305,11 @@ export async function POST(req: Request) {
       sandbox = await Sandbox.getOrCreate({
         name,
         resume: true,
-        source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 50 },
+        source: {
+          type: "git",
+          url: `https://github.com/${REPO}.git`,
+          depth: 50,
+        },
         resources: { vcpus: 4 },
         timeout: RUN_TIMEOUT_MS,
         persistent: true,
@@ -284,13 +326,17 @@ export async function POST(req: Request) {
       await report({ patch: { sandboxId: sandbox.name } });
 
       await sandbox.writeFiles([
-        { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
+        {
+          path: "/tmp/brief.json",
+          content: Buffer.from(JSON.stringify(brief)),
+        },
       ]);
       const bun = await sandbox.runCommand("bash", [
         "-c",
         "command -v bun >/dev/null || [ -x ~/.bun/bin/bun ] || curl -fsSL https://bun.sh/install | bash",
       ]);
-      if (bun.exitCode !== 0) throw new Error(`bun install failed: ${await bun.stderr()}`);
+      if (bun.exitCode !== 0)
+        throw new Error(`bun install failed: ${await bun.stderr()}`);
 
       const runner = await sandbox.runCommand({
         cmd: "bash",
@@ -360,12 +406,17 @@ async function finish(body: Body) {
     const message = err instanceof Error ? err.message : String(err);
     await report({
       fail: true,
-      patch: { status: "failed", error: `Failed while pushing: ${message.slice(0, 300)}` },
+      patch: {
+        status: "failed",
+        error: `Failed while pushing: ${message.slice(0, 300)}`,
+      },
     }).catch(() => {});
     return new Response("Couldn't finish", { status: 500 });
   } finally {
     if (run.sandboxId) {
-      const sandbox = await Sandbox.get({ name: run.sandboxId }).catch(() => null);
+      const sandbox = await Sandbox.get({ name: run.sandboxId }).catch(
+        () => null,
+      );
       await sandbox?.stop().catch(() => {});
     }
   }

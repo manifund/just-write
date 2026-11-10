@@ -1,7 +1,5 @@
 {
-  "regions": [
-    "pdx1"
-  ],
+  "regions": ["pdx1"],
   "buildCommand": "if [ \"$VERCEL_ENV\" = production ]; then bunx convex dev --once; fi && bun run build",
   "redirects": [
     {

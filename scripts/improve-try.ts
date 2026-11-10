@@ -10,7 +10,11 @@
 import { readFileSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
 import { REPO, SANDBOX_ROOT, parseEffort } from "../convex/lib/improve";
-import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "../lib/chat-task-sandbox";
+import {
+  KEY_PLACEHOLDER,
+  SETUP,
+  chatTaskPolicy,
+} from "../lib/chat-task-sandbox";
 import { CLUB_DIR, CLUB_README } from "../lib/club-snapshot";
 
 const chat = process.argv[2] === "--chat";
@@ -36,12 +40,40 @@ const sampleClub = {
     truncated: false,
   },
   "members.json": [
-    { name: "Ada Example", handle: "ada-example", bio: null, link: null, committedAt: now },
-    { name: "Ben Example", handle: "ben-example", bio: null, link: null, committedAt: now },
+    {
+      name: "Ada Example",
+      handle: "ada-example",
+      bio: null,
+      link: null,
+      committedAt: now,
+    },
+    {
+      name: "Ben Example",
+      handle: "ben-example",
+      bio: null,
+      link: null,
+      committedAt: now,
+    },
   ],
   "essays.json": [
-    { title: "On walking", url: "https://example.com/1", words: 1800, submittedAt: now, author: "Ada Example", handle: "ada-example", week: 1 },
-    { title: "Notes on bread", url: "https://example.com/2", words: 950, submittedAt: now, author: "Ben Example", handle: "ben-example", week: 1 },
+    {
+      title: "On walking",
+      url: "https://example.com/1",
+      words: 1800,
+      submittedAt: now,
+      author: "Ada Example",
+      handle: "ada-example",
+      week: 1,
+    },
+    {
+      title: "Notes on bread",
+      url: "https://example.com/2",
+      words: 950,
+      submittedAt: now,
+      author: "Ben Example",
+      handle: "ben-example",
+      week: 1,
+    },
   ],
   "messages.json": [],
   "ideas.json": [],
@@ -66,13 +98,25 @@ try {
   if (chat) {
     // As in app/api/improve/route.ts: set up, then the firewall, then the data.
     await sandbox.writeFiles(
-      upload.map((p) => ({ path: `${SANDBOX_ROOT}/${p}`, content: readFileSync(p) })),
+      upload.map((p) => ({
+        path: `${SANDBOX_ROOT}/${p}`,
+        content: readFileSync(p),
+      })),
     );
-    const setup = await sandbox.runCommand({ cmd: "bash", args: ["-c", SETUP], cwd: SANDBOX_ROOT });
+    const setup = await sandbox.runCommand({
+      cmd: "bash",
+      args: ["-c", SETUP],
+      cwd: SANDBOX_ROOT,
+    });
     if (setup.exitCode !== 0) throw new Error(await setup.stderr());
-    const convexHost = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://example.convex.cloud").host;
+    const convexHost = new URL(
+      process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://example.convex.cloud",
+    ).host;
     await sandbox.update({
-      networkPolicy: chatTaskPolicy(process.env.OPENROUTER_API_KEY!, convexHost),
+      networkPolicy: chatTaskPolicy(
+        process.env.OPENROUTER_API_KEY!,
+        convexHost,
+      ),
     });
     console.log("firewall on");
   }
@@ -116,18 +160,29 @@ try {
   if (bun.exitCode !== 0) throw new Error(await bun.stderr());
   const run = await sandbox.runCommand({
     cmd: "bash",
-    args: ["-c", 'export PATH="$HOME/.bun/bin:$PATH"; bun scripts/improve-runner.ts'],
+    args: [
+      "-c",
+      'export PATH="$HOME/.bun/bin:$PATH"; bun scripts/improve-runner.ts',
+    ],
     cwd: SANDBOX_ROOT,
     env: {
       IMPROVE_DRY_RUN: "1",
-      OPENROUTER_API_KEY: chat ? KEY_PLACEHOLDER : process.env.OPENROUTER_API_KEY!,
+      OPENROUTER_API_KEY: chat
+        ? KEY_PLACEHOLDER
+        : process.env.OPENROUTER_API_KEY!,
     },
     stdout: process.stdout,
     stderr: process.stderr,
   });
   console.log("exit", run.exitCode);
   if (!chat) {
-    const show = await sandbox.runCommand("git", ["-C", SANDBOX_ROOT, "diff", "--cached", "HEAD"]);
+    const show = await sandbox.runCommand("git", [
+      "-C",
+      SANDBOX_ROOT,
+      "diff",
+      "--cached",
+      "HEAD",
+    ]);
     console.log(await show.stdout());
   }
 } finally {
