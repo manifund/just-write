@@ -19,6 +19,7 @@ async function act(
   run: (r: {
     prNumber: number;
     branch: string;
+    busy: boolean;
     token: string;
   }) => Promise<Patch>,
   allowed: string[],
@@ -31,7 +32,7 @@ async function act(
       return { ok: false, error: "That change can’t do this right now." };
     const token = process.env.GITHUB_TOKEN;
     if (!token) return { ok: false, error: "GITHUB_TOKEN isn’t set." };
-    const patch = await run({ prNumber: r.prNumber, branch: r.branch, token });
+    const patch = await run({ prNumber: r.prNumber, branch: r.branch, busy: r.busy, token });
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     await convex.mutation(api.server.reportImprovement, {
       secret: serverSecret(),
@@ -51,7 +52,8 @@ async function act(
 export async function mergeImprovement(id: string) {
   return act(
     id,
-    async ({ prNumber, branch, token }) => {
+    async ({ prNumber, branch, busy, token }) => {
+      if (busy) throw new Error("A follow-up is still working on this PR. Merge once it’s done.");
       await mergePr(token, prNumber, branch);
       return { status: "merged" };
     },
