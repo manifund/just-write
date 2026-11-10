@@ -9,7 +9,8 @@ import type { CalendarEvent } from "@/convex/events";
 import { fromInputs, ptDayKey, ptTimeValue } from "@/convex/lib/time";
 import { errorText, PanelHeader } from "./event-panel";
 
-const field = "min-w-0 border border-ink/25 bg-cream px-3 py-2 text-[16px] focus:border-ink";
+const field =
+  "min-w-0 border border-ink/25 bg-cream px-3 py-2 text-[16px] focus:border-ink";
 const label = "flex flex-col gap-1.5 text-[15px]";
 
 // Proposing a new session (no `event`) or editing one.
@@ -32,14 +33,18 @@ export function EventEditor({
   const [date, setDate] = useState(() =>
     event ? ptDayKey(event.start) : (day ?? ptDayKey(Date.now() + 86400_000)),
   );
-  const [start, setStart] = useState(event ? ptTimeValue(event.start) : "10:00");
+  const [start, setStart] = useState(
+    event ? ptTimeValue(event.start) : "10:00",
+  );
   const [end, setEnd] = useState(event ? ptTimeValue(event.end) : "12:00");
   const [location, setLocation] = useState(event?.location ?? "");
   const [link, setLink] = useState(event?.link ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const ownerId = event?.ownerId ?? me?._id;
   const [cohosts, setCohostIds] = useState<Id<"members">[]>(
-    event ? event.hosts.map((h) => h._id).filter((id) => id !== event.ownerId) : [],
+    event
+      ? event.hosts.map((h) => h._id).filter((id) => id !== event.ownerId)
+      : [],
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,12 +62,21 @@ export function EventEditor({
     // An end time earlier than the start means the session runs past midnight.
     let endMs = fromInputs(date, end);
     if (endMs <= startMs) endMs += 86400_000;
-    const fields = { title, description, location, link, start: startMs, end: endMs };
+    const fields = {
+      title,
+      description,
+      location,
+      link,
+      start: startMs,
+      end: endMs,
+    };
     setSaving(true);
     try {
       if (event) {
         await update({ eventId: event._id, ...fields });
-        const before = event.hosts.map((h) => h._id).filter((id) => id !== event.ownerId);
+        const before = event.hosts
+          .map((h) => h._id)
+          .filter((id) => id !== event.ownerId);
         if (before.join() !== cohosts.join())
           await setCohosts({ eventId: event._id, cohostIds: cohosts });
         onDone(event.slug);
@@ -102,15 +116,35 @@ export function EventEditor({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1.4fr_1fr_1fr]">
           <label className={`${label} col-span-2 sm:col-span-1`}>
             Date
-            <input type="date" className={field} value={date} onChange={(e) => setDate(e.target.value)} required />
+            <input
+              type="date"
+              className={field}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
           </label>
           <label className={label}>
             Starts
-            <input type="time" step={900} className={field} value={start} onChange={(e) => setStart(e.target.value)} required />
+            <input
+              type="time"
+              step={900}
+              className={field}
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              required
+            />
           </label>
           <label className={label}>
             Ends
-            <input type="time" step={900} className={field} value={end} onChange={(e) => setEnd(e.target.value)} required />
+            <input
+              type="time"
+              step={900}
+              className={field}
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              required
+            />
           </label>
         </div>
         <p className="-mt-3 text-[14px] text-ink-muted">Pacific time</p>
@@ -125,7 +159,9 @@ export function EventEditor({
                 placeholder="Address, or leave blank for TBD"
                 maxLength={200}
               />
-              <span className="text-[14px] text-ink-muted">Only members see this.</span>
+              <span className="text-[14px] text-ink-muted">
+                Only members see this.
+              </span>
             </label>
             <label className={label}>
               Call link
@@ -153,19 +189,26 @@ export function EventEditor({
         {!deadline && (
           <fieldset className="flex flex-col gap-2">
             <legend className="pb-1.5 text-[15px]">Co-hosts</legend>
-            <p className="text-[14px] text-ink-muted">Co-hosts can edit the session.</p>
+            <p className="text-[14px] text-ink-muted">
+              Co-hosts can edit the session.
+            </p>
             {cohosts.length > 0 && (
               <ul className="flex flex-wrap gap-2">
                 {cohosts.map((id) => {
                   const m = byId.get(id);
                   return (
-                    <li key={id} className="flex items-center gap-1.5 border border-ink/20 py-1 pr-1 pl-1.5 text-[15px]">
+                    <li
+                      key={id}
+                      className="flex items-center gap-1.5 border border-ink/20 py-1 pr-1 pl-1.5 text-[15px]"
+                    >
                       <Avatar member={m ?? null} size={22} />
                       {m?.name ?? "Member"}
                       <button
                         type="button"
                         aria-label={`Remove ${m?.name ?? "co-host"}`}
-                        onClick={() => setCohostIds((c) => c.filter((x) => x !== id))}
+                        onClick={() =>
+                          setCohostIds((c) => c.filter((x) => x !== id))
+                        }
                         className="flex size-6 cursor-pointer items-center justify-center text-ink-muted hover:text-ink"
                       >
                         ×
@@ -179,7 +222,8 @@ export function EventEditor({
               aria-label="Add a co-host"
               value=""
               onChange={(e) =>
-                e.target.value && setCohostIds((c) => [...c, e.target.value as Id<"members">])
+                e.target.value &&
+                setCohostIds((c) => [...c, e.target.value as Id<"members">])
               }
               className={field}
             >
@@ -206,7 +250,11 @@ export function EventEditor({
           >
             {event ? "Save changes" : "Add to calendar"}
           </button>
-          <button type="button" onClick={() => onDone(event?.slug)} className="cursor-pointer px-2 py-2.5 text-[16px] underline">
+          <button
+            type="button"
+            onClick={() => onDone(event?.slug)}
+            className="cursor-pointer px-2 py-2.5 text-[16px] underline"
+          >
             Cancel
           </button>
         </div>

@@ -28,7 +28,9 @@ const isMutation = (ctx: Ctx): ctx is MutationCtx => "insert" in ctx.db;
 
 function refuseReadonlyWrites(ctx: Ctx, readonly: boolean) {
   if (readonly && isMutation(ctx))
-    throw new ConvexError("This is a read-only preview, so changes aren’t saved.");
+    throw new ConvexError(
+      "This is a read-only preview, so changes aren’t saved.",
+    );
 }
 
 // The member row for an address: its primary email, or an alternate sign-in address.

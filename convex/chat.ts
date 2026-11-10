@@ -609,12 +609,16 @@ export const remove = mutation({
     const m = await ctx.db.get(messageId);
     if (!m) return;
     // Something Claude posted for a member is theirs to delete too.
-    const askedBy = m.postedFrom ? (await ctx.db.get(m.postedFrom))?.requesterId : null;
+    const askedBy = m.postedFrom
+      ? (await ctx.db.get(m.postedFrom))?.requesterId
+      : null;
     if (m.authorId !== member._id && askedBy !== member._id && !isAdmin)
       throw new ConvexError("You can only delete your own messages.");
     // Deleting a post takes its thread with it, and those replies aren't the asker's.
     if (m.authorId !== member._id && !isAdmin && (m.replyCount ?? 0) > 0)
-      throw new ConvexError("This has replies now, so ask an admin to remove it.");
+      throw new ConvexError(
+        "This has replies now, so ask an admin to remove it.",
+      );
     if (m.essayId)
       throw new ConvexError(
         "Remove the essay from your progress page instead.",

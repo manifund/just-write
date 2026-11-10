@@ -23,7 +23,9 @@ export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
 export function parseEffort(request: string): Effort | undefined {
-  const m = request.match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"));
+  const m = request.match(
+    new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"),
+  );
   return m ? (m[1].toLowerCase() as Effort) : undefined;
 }
 
@@ -85,7 +87,13 @@ export const CHAT_DRAFT_MAX_CHARS = 6000;
 export const CHAT_MENTION_LIMIT = 10;
 // Where Claude may post a chat task's result. Never #check-ins: a check-in is a member's
 // own writing, and posting one unlocks everyone else's.
-export const CHAT_POST_CHANNELS = ["general", "published", "meetups", "random", "site"];
+export const CHAT_POST_CHANNELS = [
+  "general",
+  "published",
+  "meetups",
+  "random",
+  "site",
+];
 // Posts per member and for the whole club in 24 hours. Past these, Claude leaves a draft on
 // its card for the member to send instead.
 export const CHAT_POSTS_PER_MEMBER = 5;
@@ -93,7 +101,8 @@ export const CHAT_POSTS_PER_DAY = 20;
 
 const CHAT_TASK = /\bchat[- ]task\b/i;
 // "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
-export const NEW_PR = /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
+export const NEW_PR =
+  /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
 // Not a bare "#2": in a chat thread that's usually "week #2" or "#1 on the board".
 const NAMES_PR = /\b(?:pr|pull request|continue)\s*#?\d+\b/i;
 
@@ -113,8 +122,13 @@ export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {
 // The sandbox holds no site secrets. It gets a random key that only works for its own run
 // while it's going (convex/runner.ts, and finishing through /api/improve); Convex keeps its hash.
 export async function hashRunToken(token: string) {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+  const bytes = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(token),
+  );
+  return Array.from(new Uint8Array(bytes), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 // One sandbox per branch; follow-ups on the same PR reuse it.

@@ -74,7 +74,10 @@ const startedAt = Date.now();
 // The firewall in front of a chat task decrypts model API requests to add the key, so make
 // sure Node and Bun trust the system's certificates, where its certificate would be.
 if (CHAT && !env.NODE_EXTRA_CA_CERTS)
-  for (const f of ["/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt"])
+  for (const f of [
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/certs/ca-certificates.crt",
+  ])
     if (existsSync(f)) {
       env.NODE_EXTRA_CA_CERTS = f;
       break;
@@ -98,7 +101,10 @@ type Report = {
 };
 
 // Calls a convex/runner.ts mutation for this run. Null if it failed; callers keep working.
-async function runnerMutation(path: string, args: Record<string, unknown> = {}) {
+async function runnerMutation(
+  path: string,
+  args: Record<string, unknown> = {},
+) {
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
@@ -133,7 +139,10 @@ const step = (label: string) => report({ step: label });
 async function claimFollowUps() {
   if (DRY || CHAT) return [];
   const rows = await runnerMutation("runner:followUps");
-  return (Array.isArray(rows) ? rows : []) as { author: string; text: string }[];
+  return (Array.isArray(rows) ? rows : []) as {
+    author: string;
+    text: string;
+  }[];
 }
 
 // --- Shell ------------------------------------------------------------------------------
@@ -151,8 +160,7 @@ function sh(cmd: string, opts: { quiet?: boolean } = {}) {
 }
 function must(cmd: string) {
   const r = sh(cmd);
-  if (!r.ok)
-    throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
+  if (!r.ok) throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
   return r.out.trim();
 }
 const tail = (s: string, n = 6000) => (s.length > n ? `…${s.slice(-n)}` : s);
@@ -221,10 +229,8 @@ type Final = {
   post?: { channel: string; markdown: string };
 };
 
-function prompt() {
-  const thread = brief.thread
-    .map((m) => `${m.author}: ${m.text}`)
-    .join("\n\n");
+function prompt(extra = "") {
+  const thread = brief.thread.map((m) => `${m.author}: ${m.text}`).join("\n\n");
   return [
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
@@ -241,6 +247,7 @@ function prompt() {
     !CHAT && !brief.prNumber && brief.openPrs?.length
       ? `This starts a new PR. The thread's other open PRs (${brief.openPrs.map((p) => `#${p.prNumber} "${p.title}"`).join(", ")}) were judged separate from this request. If it's really about one of them, say so in your chat reply and suggest naming it ("continue #${brief.openPrs[0].prNumber}"); members can also write "new PR" to force a fresh one.`
       : "",
+    extra,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -250,7 +257,10 @@ function prompt() {
 function statusLine(text: string) {
   const t = text.trim();
   if (!t) return null;
-  const first = t.split(/(?<=[.!?:])\s|\n/)[0].replace(/[:.]$/, "").trim();
+  const first = t
+    .split(/(?<=[.!?:])\s|\n/)[0]
+    .replace(/[:.]$/, "")
+    .trim();
   // Long sentences are usually reasoning, not narration; skip them rather than truncate.
   return first.length >= 8 && first.length <= 100 ? first : null;
 }
@@ -258,7 +268,8 @@ function statusLine(text: string) {
 // The agent's structured result, or (if it somehow didn't return one) its last message.
 function parseFinal(structured: unknown, text: string): Final {
   const o = (structured ?? {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+  const str = (k: string) =>
+    typeof o[k] === "string" ? (o[k] as string).trim() : "";
   if (CHAT && str("chat"))
     return {
       title: null,
@@ -272,7 +283,11 @@ function parseFinal(structured: unknown, text: string): Final {
         : undefined,
     };
   if (str("chat"))
-    return { title: str("title").slice(0, 100) || null, summary: str("chat"), details: str("details") };
+    return {
+      title: str("title").slice(0, 100) || null,
+      summary: str("chat"),
+      details: str("details"),
+    };
   // Fallback: a "TITLE: ..." line anywhere in the text, everything else as the summary.
   const m = text.match(/^TITLE:\s*(.+)$/m);
   const title = m?.[1].trim();
@@ -309,7 +324,11 @@ const userMessage = (
 // in at priority "next", so the agent reads them after its current tool call, like a message
 // typed into Claude Code mid-task. The stream ends once the agent has returned its result;
 // later follow-ups wait and start as their own run (convex/improvements.ts#releaseWaiting).
-async function* agentInput(first: string, isDone: () => boolean, waitForDone: Promise<void>) {
+async function* agentInput(
+  first: string,
+  isDone: () => boolean,
+  waitForDone: Promise<void>,
+) {
   yield userMessage(first);
   while (!isDone()) {
     await Promise.race([
@@ -333,7 +352,9 @@ async function loadSdk() {
   const path = createRequire(`${CHAT ? AGENT_DIR : ROOT}/package.json`).resolve(
     "@anthropic-ai/claude-agent-sdk",
   );
-  return (await import(pathToFileURL(path).href)) as typeof import("@anthropic-ai/claude-agent-sdk");
+  return (await import(
+    pathToFileURL(path).href
+  )) as typeof import("@anthropic-ai/claude-agent-sdk");
 }
 
 // The latest agent session, saved to the run as soon as it starts so a failed run (out of
@@ -351,7 +372,10 @@ async function runAgent(input: string, resume?: string) {
   // A chat task has to finish before its sandbox stops.
   const abortController = new AbortController();
   const timer = CHAT
-    ? setTimeout(() => abortController.abort(), Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()))
+    ? setTimeout(
+        () => abortController.abort(),
+        Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()),
+      )
     : null;
   timer?.unref();
   let done = false;
@@ -410,8 +434,14 @@ async function runAgent(input: string, resume?: string) {
           const line = statusLine(block.text);
           if (line) await step(line);
         } else if (block.type === "tool_use") {
-          const cmd = String((block.input as { command?: unknown }).command ?? "");
-          console.log("[tool]", block.name, JSON.stringify(block.input).slice(0, 200));
+          const cmd = String(
+            (block.input as { command?: unknown }).command ?? "",
+          );
+          console.log(
+            "[tool]",
+            block.name,
+            JSON.stringify(block.input).slice(0, 200),
+          );
           if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
             typechecked = true;
             await step("Typechecking");
@@ -448,15 +478,72 @@ async function runAgent(input: string, resume?: string) {
 
 // --- Checks ----------------------------------------------------------------------------
 
-function checks() {
+function checks(merge: Merge | null) {
   const tsc = sh("bun check");
   const lint = sh("bun lint");
+  const markers = merge ? conflictMarkers(merge) : [];
   return {
-    ok: tsc.ok && lint.ok,
-    output: [!tsc.ok && tail(tsc.out, 4000), !lint.ok && tail(lint.out, 4000)]
+    ok: tsc.ok && lint.ok && markers.length === 0,
+    output: [
+      !tsc.ok && tail(tsc.out, 4000),
+      !lint.ok && tail(lint.out, 4000),
+      markers.length &&
+        `Merge conflict markers are still in: ${markers.join(", ")}`,
+    ]
       .filter(Boolean)
       .join("\n\n"),
   };
+}
+
+// --- Merging main -----------------------------------------------------------------------
+
+// main merged into a PR's branch (not committed; the site commits it with both parents).
+type Merge = { main: string; conflicts: string[] };
+
+const unmerged = () =>
+  must("git diff --name-only --diff-filter=U").split("\n").filter(Boolean);
+
+// Brings main into a PR's branch, so the PR can merge after main has moved on. Null if the
+// branch already has everything on main. Conflicts are left in the tree for the agent.
+function mergeMain(): Merge | null {
+  const shallow =
+    sh("git rev-parse --is-shallow-repository", { quiet: true }).out.trim() ===
+    "true";
+  // Merging needs the history back to where the branch split from main.
+  must(`git fetch -q ${shallow ? "--unshallow " : ""}origin main`);
+  const main = must("git rev-parse FETCH_HEAD");
+  if (sh(`git merge-base --is-ancestor ${main} HEAD`).ok) return null;
+  const r = sh(
+    `git -c user.name=Claude -c user.email=noreply@anthropic.com merge -q --no-commit --no-ff ${main}`,
+  );
+  const conflicts = unmerged();
+  if (!r.ok && conflicts.length === 0)
+    throw new Error(`Couldn’t merge main:\n${r.out.slice(-1500)}`);
+  return { main, conflicts };
+}
+
+// A merge the saved sandbox was in the middle of (a resumed run keeps its edits).
+function mergeInProgress(): Merge | null {
+  const head = sh("git rev-parse -q --verify MERGE_HEAD", { quiet: true });
+  return head.ok ? { main: head.out.trim(), conflicts: unmerged() } : null;
+}
+
+// Files from the merge's conflicts that still have conflict markers in them.
+function conflictMarkers(merge: Merge) {
+  return merge.conflicts.filter((f) => {
+    try {
+      return /^(<{7}|>{7})( |$)/m.test(readFileSync(`${ROOT}/${f}`, "utf8"));
+    } catch {
+      return false; // deleted
+    }
+  });
+}
+
+function mergeNote(merge: Merge | null) {
+  if (!merge) return "";
+  if (!merge.conflicts.length)
+    return `main had moved on, so the harness merged it into this branch (cleanly; not committed yet, and it gets pushed as a real merge commit with your changes). Don't run \`git merge --abort\`, \`git reset\`, or \`git commit\`.`;
+  return `main had moved on, so the harness started merging it into this branch, and these files have conflicts: ${merge.conflicts.join(", ")}. Resolve them first: edit each file so it keeps what both sides meant (main's latest code plus this PR's change) and has no conflict markers left. The merge gets pushed as a real merge commit with your changes, so don't run \`git merge --abort\`, \`git reset\`, or \`git commit\`; the harness stages and commits everything.`;
 }
 
 // --- Main -------------------------------------------------------------------------------
@@ -475,6 +562,7 @@ type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps; never merged
+      merged?: string; // main's commit, merged in: the site commits with it as a second parent
     };
 
 const OUT_OF_TURNS = "I ran out of steps before finishing.";
@@ -482,8 +570,11 @@ const OUT_OF_TURNS = "I ran out of steps before finishing.";
 // Every file that differs from `base` (tracked, new, and deleted), with its git file mode.
 function changedFiles(base: string): ChangedFile[] {
   must("git add -A");
-  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, { quiet: true });
-  if (!r.ok) throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
+  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, {
+    quiet: true,
+  });
+  if (!r.ok)
+    throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
   // -z output: ":<old mode> <new mode> <old sha> <new sha> <status>" NUL "<path>" NUL ...
   const parts = r.out.split("\0");
   const files: ChangedFile[] = [];
@@ -494,7 +585,8 @@ function changedFiles(base: string): ChangedFile[] {
     const [, mode] = meta.slice(1).split(" ");
     if (meta.endsWith("D")) files.push({ path, mode: null });
     else if (mode === "100644" || mode === "100755") files.push({ path, mode });
-    else throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
+    else
+      throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
   }
   return files;
 }
@@ -507,7 +599,9 @@ function postProblem(post: Final["post"]) {
   if (!post) return null;
   let channels: string[] = [];
   try {
-    const about = JSON.parse(readFileSync(`${CLUB_DIR}/about.json`, "utf8")) as {
+    const about = JSON.parse(
+      readFileSync(`${CLUB_DIR}/about.json`, "utf8"),
+    ) as {
       channels?: { slug: string }[];
     };
     channels = (about.channels ?? []).map((c) => c.slug);
@@ -524,7 +618,11 @@ function postProblem(post: Final["post"]) {
 }
 
 type ChatResult =
-  | { outcome: "answered"; summary: string; post?: { channel: string; markdown: string } }
+  | {
+      outcome: "answered";
+      summary: string;
+      post?: { channel: string; markdown: string };
+    }
   | { outcome: "failed"; error: string };
 
 async function chatMain(): Promise<ChatResult> {
@@ -555,7 +653,11 @@ async function chatMain(): Promise<ChatResult> {
 // Sends a chat task's result to Convex (chatTasks.finish), which posts it and ends the run.
 // A few tries: if it never gets through, the run is marked failed when it goes stale.
 async function finishChat(result: ChatResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt));
     if (await runnerMutation("chatTasks:finish", result)) return;
@@ -593,15 +695,29 @@ async function main(): Promise<RunnerResult> {
   // The site commits the changes on top of this. For a follow-up it's the branch's head on
   // GitHub, and the route checks it still is.
   const base = must("git rev-parse HEAD");
+  // Keep an open PR mergeable: bring main into its branch first.
+  let merge: Merge | null = null;
+  if (keepEdits) merge = mergeInProgress();
+  else if (brief.prNumber) {
+    await step("Merging the latest main into the branch");
+    merge = mergeMain();
+    if (merge?.conflicts.length)
+      await step(`Resolving conflicts in ${merge.conflicts.length} file(s)`);
+  }
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
-  const resume = RESUMED_SANDBOX ? (brief.resumeSessionId ?? undefined) : undefined;
+  const resume = RESUMED_SANDBOX
+    ? (brief.resumeSessionId ?? undefined)
+    : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
-  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch((err) => {
+  let { final, sessionId, outOfTurns } = await runAgent(
+    prompt(mergeNote(merge)),
+    resume,
+  ).catch((err) => {
     if (!resume) throw err;
     console.error("resume failed; starting a new session", err);
-    return runAgent(prompt());
+    return runAgent(prompt(mergeNote(merge)));
   });
 
   if (changedFiles(base).length === 0) {
@@ -610,7 +726,7 @@ async function main(): Promise<RunnerResult> {
   }
 
   await step("Running the typecheck and linter");
-  let check = checks();
+  let check = checks(merge);
   // Out of steps: push what's there as an unfinished PR for a follow-up to finish, without
   // spending more turns on fixes.
   for (let attempt = 0; !outOfTurns && !check.ok && attempt < 2; attempt++) {
@@ -620,7 +736,7 @@ async function main(): Promise<RunnerResult> {
       sessionId,
     ));
     await step("Running the typecheck and linter again");
-    check = checks();
+    check = checks(merge);
   }
   const files = changedFiles(base);
   if (files.length === 0) {
@@ -637,6 +753,7 @@ async function main(): Promise<RunnerResult> {
       details: final.details,
       checksPassed: check.ok,
       unfinished: true,
+      merged: merge?.main,
     };
   return {
     outcome: "changes",
@@ -646,17 +763,26 @@ async function main(): Promise<RunnerResult> {
     summary: final.summary,
     details: final.details,
     checksPassed: check.ok,
+    merged: merge?.main,
   };
 }
 
 // Hands the result to /api/improve, which pushes it, updates the card, and stops this sandbox.
 async function finish(result: RunnerResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   try {
     const res = await fetch(env.IMPROVE_URL!, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: env.IMPROVEMENT_ID, runToken: RUN_TOKEN, finish: result }),
+      body: JSON.stringify({
+        id: env.IMPROVEMENT_ID,
+        runToken: RUN_TOKEN,
+        finish: result,
+      }),
     });
     if (!res.ok) console.error("finish failed", res.status, await res.text());
   } catch (err) {

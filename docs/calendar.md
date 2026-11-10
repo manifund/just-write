@@ -1,6 +1,7 @@
 I'd like to create a calendar of events for Just Write. Key features:
+
 - Events should have a host, a time period, a title, optionally a location, optionally a brief description
-- Start with the IRL events in SF. For the writing circles, put down 2 hours from 10am-noon PT at Austin's house (41 Dolores Ter, SF) 
+- Start with the IRL events in SF. For the writing circles, put down 2 hours from 10am-noon PT at Austin's house (41 Dolores Ter, SF)
 - Also add short 15min virtual events before each deadline (the Mondays at 9pm PT) as reminder
 - Make it easy for hosts to edit their own event parameters, and transfer ownership to another host.
 - Any Just Write member should be able to propose sessions.

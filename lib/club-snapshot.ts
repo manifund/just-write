@@ -63,7 +63,11 @@ export async function readClub(
     content: Buffer.from(JSON.stringify(value, null, 1)),
   });
   return {
-    counts: { messages: messages.length, essays: snap.essays.length, truncated },
+    counts: {
+      messages: messages.length,
+      essays: snap.essays.length,
+      truncated,
+    },
     files: [
       { path: `${CLUB_DIR}/README.md`, content: Buffer.from(CLUB_README) },
       json("about.json", { ...snap.about, truncated }),

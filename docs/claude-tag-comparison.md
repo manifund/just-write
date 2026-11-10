@@ -6,21 +6,21 @@ Sources: the Claude Tag docs at claude.com/docs/claude-tag: overview, how it wor
 
 ## How the two compare
 
-| | Claude Tag | Our @Claude |
-| :- | :- | :- |
-| Start | `@Claude` in a message; it reacts with an emoji within seconds | `@Claude` in a message; the card is posted right away |
-| Unit of work | One session per thread, kept for the life of the thread; the sandbox is released when idle and rebuilt on the next reply | One run per mention; a reply in the thread continues the thread's PR and can resume a failed run's saved sandbox and session |
-| Progress | A checklist edited in place, plus a working indicator at the bottom of the thread | A live checklist card (`components/portal/improvement.tsx`) |
-| Stop | **Stop** button on the working indicator; Claude keeps the session and posts who stopped it; `@Claude` picks it up again | None. A run goes until it finishes, runs out of steps, or times out (`reapStale`) |
-| Follow-ups | Any reply in a thread Claude is in reaches it, from anyone, with no mention | Only replies that mention `@Claude`. Mid-run ones are passed in (`runner.followUps`); later ones start a new run |
-| Edits | An edit reaches Claude as a before/after note, never starts a task | An edit doesn't reach Claude |
-| Attachments | Reads images (up to ~3.75 MB) and PDFs; up to 5 files a message | Text only; screenshots don't reach the agent |
-| Memory | Notes per channel plus workspace notes; "remember for this channel: …", "what do you remember?", anyone can correct | None beyond the repo and the thread brief |
-| Scheduled work | Routines: "every weekday at 9am Pacific, …", channel watches, following a PR; at most hourly; `!scheduled` lists them | None |
-| Commands | `!help`, `!status`, `!restart`, `!mute`/`!unmute`, `!fast`, `!fork`, `!scheduled`, `!configure`, `!feedback` | `effort: high`, "new PR", "#40", "chat task" |
-| Ambient replies | By default may answer untagged messages it judges it can help with, or offer privately | Never |
-| Posting elsewhere | Can post in another public channel with "Sent by Claude in #x on behalf of @y" | Chat tasks post in `CHAT_POST_CHANNELS` with "Posted for <name>" |
-| Who can steer | Anyone who can message Claude there | Anyone who mentions @Claude; Merge/Close/Revert are admin-only |
+|                   | Claude Tag                                                                                                               | Our @Claude                                                                                                                  |
+| :---------------- | :----------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------- |
+| Start             | `@Claude` in a message; it reacts with an emoji within seconds                                                           | `@Claude` in a message; the card is posted right away                                                                        |
+| Unit of work      | One session per thread, kept for the life of the thread; the sandbox is released when idle and rebuilt on the next reply | One run per mention; a reply in the thread continues the thread's PR and can resume a failed run's saved sandbox and session |
+| Progress          | A checklist edited in place, plus a working indicator at the bottom of the thread                                        | A live checklist card (`components/portal/improvement.tsx`)                                                                  |
+| Stop              | **Stop** button on the working indicator; Claude keeps the session and posts who stopped it; `@Claude` picks it up again | None. A run goes until it finishes, runs out of steps, or times out (`reapStale`)                                            |
+| Follow-ups        | Any reply in a thread Claude is in reaches it, from anyone, with no mention                                              | Only replies that mention `@Claude`. Mid-run ones are passed in (`runner.followUps`); later ones start a new run             |
+| Edits             | An edit reaches Claude as a before/after note, never starts a task                                                       | An edit doesn't reach Claude                                                                                                 |
+| Attachments       | Reads images (up to ~3.75 MB) and PDFs; up to 5 files a message                                                          | Text only; screenshots don't reach the agent                                                                                 |
+| Memory            | Notes per channel plus workspace notes; "remember for this channel: …", "what do you remember?", anyone can correct      | None beyond the repo and the thread brief                                                                                    |
+| Scheduled work    | Routines: "every weekday at 9am Pacific, …", channel watches, following a PR; at most hourly; `!scheduled` lists them    | None                                                                                                                         |
+| Commands          | `!help`, `!status`, `!restart`, `!mute`/`!unmute`, `!fast`, `!fork`, `!scheduled`, `!configure`, `!feedback`             | `effort: high`, "new PR", "#40", "chat task"                                                                                 |
+| Ambient replies   | By default may answer untagged messages it judges it can help with, or offer privately                                   | Never                                                                                                                        |
+| Posting elsewhere | Can post in another public channel with "Sent by Claude in #x on behalf of @y"                                           | Chat tasks post in `CHAT_POST_CHANNELS` with "Posted for <name>"                                                             |
+| Who can steer     | Anyone who can message Claude there                                                                                      | Anyone who mentions @Claude; Merge/Close/Revert are admin-only                                                               |
 
 The main gaps are Stop, replies without re-tagging, memory, images, and routines. We're ahead in a few places: PR merge policy and the admin buttons, read-only previews, `/improvements`, and effort per run. Those come from our use case (members changing the site itself), which Claude Tag doesn't have.
 
@@ -33,6 +33,7 @@ The main gaps are Stop, replies without re-tagging, memory, images, and routines
 **Why:** members currently can't call off a run that misread the request. It keeps using steps and the daily limit, and a code run can still merge.
 
 **Design:**
+
 - A **Stop** button on the card while the run is going, for any member who can post in the thread. Read-only preview sessions can't use it (mutations already refuse them).
 - `improvements.stop` records `stoppedBy` and `stopRequestedAt` on the row. For a chat task it ends the run and stops the sandbox right away, the same way `endRun` does now.
 - For a code run, the runner already polls `runner.followUps` every few seconds; that response gains a `stop` flag. On it, the runner interrupts the Agent SDK query and goes down the existing out-of-steps path: if files changed, it checks and pushes them as an "(unfinished)" PR that never merges on its own; if nothing changed, the run ends with no PR.
@@ -50,8 +51,10 @@ The main gaps are Stop, replies without re-tagging, memory, images, and routines
 **Why:** people forget the tag mid-thread ("also make it blue") and the instruction is lost. Members also talk to each other in these threads, though ("looks good!", "it works!"), so starting a code run on every reply would be noisy and costly.
 
 **Design, in two steps:**
+
 1. **While a run is going**, every reply in its thread is passed to the agent as a follow-up, tagged or not. This is the same `runner.followUps` path as tagged mid-run replies, so it's a small change in `chat.send`: if the thread has a running improvement, queue the reply. The runner's prompt should say untagged follow-ups may be people talking to each other, which it can ignore.
 2. **After a run ends**, an untagged reply goes to a cheap classifier (Haiku or Sonnet via OpenRouter, like `pickTarget`) with the last few messages: "is this asking Claude to do something?" If yes, and the reply came within a day of Claude's last message there, it starts a run as if tagged. If no, nothing happens. Classifier calls are cheap, but they should still have a per-thread cap.
+
 - `@Claude !mute` / `!unmute` in a thread turns step 2 off for that thread (an optional `muted` field on the thread's root message or a small table).
 - The card notes "picked up without a tag" so people learn the behavior and can say so if it was wrong.
 
@@ -64,6 +67,7 @@ The main gaps are Stop, replies without re-tagging, memory, images, and routines
 **Claude Tag:** each channel has notes. Claude saves facts it learns, people say "remember for this channel: …", and anyone can ask "what do you remember?" and correct or delete entries. Its docs say to keep notes short and put longer playbooks in the repo.
 
 **Design:**
+
 - A `notes` table: `channelId` (or none, for club-wide), `text`, `authorId`, `createdAt`.
 - `@Claude remember for this channel: …` and `@Claude forget …` are handled in `startFromMessage` without a sandbox, like the not-switched-on reply. Claude confirms in the thread.
 - Both kinds of brief include the notes for the request's channel plus club-wide ones, capped at a few hundred words.
@@ -89,6 +93,7 @@ The main gaps are Stop, replies without re-tagging, memory, images, and routines
 **For us:** the obvious ones are a recap after each Monday 9pm PT deadline (who published, who's close, using `convex/lib/program.ts`), and a weekly #site digest of what @Claude shipped.
 
 **Design:**
+
 - A `routines` table: channel, prompt, schedule (weekly day and time in Pacific, using `convex/lib/time.ts`), `createdBy`, `active`.
 - An hourly cron finds due routines and starts a chat task with the routine's prompt, through the same path as a typed one. Posts still go through `CHAT_POST_CHANNELS` and the daily post limit.
 - To start with, admins create routines. Members can ask "@Claude what routines are set up?" and any member can pause one.

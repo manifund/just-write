@@ -30,7 +30,8 @@ async function accessToken() {
   const key = serviceAccount();
   if (!key) throw new Error("GOOGLE_SERVICE_ACCOUNT_KEY isn’t set.");
   const now = Math.floor(Date.now() / 1000);
-  const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const b64 = (o: object) =>
+    Buffer.from(JSON.stringify(o)).toString("base64url");
   const unsigned = `${b64({ alg: "RS256", typ: "JWT" })}.${b64({
     iss: key.client_email,
     scope: "https://www.googleapis.com/auth/calendar",
@@ -49,9 +50,16 @@ async function accessToken() {
       assertion: `${unsigned}.${signature}`,
     }),
   });
-  if (!res.ok) throw new Error(`Google token: ${res.status} ${await res.text()}`);
-  const json = (await res.json()) as { access_token: string; expires_in: number };
-  cached = { token: json.access_token, expires: Date.now() + json.expires_in * 1000 };
+  if (!res.ok)
+    throw new Error(`Google token: ${res.status} ${await res.text()}`);
+  const json = (await res.json()) as {
+    access_token: string;
+    expires_in: number;
+  };
+  cached = {
+    token: json.access_token,
+    expires: Date.now() + json.expires_in * 1000,
+  };
   return cached.token;
 }
 
@@ -103,7 +111,8 @@ export const syncEvent = internalAction({
         id: googleId(eventId),
         ...body,
       });
-    if (!res.ok) throw new Error(`Google sync: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`Google sync: ${res.status} ${await res.text()}`);
   },
 });
 
@@ -123,7 +132,10 @@ export const shareWith = internalAction({
   args: { memberId: v.id("members") },
   handler: async (ctx, { memberId }): Promise<void> => {
     if (!configured()) return;
-    const emails: string[] | null = await ctx.runQuery(internal.events.shareTargets, { memberId });
+    const emails: string[] | null = await ctx.runQuery(
+      internal.events.shareTargets,
+      { memberId },
+    );
     for (const email of emails ?? []) {
       // Leave anyone who already has access (e.g. the owner) alone, so we never downgrade them.
       const existing = await google(
@@ -154,7 +166,10 @@ export const shareAll = internalAction({
   args: {},
   handler: async (ctx): Promise<string> => {
     if (!configured()) return "Google Calendar isn’t set up.";
-    const ids: Id<"members">[] = await ctx.runQuery(internal.events.committedIds, {});
+    const ids: Id<"members">[] = await ctx.runQuery(
+      internal.events.committedIds,
+      {},
+    );
     for (const memberId of ids)
       await ctx.runAction(internal.gcal.shareWith, { memberId });
     return `checked ${ids.length} members`;
@@ -170,17 +185,20 @@ export const createCalendar = internalAction({
   handler: async (_ctx, { ownerEmail }): Promise<string> => {
     const res = await google("POST", "/calendars", {
       summary: "Just Write",
-      description: "Sessions and deadlines for Just Write. https://justwrite.club/calendar",
+      description:
+        "Sessions and deadlines for Just Write. https://justwrite.club/calendar",
       timeZone: TZ,
     });
-    if (!res.ok) throw new Error(`Google create: ${res.status} ${await res.text()}`);
+    if (!res.ok)
+      throw new Error(`Google create: ${res.status} ${await res.text()}`);
     const { id } = (await res.json()) as { id: string };
     const acl = await google(
       "POST",
       `/calendars/${encodeURIComponent(id)}/acl?sendNotifications=true`,
       { role: "owner", scope: { type: "user", value: ownerEmail } },
     );
-    if (!acl.ok) throw new Error(`Google share: ${acl.status} ${await acl.text()}`);
+    if (!acl.ok)
+      throw new Error(`Google share: ${acl.status} ${await acl.text()}`);
     return id;
   },
 });

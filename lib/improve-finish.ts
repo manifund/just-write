@@ -43,13 +43,17 @@ export type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps: open the PR, never merge it
+      merged?: string; // main's commit, merged into the branch: becomes the commit's second parent
     };
 
 const UNFINISHED = "(unfinished)";
 
 type Run = NonNullable<FunctionReturnType<typeof api.server.startFinish>>;
 type Report = (
-  args: Omit<FunctionArgs<typeof api.server.reportImprovement>, "secret" | "id">,
+  args: Omit<
+    FunctionArgs<typeof api.server.reportImprovement>,
+    "secret" | "id"
+  >,
 ) => Promise<unknown>;
 
 const MAX_FILES = 300;
@@ -77,23 +81,32 @@ function safePath(p: unknown): p is string {
   if (typeof p !== "string" || !p || p.length > 400) return false;
   if (p.startsWith("/") || /[\0\\]/.test(p)) return false;
   const parts = p.split("/");
-  return parts.every((s) => s && s !== "." && s !== "..") && parts[0] !== ".git";
+  return (
+    parts.every((s) => s && s !== "." && s !== "..") && parts[0] !== ".git"
+  );
 }
 
 // Checks the shape of what the sandbox sent. Null if it isn't something we can use.
 export function parseResult(x: unknown): RunnerResult | null {
   if (!x || typeof x !== "object") return null;
   const o = x as Record<string, unknown>;
-  if (o.outcome === "answered") return { outcome: "answered", summary: str(o.summary, 4000) };
+  if (o.outcome === "answered")
+    return { outcome: "answered", summary: str(o.summary, 4000) };
   if (o.outcome === "failed")
     return { outcome: "failed", error: str(o.error, 500) || "The run failed." };
   if (o.outcome !== "changes") return null;
   if (typeof o.base !== "string" || !/^[0-9a-f]{40}$/.test(o.base)) return null;
-  if (!Array.isArray(o.files) || o.files.length === 0 || o.files.length > MAX_FILES) return null;
+  if (
+    !Array.isArray(o.files) ||
+    o.files.length === 0 ||
+    o.files.length > MAX_FILES
+  )
+    return null;
   const files: Extract<RunnerResult, { outcome: "changes" }>["files"] = [];
   for (const f of o.files as Record<string, unknown>[]) {
     if (!f || !safePath(f.path)) return null;
-    if (f.mode !== "100644" && f.mode !== "100755" && f.mode !== null) return null;
+    if (f.mode !== "100644" && f.mode !== "100755" && f.mode !== null)
+      return null;
     files.push({ path: f.path, mode: f.mode });
   }
   return {
@@ -105,16 +118,27 @@ export function parseResult(x: unknown): RunnerResult | null {
     details: str(o.details, 20_000),
     checksPassed: o.checksPassed === true,
     unfinished: o.unfinished === true,
+    merged:
+      typeof o.merged === "string" && /^[0-9a-f]{40}$/.test(o.merged)
+        ? o.merged
+        : undefined,
   };
 }
 
-export async function finishRun(run: Run, result: RunnerResult, report: Report) {
+export async function finishRun(
+  run: Run,
+  result: RunnerResult,
+  report: Report,
+) {
   if (result.outcome === "answered") {
     await report({ patch: { status: "answered", summary: result.summary } });
     return;
   }
   if (result.outcome === "failed") {
-    await report({ fail: true, patch: { status: "failed", error: result.error } });
+    await report({
+      fail: true,
+      patch: { status: "failed", error: result.error },
+    });
     return;
   }
 
@@ -135,14 +159,23 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
     throw new Error(`${branch} changed on GitHub while I was working.`);
   if (!run.prNumber && !(await isOnMain(token, parent)))
     throw new Error("The sandbox’s starting commit isn’t on main.");
+  // A merge of main only counts if the commit really is on main (the sandbox says which).
+  if (result.merged && !(await isOnMain(token, result.merged)))
+    throw new Error("The commit I merged isn’t on main.");
   const head = await commitFiles(token, {
     branch,
-    parent,
-    message: `${title}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
+    parents: result.merged ? [parent, result.merged] : [parent],
+    message: `${title}${result.merged ? "\n\nMerges main." : ""}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
     files: changes,
   });
 
-  const files = result.files.map((f) => f.path);
+  // After a merge the pushed files include main's changes, so list what the PR itself changes.
+  const files = result.merged
+    ? await compareWithMain(token, branch).then(
+        (c) => c.files,
+        () => result.files.map((f) => f.path),
+      )
+    : result.files.map((f) => f.path);
   const touchesConvex = files.some((f) => f.startsWith("convex/"));
   const quoted = inert(request).replace(/\n/g, "\n> ");
   // The agent's own words go last, so they can't be made to look like the lines we add.
@@ -200,7 +233,9 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
       },
     });
   } else {
-    await report({ patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) } });
+    await report({
+      patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) },
+    });
   }
 }
 
@@ -225,7 +260,9 @@ async function retitle(token: string, prNumber: number, unfinished: boolean) {
   const marked = pr.title.startsWith(`${UNFINISHED} `);
   if (marked === unfinished) return;
   await updatePr(token, prNumber, {
-    title: unfinished ? `${UNFINISHED} ${pr.title}` : pr.title.slice(UNFINISHED.length + 1),
+    title: unfinished
+      ? `${UNFINISHED} ${pr.title}`
+      : pr.title.slice(UNFINISHED.length + 1),
   });
 }
 
@@ -288,11 +325,15 @@ async function decide(
     console.error("improve: compare failed", head, err);
     return null;
   });
-  if (!pr) return { merge: false, why: "couldn’t compare the branch with main" };
-  if (pr.files.length >= MAX_FILES) return { merge: false, why: "it changes too many files" };
+  if (!pr)
+    return { merge: false, why: "couldn’t compare the branch with main" };
+  if (pr.files.length >= MAX_FILES)
+    return { merge: false, why: "it changes too many files" };
   if (!CONVEX_AUTODEPLOY && pr.files.some((f) => f.startsWith("convex/")))
     return { merge: false, why: "it changes the backend" };
-  const sensitive = pr.files.filter((f) => SENSITIVE_PATHS.some((re) => re.test(f)));
+  const sensitive = pr.files.filter((f) =>
+    SENSITIVE_PATHS.some((re) => re.test(f)),
+  );
   if (sensitive.length)
     return { merge: false, why: `it touches ${sensitive.slice(0, 3).join(", ")}` };
   if (MERGE_POLICY === "automerge") return { merge: true, why: "checks passed" };
@@ -303,7 +344,10 @@ async function decide(
   return await classify(request, pr.diff);
 }
 
-async function classify(request: string, diff: string): Promise<{ merge: boolean; why: string }> {
+async function classify(
+  request: string,
+  diff: string,
+): Promise<{ merge: boolean; why: string }> {
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
