@@ -487,7 +487,7 @@ function MessageList({
               ? `Post today’s check-in, or register your essay for the ${DEADLINE_LABELS[nextDeadline]} deadline, to read everyone else’s.`
               : "Post today’s check-in to read everyone else’s."}
             {nextDeadline > 0 &&
-              ` An essay for the ${DEADLINE_LABELS[nextDeadline - 1]} deadline unlocks check-ins posted before ${DEADLINE_LABELS[nextDeadline - 1]} at 9pm PT.`}
+              ` An essay for the ${DEADLINE_LABELS[nextDeadline - 1]} deadline unlocks check-ins posted through the end of ${DEADLINE_LABELS[nextDeadline - 1]}.`}
           </p>
         )}
         <Composer

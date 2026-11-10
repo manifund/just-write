@@ -199,8 +199,9 @@ export const channel = query({
 // time; the day turns over at midnight), everyone else's posts and thread replies show
 // only their first 100 characters. Posts you could already read stay readable: anything
 // written before the end of the day of your last check-in, plus replies in those threads.
-// An essay that counts toward a week also unlocks that week's check-ins (everything
-// posted before that week's deadline and after the previous one). The channel's oldest post,
+// An essay that counts toward a week also unlocks that week's check-ins: everything
+// posted after the previous deadline and before midnight PT at the end of that week's
+// deadline day, so the rest of deadline Monday is included. The channel's oldest post,
 // when an admin wrote it, is the standing intro and always shows in full. Returns null
 // when nothing should be hidden from this viewer.
 type Gate = {
@@ -237,7 +238,7 @@ export async function checkInGate(
     .filter((s) => s.essayIds.length > 0)
     .map((s): [number, number] => [
       s.week === 1 ? 0 : DEADLINES[s.week - 2],
-      s.deadline,
+      nextPtMidnight(s.deadline),
     ]);
   if (weeks.some(([from, until]) => from <= now && now < until)) return null;
   const first = await ctx.db
