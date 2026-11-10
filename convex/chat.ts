@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { markSeenInChat } from "./lib/seen";
 import {
   internalMutation,
   mutation,
@@ -665,6 +666,17 @@ export const markRead = mutation({
         channelId: c._id,
         lastReadAt: now,
       });
+    await markSeenInChat(ctx, member._id, { channelId: c._id });
+  },
+});
+
+// Marks a thread's replies as seen in Activity while the viewer has it open.
+export const markThreadRead = mutation({
+  args: { parentId: v.id("messages") },
+  handler: async (ctx, { parentId }) => {
+    // Allowed in read-only previews: it only records what this person has seen.
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    await markSeenInChat(ctx, member._id, { parentId });
   },
 });
 
