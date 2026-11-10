@@ -29,6 +29,9 @@ type Brief = {
   // The thread's open PRs from earlier runs. The route picked which one (if any) this
   // continues before starting the sandbox (lib/improve-target.ts).
   openPrs?: { run: number; prNumber: number; title: string }[];
+  // Set when this picks up an earlier run in the thread that stopped partway (out of steps,
+  // timed out). Its saved sandbox, if it came back, still has that run's uncommitted edits.
+  resumesFailedRun?: number | null;
   request: string;
   requester: string;
   channel: string;
@@ -52,6 +55,10 @@ const EFFORT = brief.request
   .match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"))?.[1]
   .toLowerCase() as Effort | undefined;
 const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY ?? "";
+// The saved sandbox from the last run on this branch came back (not a fresh clone).
+const RESUMED_SANDBOX = env.SANDBOX_FRESH === "0";
+// Picking up a failed run's uncommitted edits, which are still in this sandbox.
+const RESUMES_WORK = !!brief.resumesFailedRun && RESUMED_SANDBOX;
 
 // --- Convex reporting -------------------------------------------------------------------
 
@@ -159,6 +166,12 @@ function prompt() {
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
     brief.thread.length > 1 ? `The thread so far:\n"""\n${thread}\n"""` : "",
+    brief.resumesFailedRun && RESUMES_WORK
+      ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing (it ran out of steps or time). Its edits are still in the working tree and haven't been committed; check them with \`git status\` and \`git diff\`, then finish the job.`
+      : "",
+    brief.resumesFailedRun && !RESUMES_WORK
+      ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing, and its edits weren't saved. Start the work again.`
+      : "",
     brief.prNumber
       ? `This continues PR #${brief.prNumber}, picked from the thread as the work this request is about. Its earlier commits are already on this branch; build on them.`
       : "",
@@ -245,6 +258,16 @@ async function loadSdk() {
   return (await import(pathToFileURL(path).href)) as typeof import("@anthropic-ai/claude-agent-sdk");
 }
 
+// The latest agent session, saved to the run as soon as it starts so a failed run (out of
+// steps, timed out, crashed) can still be resumed by a follow-up.
+let agentSessionId = "";
+async function saveSession(id: string) {
+  if (!id || id === agentSessionId) return;
+  agentSessionId = id;
+  await report({ sessionId: id });
+}
+
+// `outOfTurns`: the agent hit maxTurns before returning its result. Its edits are kept.
 async function runAgent(input: string, resume?: string) {
   const { query } = await loadSdk();
   let done = false;
@@ -255,6 +278,7 @@ async function runAgent(input: string, resume?: string) {
   let typechecked = false;
   let final: Final = { title: null, summary: "", details: "" };
   let sessionId = resume ?? "";
+  let outOfTurns = false;
   const q = query({
     prompt: agentInput(input, () => done, waitForDone),
     options: {
@@ -283,8 +307,10 @@ async function runAgent(input: string, resume?: string) {
   });
 
   for await (const msg of q) {
-    if (msg.type === "system" && msg.subtype === "init")
+    if (msg.type === "system" && msg.subtype === "init") {
       sessionId = msg.session_id;
+      await saveSession(sessionId);
+    }
     if (msg.type === "assistant" && !msg.parent_tool_use_id) {
       for (const block of msg.message.content) {
         // The agent narrates in short sentences between tool calls; those are its status lines.
@@ -315,14 +341,16 @@ async function runAgent(input: string, resume?: string) {
       done = true;
       markDone();
       sessionId = msg.session_id;
+      await saveSession(sessionId);
       if (msg.subtype === "success")
         final = parseFinal(msg.structured_output, msg.result);
+      else if (msg.subtype === "error_max_turns") outOfTurns = true;
       else throw new Error(`The agent stopped early (${msg.subtype}).`);
     }
   }
   done = true;
   markDone();
-  return { final, sessionId };
+  return { final, sessionId, outOfTurns };
 }
 
 // --- Checks ----------------------------------------------------------------------------
@@ -353,7 +381,10 @@ type RunnerResult =
       summary: string;
       details: string;
       checksPassed: boolean;
+      unfinished?: boolean; // the agent ran out of steps; never merged
     };
+
+const OUT_OF_TURNS = "I ran out of steps before finishing.";
 
 // Every file that differs from `base` (tracked, new, and deleted), with its git file mode.
 function changedFiles(base: string): ChangedFile[] {
@@ -381,7 +412,15 @@ async function main(): Promise<RunnerResult> {
   if (!sh("bun install --frozen-lockfile").ok) must("bun install");
   sh("bunx next typegen"); // the typecheck needs Next's generated route types
 
-  if (brief.prNumber) {
+  // Picking up a failed follow-up on a PR in its saved sandbox: keep its edits if the branch
+  // hasn't moved on GitHub since. (Without a PR the branch is only local; checkout -B below
+  // keeps the working tree.)
+  const keepEdits =
+    RESUMES_WORK &&
+    (!brief.prNumber ||
+      (sh(`git fetch -q origin ${branch}`).ok &&
+        must("git rev-parse HEAD") === must("git rev-parse FETCH_HEAD")));
+  if (brief.prNumber && !keepEdits) {
     // A saved sandbox may already be on the branch; match GitHub either way.
     const fetched = sh(
       `git reset -q --hard && git clean -fdq && git fetch origin ${branch} && git checkout -B ${branch} FETCH_HEAD`,
@@ -393,25 +432,27 @@ async function main(): Promise<RunnerResult> {
   const base = must("git rev-parse HEAD");
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
-  const resume =
-    env.SANDBOX_FRESH === "0" ? (brief.resumeSessionId ?? undefined) : undefined;
+  const resume = RESUMED_SANDBOX ? (brief.resumeSessionId ?? undefined) : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
-  let { final, sessionId } = await runAgent(prompt(), resume).catch((err) => {
+  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch((err) => {
     if (!resume) throw err;
     console.error("resume failed; starting a new session", err);
     return runAgent(prompt());
   });
-  await report({ sessionId });
 
-  if (changedFiles(base).length === 0)
+  if (changedFiles(base).length === 0) {
+    if (outOfTurns) throw new Error(OUT_OF_TURNS);
     return { outcome: "answered", summary: final.summary };
+  }
 
   await step("Running the typecheck and linter");
   let check = checks();
-  for (let attempt = 0; !check.ok && attempt < 2; attempt++) {
+  // Out of steps: push what's there as an unfinished PR for a follow-up to finish, without
+  // spending more turns on fixes.
+  for (let attempt = 0; !outOfTurns && !check.ok && attempt < 2; attempt++) {
     await step("Fixing typecheck and lint errors");
-    ({ final, sessionId } = await runAgent(
+    ({ final, sessionId, outOfTurns } = await runAgent(
       `The harness's checks failed:\n\n${check.output}\n\nFix these, run the checks again, and return the structured result again, covering the whole change.`,
       sessionId,
     ));
@@ -419,7 +460,21 @@ async function main(): Promise<RunnerResult> {
     check = checks();
   }
   const files = changedFiles(base);
-  if (files.length === 0) return { outcome: "answered", summary: final.summary };
+  if (files.length === 0) {
+    if (outOfTurns) throw new Error(OUT_OF_TURNS);
+    return { outcome: "answered", summary: final.summary };
+  }
+  if (outOfTurns)
+    return {
+      outcome: "changes",
+      base,
+      files,
+      title: final.title,
+      summary: `${OUT_OF_TURNS} Reply @Claude continue to keep going.`,
+      details: final.details,
+      checksPassed: check.ok,
+      unfinished: true,
+    };
   return {
     outcome: "changes",
     base,
@@ -447,8 +502,10 @@ async function finish(result: RunnerResult) {
 }
 
 main()
-  .catch((err): RunnerResult => {
+  .catch(async (err): Promise<RunnerResult> => {
     console.error(err);
+    // Usually saved already when the session started; make sure, before the key is retired.
+    if (agentSessionId) await report({ sessionId: agentSessionId });
     const message = err instanceof Error ? err.message : String(err);
     return {
       outcome: "failed",
