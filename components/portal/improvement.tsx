@@ -66,11 +66,13 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
         </p>
         {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
-        <StopButton card={card} isAdmin={isAdmin} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
         )}
-        {isAdmin && card.status === "running" && <LogLink id={card._id} />}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 empty:hidden">
+          <StopButton card={card} isAdmin={isAdmin} />
+          {isAdmin && card.status === "running" && <LogLink id={card._id} />}
+        </div>
       </div>
     );
 
@@ -215,11 +217,13 @@ export function ImprovementCard({
         </p>
         {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
-        <StopButton card={card} isAdmin={isAdmin} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
         )}
-        {card.status === "running" && showLog && <LogLink id={card._id} />}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 empty:hidden">
+          <StopButton card={card} isAdmin={isAdmin} />
+          {card.status === "running" && showLog && <LogLink id={card._id} />}
+        </div>
       </div>
     );
 
