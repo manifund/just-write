@@ -196,6 +196,11 @@ export default defineSchema({
     branch: v.string(),
     previousId: v.optional(v.id("improvements")), // the earlier run whose PR this continues
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
+    // Replies in the thread that didn't mention Claude, sent while this code run was going.
+    // The runner takes them with tagged follow-ups (server.takeFollowUps), then they're cleared.
+    untaggedReplies: v.optional(
+      v.array(v.object({ authorId: v.id("members"), text: v.string() })),
+    ),
     title: v.optional(v.string()),
     summary: v.optional(v.string()),
     files: v.optional(v.array(v.string())),

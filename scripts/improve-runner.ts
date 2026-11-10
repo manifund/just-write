@@ -153,6 +153,7 @@ async function claimFollowUps() {
   return (Array.isArray(rows) ? rows : []) as {
     author: string;
     text: string;
+    tagged?: boolean; // false: a reply that didn't mention @Claude
   }[];
 }
 
@@ -542,7 +543,9 @@ async function* agentInput(
       await step(`Reading a follow-up from ${f.author}`);
       log("info", `Follow-up from ${f.author}:\n${f.text}`);
       yield userMessage(
-        `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
+        f.tagged === false
+          ? `${f.author} replied in the thread while you were working, without mentioning @Claude:\n"""\n${f.text}\n"""\nThis may be members talking to each other ("looks good", "it works"). If it asks for something about this change, take it into account; otherwise ignore it. Then carry on. When you're done, return the structured result covering the whole change.`
+          : `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",
       );
     }
