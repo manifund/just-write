@@ -30,9 +30,10 @@ export function Profile({
   const viewer = useQuery(api.members.viewer, isAuthenticated ? {} : "skip");
   const { member, essays } = data;
   const isSelf = viewer?.member?._id === member._id;
-  const done = fillSlots(
-    essays.map((e) => ({ ...e, review: "pending" })),
-  ).filter((s) => s.essayId).length;
+  const slots = fillSlots(essays.map((e) => ({ ...e, review: "pending" })));
+  const done = slots.filter((s) => s.essayId).length;
+  const weekOf = (id: string) =>
+    slots.find((s) => s.essayIds.includes(id))?.week;
 
   return (
     <main className="mx-auto flex max-w-[52rem] flex-col gap-[clamp(28px,5vh,44px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
@@ -83,6 +84,7 @@ export function Profile({
                   {e.title}
                 </a>
                 <span className="text-[14px] text-ink-muted">
+                  {weekOf(e._id) ? `Week ${weekOf(e._id)} · ` : ""}
                   {hostOf(e.url)} · {dateFmt.format(e.submittedAt)}
                   {e.wordCount
                     ? ` · ~${e.wordCount.toLocaleString()} words`

@@ -37,7 +37,7 @@ export function Directory({ initial }: { initial: Row[] }) {
     week ? { since: week.since } : "skip",
   );
   const published = members.reduce(
-    (n, m) => n + Math.min(m.essayCount, GOAL),
+    (n, m) => n + Math.min(m.weeksDone, GOAL),
     0,
   );
   return (
@@ -72,8 +72,8 @@ export function Directory({ initial }: { initial: Row[] }) {
                     />
                   )}
                   <Pips
-                    filled={m.essayCount}
-                    label={`${Math.min(m.essayCount, GOAL)} of ${GOAL} essays`}
+                    filled={m.weeksDone}
+                    label={`${Math.min(m.weeksDone, GOAL)} of ${GOAL} weeks done`}
                   />
                   {m.link && <span className="truncate">{hostOf(m.link)}</span>}
                 </span>
