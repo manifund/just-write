@@ -17,6 +17,7 @@ import {
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { nextPtMidnight } from "./lib/time";
+import { DEADLINES, fillSlots } from "./lib/program";
 import { isReaction } from "./lib/reactions";
 import { ensureClaude, startFromMessage } from "./improvements";
 import { getClaude } from "./lib/claude";
@@ -197,13 +198,17 @@ export const channel = query({
 // #check-ins is gated: until you've posted a top-level check-in yourself today (Pacific
 // time; the day turns over at midnight), everyone else's posts and thread replies show
 // only their first 100 characters. Posts you could already read stay readable: anything
-// written before the end of the day of your last check-in, plus replies in those threads. The channel's oldest post,
+// written before the end of the day of your last check-in, plus replies in those threads.
+// An essay that counts toward a week also unlocks that week's check-ins (everything
+// posted before that week's deadline and after the previous one). The channel's oldest post,
 // when an admin wrote it, is the standing intro and always shows in full. Returns null
 // when nothing should be hidden from this viewer.
 type Gate = {
   viewerId: Id<"members">;
   introId: Id<"messages"> | null;
   seenUntil: number;
+  // [from, until) windows of check-ins unlocked by the viewer's essays, one per week.
+  weeks: [number, number][];
 };
 export async function checkInGate(
   ctx: QueryCtx,
@@ -222,7 +227,19 @@ export async function checkInGate(
     .order("desc")
     .first();
   const seenUntil = lastOwn ? nextPtMidnight(lastOwn._creationTime) : 0;
-  if (seenUntil > Date.now()) return null;
+  const now = Date.now();
+  if (seenUntil > now) return null;
+  const essays = await ctx.db
+    .query("essays")
+    .withIndex("by_member", (q) => q.eq("memberId", member._id))
+    .collect();
+  const weeks = fillSlots(essays)
+    .filter((s) => s.essayIds.length > 0)
+    .map((s): [number, number] => [
+      s.week === 1 ? 0 : DEADLINES[s.week - 2],
+      s.deadline,
+    ]);
+  if (weeks.some(([from, until]) => from <= now && now < until)) return null;
   const first = await ctx.db
     .query("messages")
     .withIndex("by_channel_parent", (q) =>
@@ -233,8 +250,12 @@ export async function checkInGate(
   const firstAuthor = first ? await ctx.db.get(first.authorId) : null;
   const introId =
     first && firstAuthor && isAdminEmail(firstAuthor.email) ? first._id : null;
-  return { viewerId: member._id, introId, seenUntil };
+  return { viewerId: member._id, introId, seenUntil, weeks };
 }
+
+const unlocked = (gate: Gate, t: number) =>
+  t < gate.seenUntil ||
+  gate.weeks.some(([from, until]) => from <= t && t < until);
 
 // Replaces a message's body with a short preview when the gate hides it. Pass the
 // thread's parent for replies, so replies to a post the viewer has seen stay readable.
@@ -247,8 +268,8 @@ export function veil(
     !gate ||
     m.authorId === gate.viewerId ||
     m._id === gate.introId ||
-    m._creationTime < gate.seenUntil ||
-    (parent && parent._creationTime < gate.seenUntil) ||
+    unlocked(gate, m._creationTime) ||
+    (parent && unlocked(gate, parent._creationTime)) ||
     m.kind ||
     m.essayId ||
     m.eventId ||

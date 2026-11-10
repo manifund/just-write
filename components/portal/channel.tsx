@@ -443,7 +443,7 @@ function MessageList({
         <TypingIndicator slug={slug} parentId={null} />
         {locked && (
           <p className="pb-1.5 text-[14px] text-ink-muted">
-            Post today’s check-in to read everyone else’s.
+            Post today’s check-in, or publish this week’s essay, to read everyone else’s.
           </p>
         )}
         <Composer
