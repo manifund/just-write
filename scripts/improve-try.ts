@@ -7,7 +7,7 @@
 // on a few made-up members and essays instead of the club's data. It checks the setup, the
 // firewall, and the model key the firewall adds; nothing is posted.
 // Needs VERCEL_OIDC_TOKEN (vercel env pull) and OPENROUTER_API_KEY in .env.local.
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
 import { REPO, SANDBOX_ROOT, parseEffort } from "../convex/lib/improve";
 import {
@@ -82,6 +82,9 @@ const sampleClub = {
 };
 const upload = [
   "scripts/improve-runner.ts",
+  ...readdirSync("scripts/improve-runner").map(
+    (f) => `scripts/improve-runner/${f}`,
+  ),
   "convex/lib/improve.ts",
   "package.json",
   "bun.lock",
