@@ -5,7 +5,7 @@ import type { FunctionArgs } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { fetchAuthQuery, serverSecret } from "@/lib/auth-server";
-import { closePr, mergePr, revertPr } from "@/lib/github";
+import { closePr, getPr, mergePr, revertPr } from "@/lib/github";
 
 type Result = { ok: true } | { ok: false; error: string };
 type Patch = NonNullable<
@@ -20,6 +20,7 @@ async function act(
     prNumber: number;
     branch: string;
     token: string;
+    adminId: Id<"members"> | null;
   }) => Promise<Patch>,
   allowed: string[],
 ): Promise<Result> {
@@ -31,7 +32,12 @@ async function act(
       return { ok: false, error: "That change can’t do this right now." };
     const token = process.env.GITHUB_TOKEN;
     if (!token) return { ok: false, error: "GITHUB_TOKEN isn’t set." };
-    const patch = await run({ prNumber: r.prNumber, branch: r.branch, token });
+    const patch = await run({
+      prNumber: r.prNumber,
+      branch: r.branch,
+      token,
+      adminId: r.adminId,
+    });
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     await convex.mutation(api.server.reportImprovement, {
       secret: serverSecret(),
@@ -51,8 +57,27 @@ async function act(
 export async function mergeImprovement(id: string) {
   return act(
     id,
-    async ({ prNumber, branch, token }) => {
-      await mergePr(token, prNumber, branch);
+    async ({ prNumber, branch, token, adminId }) => {
+      try {
+        await mergePr(token, prNumber, branch);
+      } catch (err) {
+        // Conflicts with main: have Claude merge main in and fix them, in the PR's thread.
+        const pr = await getPr(token, prNumber).catch(() => null);
+        if (pr?.mergeable !== false || pr.merged) throw err;
+        const convex = new ConvexHttpClient(
+          process.env.NEXT_PUBLIC_CONVEX_URL!,
+        );
+        const { started } = await convex.mutation(api.server.fixConflicts, {
+          secret: serverSecret(),
+          id: id as Id<"improvements">,
+          adminId: adminId ?? undefined,
+        });
+        throw new Error(
+          started
+            ? "This conflicts with newer changes, so Claude is fixing that in the thread. Merge it from Claude’s new card when it’s done."
+            : "This conflicts with newer changes and can’t merge.",
+        );
+      }
       return { status: "merged" };
     },
     ["pr"],
