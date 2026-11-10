@@ -1,6 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { markSeenInChat } from "./lib/seen";
 import {
   internalMutation,
   mutation,
@@ -14,7 +15,7 @@ import {
   DEFAULT_CHANNELS,
   RECENT_SIZE,
 } from "./lib/channels";
-import { forgetActivity, markSeenInChat } from "./lib/activity";
+import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { nextPtMidnight } from "./lib/time";
 import { DEADLINES, fillSlots } from "./lib/program";
