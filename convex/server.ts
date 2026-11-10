@@ -17,6 +17,7 @@ import {
   txt,
 } from "./improvements";
 import {
+  BRIEF_IMAGES_MAX,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
   MEMBER_DAILY_LIMIT,
@@ -28,7 +29,7 @@ import {
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
-import { emptyDoc } from "./lib/richtext";
+import { emptyDoc, type RichNode } from "./lib/richtext";
 import { checkServerSecret, isAdminEmail } from "./lib/viewer";
 
 // client_reference_id is a Convex member id, or a numeric id from the old Neon table.
@@ -235,7 +236,12 @@ export const claimImprovement = mutation({
       .withIndex("by_parent", (q) => q.eq("parentId", r.threadId))
       .collect();
     const names = new Map<string, string>();
-    const thread = [];
+    const thread: {
+      author: string;
+      text: string;
+      at: number;
+      images?: string[];
+    }[] = [];
     // In #check-ins the agent only learns who wrote what length, apart from the request
     // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
     // posting, while what Claude writes back is seen by every member, ungated (and, for
@@ -275,8 +281,23 @@ export const claimImprovement = mutation({
         (m.authorId !== r.requesterId || r.kind === "chat")
       ) {
         text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
+      } else {
+        // A member's own message, shown as written: its images go to the agent too.
+        const images = imageSources(m.body);
+        if (images.length) {
+          thread.push({ author, text, at: m._creationTime, images });
+          continue;
+        }
       }
       thread.push({ author, text, at: m._creationTime });
+    }
+    // Keep only the newest images, so a long thread can't send dozens.
+    let imagesLeft = BRIEF_IMAGES_MAX;
+    for (const m of [...thread].reverse()) {
+      if (!m.images) continue;
+      m.images = imagesLeft > 0 ? m.images.slice(-imagesLeft) : [];
+      imagesLeft -= m.images.length;
+      if (!m.images.length) delete m.images;
     }
     // PRs still open from earlier runs in this thread (the latest run on each). The route
     // decides which one, if any, this request continues (lib/improve-target.ts). A part of a
@@ -456,6 +477,19 @@ export const splitRun = mutation({
     };
   },
 });
+
+// The stored-file URLs of a message's images (set by chat.ts#withImages), in order.
+function imageSources(body: string): string[] {
+  let doc: RichNode;
+  try {
+    doc = JSON.parse(body) as RichNode;
+  } catch {
+    return [];
+  }
+  return (doc.content ?? [])
+    .filter((n) => n.type === "image" && typeof n.attrs?.src === "string")
+    .map((n) => n.attrs!.src as string);
+}
 
 // Who asked for a run and where, for the prompt, commit message, and PR.
 async function whoAndWhere(ctx: MutationCtx, r: Doc<"improvements">) {
