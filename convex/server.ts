@@ -17,6 +17,7 @@ import {
   txt,
 } from "./improvements";
 import {
+  AGENT_MODEL,
   BRIEF_IMAGES_MAX,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
@@ -229,6 +230,7 @@ export const claimImprovement = mutation({
       startedAt: Date.now(),
       runTokenHash,
       effort,
+      model: AGENT_MODEL,
     });
 
     const replies = await ctx.db
@@ -679,7 +681,7 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     out.push({ author: author?.name ?? "A member", text: w.request });
   }
   // Untagged replies (convex/untagged.ts). They may be members talking to each
-  // other, and the runner tells the agent so.
+  // other, and the runner tells the agent so. Edits to the request come the same way.
   if (r.untaggedReplies?.length) {
     await ctx.db.patch(id, { untaggedReplies: undefined });
     for (const u of r.untaggedReplies) {
@@ -687,7 +689,7 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
       out.push({
         author: author?.name ?? "A member",
         text: u.text,
-        tagged: false,
+        ...(u.edited ? { edited: true } : { tagged: false }),
       });
     }
   }

@@ -16,6 +16,13 @@ export const SANDBOX_ROOT = "/vercel/just-write"; // where Vercel Sandbox clones
 export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
 export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
 
+// "anthropic/claude-opus-5.5" → "Opus 5.5", for the card (improvements.ts#cardOf).
+export function modelLabel(slug: string) {
+  const m = slug.match(/claude-([a-z]+)-([\d.]+)/i);
+  if (!m) return slug.replace(/^.*\//, "");
+  return `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}`;
+}
+
 // Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
 // A follow-up that doesn't set one keeps the effort of the run it continues
 // (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
