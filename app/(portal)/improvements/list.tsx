@@ -119,7 +119,8 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
           “effort: low” (or medium, high, xhigh, max) to the request to set how
           hard it thinks. A reply in the same thread keeps working on that
           thread’s open PR if it’s about the same change, or starts a new one if
-          not. Write “new PR” or “continue #40” to choose yourself.
+          not. Write “new PR” or “continue #40” to choose yourself. A reply that
+          continues a PR keeps its effort unless it sets its own.
         </p>
       </header>
 

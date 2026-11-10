@@ -16,6 +16,21 @@ export const SANDBOX_ROOT = "/vercel/just-write"; // where Vercel Sandbox clones
 export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
 export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
 
+// Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
+// A follow-up that doesn't set one keeps the effort of the run it continues
+// (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+export function parseEffort(request: string): Effort | undefined {
+  const m = request.match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"));
+  return m ? (m[1].toLowerCase() as Effort) : undefined;
+}
+
+export function isEffort(value: unknown): value is Effort {
+  return EFFORTS.includes(value as Effort);
+}
+
 // Runs per non-admin member per 24 hours, and for everyone combined.
 export const MEMBER_DAILY_LIMIT = 25;
 export const GLOBAL_DAILY_LIMIT = 200;
