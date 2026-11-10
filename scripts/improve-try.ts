@@ -5,7 +5,7 @@
 // Needs VERCEL_OIDC_TOKEN (vercel env pull) and OPENROUTER_API_KEY in .env.local.
 import { readFileSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
-import { REPO, SANDBOX_ROOT } from "../convex/lib/improve";
+import { REPO, SANDBOX_ROOT, parseEffort } from "../convex/lib/improve";
 
 const request = process.argv[2] ?? "Add a tooltip to the chat Send button that says “Enter to send”.";
 const upload = [
@@ -36,6 +36,7 @@ try {
           branch: "claude/try",
           prNumber: null,
           resumeSessionId: null,
+          effort: parseEffort(request) ?? null,
           request,
           requester: "Austin",
           channel: "site",

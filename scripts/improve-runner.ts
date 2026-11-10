@@ -18,7 +18,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { AGENT_MODEL, REPO, SANDBOX_ROOT } from "../convex/lib/improve";
+import { AGENT_MODEL, REPO, SANDBOX_ROOT, isEffort } from "../convex/lib/improve";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 type Brief = {
@@ -32,6 +32,8 @@ type Brief = {
   // Set when this picks up an earlier run in the thread that stopped partway (out of steps,
   // timed out). Its saved sandbox, if it came back, still has that run's uncommitted edits.
   resumesFailedRun?: number | null;
+  // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
+  effort?: string | null;
   request: string;
   requester: string;
   channel: string;
@@ -47,13 +49,9 @@ const brief: Brief = JSON.parse(
 );
 const RUN_TOKEN = env.RUN_TOKEN ?? "";
 
-// Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
-// Without one, the SDK uses the model's default.
-const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
-type Effort = (typeof EFFORTS)[number];
-const EFFORT = brief.request
-  .match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"))?.[1]
-  .toLowerCase() as Effort | undefined;
+// The agent's effort level (convex/lib/improve.ts#parseEffort). Without one, the SDK uses
+// the model's default.
+const EFFORT = isEffort(brief.effort) ? brief.effort : undefined;
 const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY ?? "";
 // The saved sandbox from the last run on this branch came back (not a fresh clone).
 const RESUMED_SANDBOX = env.SANDBOX_FRESH === "0";

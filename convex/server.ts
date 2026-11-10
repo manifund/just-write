@@ -14,7 +14,7 @@ import {
   releaseWaiting,
   txt,
 } from "./improvements";
-import { hashRunToken } from "./lib/improve";
+import { hashRunToken, parseEffort } from "./lib/improve";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -200,12 +200,19 @@ export const claimImprovement = mutation({
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r || r.status !== "queued") return null;
-    await ctx.db.patch(id, { status: "running", startedAt: Date.now(), runTokenHash });
-
     const [root, previous] = await Promise.all([
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
     ]);
+    // continuePr may change this once the route knows which run this continues.
+    const effort = parseEffort(r.request) ?? previous?.effort;
+    await ctx.db.patch(id, {
+      status: "running",
+      startedAt: Date.now(),
+      runTokenHash,
+      effort,
+    });
+
     const replies = await ctx.db
       .query("messages")
       .withIndex("by_parent", (q) => q.eq("parentId", r.threadId))
@@ -268,6 +275,7 @@ export const claimImprovement = mutation({
         : null,
       // Set by continuePr when this picks up a failed run.
       resumesFailedRun: null as number | null,
+      effort: effort ?? null,
       ...(await whoAndWhere(ctx, r)),
       thread,
     };
@@ -348,17 +356,21 @@ export const continuePr = mutation({
       if (later.some((e) => e.number > prev.number && e.number < r.number)) return null;
     }
     if (!openPr && !failed) return null;
+    // The request's own effort wins; otherwise keep the one the earlier run used.
+    const effort = parseEffort(r.request) ?? prev.effort;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,
       prNumber: prev.prNumber,
       prUrl: prev.prUrl,
+      effort,
     });
     return {
       branch: prev.branch,
       prNumber: prev.prNumber ?? null,
       resumeSessionId: prev.sessionId ?? null,
       resumesFailedRun: failed ? prev.number : null,
+      effort: effort ?? null,
     };
   },
 });
