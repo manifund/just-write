@@ -108,7 +108,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
           <Steps steps={card.steps} />
           <p>
             I read the club’s data and don’t change the site in a chat task. For
-            a change to the site, mention me with “new PR”.
+            a change to the site, start a message with “@Claude !code”.
           </p>
           {isAdmin && card.startedAt && <LogLink id={card._id} />}
         </div>

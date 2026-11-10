@@ -20,12 +20,12 @@ import {
 import {
   CLAUDE_EMAIL,
   GLOBAL_DAILY_LIMIT,
+  HELP,
   MEMBER_DAILY_LIMIT,
   branchFor,
   isChatTask,
-  claudeCommand,
   modelLabel,
-  restartCommand,
+  readRequest,
   staleAfterMs,
 } from "./lib/improve";
 import { checkInGate, veil } from "./chat";
@@ -89,7 +89,8 @@ export async function postAsClaude(
 function plainOf(n: RichNode): string {
   if (n.type === "text") return n.text ?? "";
   if (n.type === "mention") return `@${n.attrs?.label ?? ""}`;
-  return (n.content ?? []).map(plainOf).join(n.type === "doc" ? "\n" : "");
+  const block = ["doc", "bulletList", "orderedList"].includes(n.type);
+  return (n.content ?? []).map(plainOf).join(block ? "\n" : "");
 }
 
 export function paragraph(...content: RichNode[]): RichNode {
@@ -104,16 +105,42 @@ export const mention = (m: Doc<"members">): RichNode => ({
   attrs: { id: m._id, label: m.name },
 });
 
-const HELP_TEXT = [
-  "Mention me with a request and I’ll change the site and open a PR.",
-  "Write “chat task” to have me read the club’s data and answer or post a message instead.",
-  "“new PR” starts a fresh PR; “#40” or “continue #40” works on that PR.",
-  "“effort: high” (low, medium, high, xhigh, max) sets how hard I think.",
-  "“in parallel” splits a list of changes into separate runs and PRs.",
-  "Replies in a thread reach me without a tag while I’m working and for a day after.",
-  "“!restart” redoes the thread’s last request on the same PR with a fresh session, plus any directions after it.",
-  "Commands, on their own: !status, !help, !mute (only tagged messages reach me here), !unmute.",
-].join(" ");
+// "@Claude !help": everything in HELP (convex/lib/improve.ts), as lists.
+function helpDoc(member: Doc<"members">): RichNode {
+  const para = (...content: RichNode[]): RichNode => ({
+    type: "paragraph",
+    content,
+  });
+  const list = (items: readonly (readonly [string, string])[]): RichNode => ({
+    type: "bulletList",
+    content: items.map(([word, what]) => ({
+      type: "listItem",
+      content: [
+        para(
+          { type: "text", text: word, marks: [{ type: "code" }] },
+          txt(` ${what}`),
+        ),
+      ],
+    })),
+  });
+  return {
+    type: "doc",
+    content: [
+      para(
+        mention(member),
+        txt(
+          " Mention me with a request. Start it with any of these to steer it, like ",
+        ),
+        { type: "text", text: HELP.example, marks: [{ type: "code" }] },
+        txt(":"),
+      ),
+      list(HELP.steer),
+      para(txt("On their own, these reply right away:")),
+      list(HELP.commands),
+      ...HELP.notes.map((n) => para(txt(n))),
+    ],
+  };
+}
 
 const STATUS_WORDS: Record<Doc<"improvements">["status"], string> = {
   queued: "is waiting to start",
@@ -163,11 +190,22 @@ export async function startFromMessage(
           body: paragraph(mention(args.member), txt(` ${text}`)),
         });
 
-  // "@Claude !mute" / "!unmute": whether untagged replies in this thread reach Claude.
-  // "!status" / "!help": a short reply, no run (convex/lib/improve.ts#claudeCommand).
-  const command =
-    args.untagged || args.continues ? null : claudeCommand(args.text);
-  if (command === "help") return await reply(HELP_TEXT);
+  // `!` words at the start of the message (convex/lib/improve.ts#readRequest). Commands
+  // ("!status", "!help", "!mute", "!unmute") and ones it can't read get a reply and no run.
+  // Untagged replies and fixConflicts' requests are never commands.
+  const asked = readRequest(args.text);
+  const commands = !args.untagged && !args.continues;
+  const command = commands ? asked.command : null;
+  if (commands && asked.problem)
+    return await reply(
+      `${asked.problem} Write @Claude !help to see what I understand.`,
+    );
+  if (command === "help")
+    return await postAsClaude(ctx, {
+      channelId: args.channelId,
+      parentId: threadId,
+      body: helpDoc(args.member),
+    });
   if (command === "status") {
     const latest = await ctx.db
       .query("improvements")
@@ -216,15 +254,15 @@ export async function startFromMessage(
   }
 
   // A chat task reads the club's data instead of changing code (convex/chatTasks.ts).
-  // Decided here, once, so a run can't change kind later.
+  // Decided here, except that a code run whose request doesn't say which kind it is can still
+  // become a chat task before its sandbox starts (server.becomeChatTask), never the other way.
   const earlier = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
     .collect();
   // "@Claude !restart": start the thread's latest code run over with a fresh agent session.
-  const restartNote =
-    args.untagged || args.continues ? null : restartCommand(args.text);
+  const restartNote = commands ? asked.restart : null;
   let restartOf: Doc<"improvements"> | null = null;
   if (restartNote !== null) {
     restartOf = earlier.find((r) => r.kind !== "chat") ?? null;

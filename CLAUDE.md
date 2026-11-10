@@ -140,7 +140,7 @@ Keeping open PRs current:
 Follow-ups:
 
 - A reply with `@Claude` in the same thread may continue one of the thread's open PRs.
-- Before the sandbox starts, the route asks `lib/improve-target.ts#pickTarget`: "new PR" or "#40" in the request wins, then a quick classifier call over the thread, falling back to the previous run's PR.
+- Before the sandbox starts, the route asks `lib/improve-target.ts#pickTarget`: `!new` or `!pr 40` (or "new PR", "#40") in the request wins, then a quick classifier call over the thread, falling back to the previous run's PR.
 - `server.continuePr` moves the run onto the picked PR's branch.
 - If the thread's previous run failed after its sandbox started (out of steps, timed out), a reply picks that run up instead, unless it names a PR or asks for a new one.
 - Picking up a failed run keeps its branch, so its saved sandbox comes back with the uncommitted edits, and the agent session resumes (the runner saves the session id as soon as the agent starts).
@@ -165,13 +165,18 @@ Replies without @Claude:
 - `untagged.check` runs at most `UNTAGGED_CHECKS_PER_DAY` times per thread, counted in `claudeThreads.checks`.
 - If it is a request, `untagged.pickUp` calls `startFromMessage` with `untagged`, which stays silent if limits stop it.
 - Such a run is marked (`untagged`, shown on the card), and the agent is told to stay out of it if it was really a conversation.
-- `@Claude !mute` / `!unmute` (the whole message, `convex/lib/improve.ts#claudeCommand`) turns this off or on per thread (`claudeThreads.muted`).
+- `@Claude !mute` / `!unmute` (a command, `convex/lib/improve.ts#readRequest`) turns this off or on per thread (`claudeThreads.muted`).
 
 Commands:
 
-- `convex/lib/improve.ts#claudeCommand` recognizes a message that's only `@Claude !mute`, `!unmute`, `!status`, or `!help`; `startFromMessage` replies right away and starts no run.
+- `convex/lib/improve.ts#readRequest` is the one parser for the `!` words members put at the start of a message, after the mention (`@Claude !chat !effort high who has published twice?`).
+- A `!` word later in the message is just text, so "add a !mute command" is still a request.
+- The older phrases ("chat task", "new PR", "continue #40", "effort: high", "in parallel") still work anywhere in the message; a `!` word wins over them.
+- A message that starts with `!mute`, `!unmute`, `!status`, or `!help` is only that command; `startFromMessage` replies right away and starts no run.
+- A leading `!` word it can't read (`!stauts`, `!pr` without a number) gets a reply pointing at `!help`, and no run.
+- The rest steer a request: `!chat`, `!code`, `!new`, `!pr 40`, `!effort high`, `!parallel`, `!restart`.
 - `!status` replies with the thread's latest run, its status, and its current step.
-- `!help` lists what @Claude understands (`HELP_TEXT` in `convex/improvements.ts`); update it when adding a keyword or command.
+- `!help` replies with lists from `HELP` in `convex/lib/improve.ts`, which the `/improvements` page also shows; add new words there.
 
 Stopping a run:
 
@@ -183,7 +188,7 @@ Stopping a run:
 
 Restarting a run:
 
-- `@Claude !restart` (`convex/lib/improve.ts#restartCommand`, optionally followed by more directions) starts the thread's latest code run over with a fresh agent session instead of resuming.
+- `@Claude !restart` (`readRequest`'s `restart`, optionally followed by more directions) starts the thread's latest code run over with a fresh agent session instead of resuming.
 - If that run is still going, it's stopped first, the same way as Stop (`improvements.ts#requestStop`), and the restart waits for it to wrap up.
 - The new run has `restart: {run, request}` and `previousId`; it redoes the original request, carried through chains of restarts.
 - `server.claimImprovement` puts it on the earlier run's PR if that PR is still open, and never resumes a session; the route skips its target choice.
@@ -191,13 +196,13 @@ Restarting a run:
 
 Effort:
 
-- Writing `effort: high` (low/medium/high/xhigh/max) in a request sets the agent's effort for that run (`convex/lib/improve.ts#parseEffort`).
+- Writing `!effort high` or `effort: high` (low/medium/high/xhigh/max) in a request sets the agent's effort for that run (`readRequest`'s `effort`).
 - The resolved effort is saved on the run (`effort`).
 - A follow-up that continues a run (`server.continuePr`) keeps that run's effort unless it sets its own.
 
 Parallel requests:
 
-- A code request that matches `PARALLEL` ("in parallel", "separate PRs") is split by a quick model call (`lib/improve-split.ts`) before the target is picked.
+- A code request that asks for it (`!parallel`, or "in parallel"/"separate PRs" anywhere; `readRequest`'s `parallel`) is split by a quick model call (`lib/improve-split.ts`) before the target is picked.
 - It splits into up to `MAX_PARALLEL` parts, each counted toward the daily limits.
 - `server.splitRun` keeps part 1 on the run and gives each other part its own run in the same thread (`split: {from, part, of}`, own card, branch, and sandbox), started right away.
 - Parts always start new PRs, and the agent's request lists the other parts so it leaves them alone.
@@ -232,8 +237,13 @@ Images:
 
 **@Claude chat tasks** (`convex/chatTasks.ts`):
 
-- A request that says "chat task" (or follows only chat tasks in its thread, without "new PR"/"PR 40"/"continue #40") reads the club's data instead of changing code, to answer a question or post one message.
-- `kind: "chat"` is set when the run is created (`convex/lib/improve.ts#isChatTask`; `CHAT_TASKS_ENABLED` turns it off).
+- A request that starts with `!chat` (or says "chat task", or follows only chat tasks in its thread without `!code`/`!new`/`!pr 40`/"new PR"/"continue #40") reads the club's data instead of changing code, to answer a question or post one message.
+- `kind: "chat"` is set when the run is created (`convex/lib/improve.ts#isChatTask`; `CHAT_TASKS_ENABLED` turns it off), or right after it's claimed (below).
+- A code run whose request says neither kind and isn't a restart, split part, or fixConflicts run (`server.ts#kindUnsaid`) gets `askKind` on its brief.
+- For those, the route asks `lib/improve-kind.ts#pickKind` (a quick `CLASSIFIER_MODEL` call over the thread) before anything else; it answers code when unsure or when it fails.
+- If it reads the request as a chat task, `server.becomeChatTask` switches the run before its sandbox starts, logs the reason, releases code follow-ups waiting on it, and returns a chat-task brief.
+- Runs only ever switch from code to chat, never back, since chat-task briefs and logs hold members-only data.
+- An unmarked request sent while a code run in its thread is going is still handed to that agent as a follow-up; the agent tells them to ask again with `!chat`.
 - Chat tasks and code runs never wait for or take follow-ups from each other.
 - The route reads `chatTasks.snapshot`/`messages` with the server secret and the run's key (only before its sandbox exists), then starts a throwaway sandbox.
 - In that sandbox, bun, the Agent SDK (into `/tmp/agent`), and the runner go in first (`lib/chat-task-sandbox.ts#SETUP`), then the firewall, then the data at `/tmp/club` and the run key.
