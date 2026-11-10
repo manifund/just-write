@@ -159,6 +159,7 @@ type FollowUp = {
   author: string;
   text: string;
   tagged?: boolean; // false: a reply that didn't mention @Claude
+  edited?: boolean; // the new text of the request, edited while the run was going
 };
 let stoppedBy: string | null = null;
 let stopAgent = () => {};
@@ -651,10 +652,19 @@ async function* agentInput(
     ]);
     if (isDone()) return;
     for (const f of await claimFollowUps()) {
-      await step(`Reading a follow-up from ${f.author}`);
-      log("info", `Follow-up from ${f.author}:\n${f.text}`);
+      await step(
+        f.edited
+          ? `Reading ${f.author}'s edited request`
+          : `Reading a follow-up from ${f.author}`,
+      );
+      log(
+        "info",
+        `${f.edited ? "Edited request" : "Follow-up"} from ${f.author}:\n${f.text}`,
+      );
       yield userMessage(
-        f.tagged === false
+        f.edited
+          ? `${f.author} edited the request while you were working. It now reads:\n"""\n${f.text}\n"""\nTreat the changes as a follow-up note: take them into account, then carry on. When you're done, return the structured result covering the whole change.`
+          : f.tagged === false
           ? `${f.author} replied in the thread while you were working, without mentioning @Claude:\n"""\n${f.text}\n"""\nThis may be members talking to each other ("looks good", "it works"). If it asks for something about this change, take it into account; otherwise ignore it. Then carry on. When you're done, return the structured result covering the whole change.`
           : `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",

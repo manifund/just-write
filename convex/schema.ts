@@ -220,8 +220,16 @@ export default defineSchema({
     // Started from a reply that didn't mention Claude, after the classifier judged it a request
     // (convex/untagged.ts). The card says so.
     untagged: v.optional(v.boolean()),
+    // Also the new text of the request message, if its author edits it while the run is going
+    // (`edited`, convex/untagged.ts#noteEditedRequest).
     untaggedReplies: v.optional(
-      v.array(v.object({ authorId: v.id("members"), text: v.string() })),
+      v.array(
+        v.object({
+          authorId: v.id("members"),
+          text: v.string(),
+          edited: v.optional(v.boolean()),
+        }),
+      ),
     ),
     title: v.optional(v.string()),
     summary: v.optional(v.string()),
@@ -235,6 +243,7 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    model: v.optional(v.string()), // the agent's OpenRouter model slug, set when the run starts
     // Agent effort: set in the request ("effort: high"), or kept from the run this continues.
     effort: v.optional(
       v.union(
