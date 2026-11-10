@@ -17,6 +17,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   CHAT_TIMEOUT_MS,
+  PARALLEL,
   REPO,
   RUN_TIMEOUT_MS,
   SANDBOX_KEEP_MS,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/chat-task-sandbox";
 import { readClub } from "@/lib/club-snapshot";
 import { finishRun, parseResult } from "@/lib/improve-finish";
+import { splitRequest } from "@/lib/improve-split";
 import { pickTarget } from "@/lib/improve-target";
 import {
   TimedOut,
@@ -141,6 +143,33 @@ export async function POST(req: Request) {
   const brief = { ...claimed };
   const report = reporter(convex, id);
   if (brief.kind === "chat") return await runChatTask();
+
+  // A request for several changes at once becomes one run per change, all going at the same
+  // time (convex/server.ts#splitRun). This run keeps the first; each part starts a new PR.
+  if (!brief.prNumber && !brief.split && PARALLEL.test(brief.request)) {
+    const parts = await splitRequest(brief);
+    const split =
+      parts.length > 1
+        ? await convex
+            .mutation(api.server.splitRun, { secret, id, parts })
+            .catch((err) => {
+              console.error("improve: couldn't split", id, err);
+              return null;
+            })
+        : null;
+    if (split) {
+      Object.assign(brief, {
+        request: split.request,
+        split: split.split,
+        openPrs: [],
+        failedRun: null,
+        latestOpenPr: null,
+      });
+      await report({
+        step: `Split into ${split.of} runs, one PR each. This one does part 1${split.left ? ` (${split.left} more didn’t fit today’s limit)` : ""}`,
+      }).catch(() => {});
+    }
+  }
 
   // Continue one of the thread's open PRs or a run that failed partway, or start a new PR,
   // depending on what was asked. Decided before the sandbox starts, since each branch has

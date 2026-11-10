@@ -132,7 +132,9 @@ function List({ rows }: { rows: Row[] }) {
           hard it thinks. A reply in the same thread keeps working on that
           thread’s open PR if it’s about the same change, or starts a new one if
           not. Write “new PR” or “continue #40” to choose yourself. A reply that
-          continues a PR keeps its effort unless it sets its own.
+          continues a PR keeps its effort unless it sets its own. To ask for
+          several changes at once, say “in parallel” and list them: each one
+          gets its own card and PR, and they all run at the same time.
         </p>
         <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
           Write “chat task” instead to have Claude read the club’s chat, essays,

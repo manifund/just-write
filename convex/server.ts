@@ -11,16 +11,26 @@ import {
   mention,
   paragraph,
   postAsClaude,
+  postCard,
   releaseWaiting,
   startFromMessage,
   txt,
 } from "./improvements";
-import { BRIEF_IMAGES_MAX, hashRunToken, parseEffort } from "./lib/improve";
+import {
+  BRIEF_IMAGES_MAX,
+  GLOBAL_DAILY_LIMIT,
+  MAX_PARALLEL,
+  MEMBER_DAILY_LIMIT,
+  PARALLEL,
+  branchFor,
+  hashRunToken,
+  parseEffort,
+} from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
-import { checkServerSecret } from "./lib/viewer";
+import { checkServerSecret, isAdminEmail } from "./lib/viewer";
 
 // client_reference_id is a Convex member id, or a numeric id from the old Neon table.
 async function findByReference(
@@ -211,8 +221,9 @@ export const claimImprovement = mutation({
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
     ]);
-    // continuePr may change this once the route knows which run this continues.
-    const effort = parseEffort(r.request) ?? previous?.effort;
+    // continuePr may change this once the route knows which run this continues. A part of a
+    // split request already has the effort of the run it was split from (splitRun).
+    const effort = parseEffort(r.request) ?? r.effort ?? previous?.effort;
     await ctx.db.patch(id, {
       status: "running",
       startedAt: Date.now(),
@@ -289,16 +300,21 @@ export const claimImprovement = mutation({
       if (!m.images.length) delete m.images;
     }
     // PRs still open from earlier runs in this thread (the latest run on each). The route
-    // decides which one, if any, this request continues (lib/improve-target.ts).
-    const runs = (
-      await ctx.db
-        .query("improvements")
-        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
-        .collect()
-    )
-      // Chat tasks in the thread don't count: they never have a PR or saved work.
-      .filter((e) => e._id !== id && e.number < r.number && e.kind !== "chat")
-      .sort((a, b) => b.number - a.number);
+    // decides which one, if any, this request continues (lib/improve-target.ts). A part of a
+    // split request always starts its own PR, so it gets none.
+    const runs = r.split
+      ? []
+      : (
+          await ctx.db
+            .query("improvements")
+            .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+            .collect()
+        )
+          // Chat tasks in the thread don't count: they never have a PR or saved work.
+          .filter(
+            (e) => e._id !== id && e.number < r.number && e.kind !== "chat",
+          )
+          .sort((a, b) => b.number - a.number);
     const openPrs = runs
       .filter((e) => e.status === "pr" && e.prNumber)
       .map((e) => ({
@@ -336,8 +352,128 @@ export const claimImprovement = mutation({
       // Set by continuePr when this picks up a failed run.
       resumesFailedRun: null as number | null,
       effort: effort ?? null,
+      split: r.split ?? null,
       ...(await whoAndWhere(ctx, r)),
+      request: await splitRequest(ctx, r),
       thread,
+    };
+  },
+});
+
+// The request as the agent sees it. For a part of a split request, that's its own part plus
+// what the other parts are doing, so it leaves those alone.
+async function splitRequest(ctx: MutationCtx, r: Doc<"improvements">) {
+  const split = r.split;
+  if (!split) return r.request;
+  const others = (
+    await ctx.db
+      .query("improvements")
+      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+      .collect()
+  )
+    .filter((e) => e.split?.from === split.from && e._id !== r._id)
+    .sort((a, b) => a.split!.part - b.split!.part);
+  return [
+    r.request,
+    `This is part ${split.part} of ${split.of} of one message, which was split into separate runs that work at the same time, each on its own branch and PR. Do only this part. The other parts, which other runs are doing:`,
+    ...others.map((e) => `- Run #${e.number}: ${e.request.slice(0, 500)}`),
+  ].join("\n\n");
+}
+
+// The route split a just-claimed run's request into parts that can be done at the same time
+// (lib/improve-split.ts). This run keeps part 1; every other part becomes a run of its own in
+// the same thread, with its own card, sandbox, and new PR, and starts right away. Each part
+// counts toward the daily limits; parts past them are left out. Returns this run's new brief
+// fields, or null if it isn't split (it's already on a PR, or there's room for only one part).
+export const splitRun = mutation({
+  args: {
+    secret: v.string(),
+    id: v.id("improvements"),
+    parts: v.array(v.string()),
+  },
+  handler: async (ctx, { secret, id, parts }) => {
+    checkServerSecret(secret);
+    const r = await ctx.db.get(id);
+    if (
+      !r ||
+      r.status !== "running" ||
+      r.kind === "chat" ||
+      r.split ||
+      r.previousId ||
+      r.prNumber ||
+      !PARALLEL.test(r.request)
+    )
+      return null;
+    const asked = parts
+      .map((p) => p.trim().slice(0, 4000))
+      .filter(Boolean)
+      .slice(0, MAX_PARALLEL);
+    const requester = await ctx.db.get(r.requesterId);
+    if (!requester) return null;
+
+    const recent = await ctx.db
+      .query("improvements")
+      .withIndex("by_number")
+      .order("desc")
+      .take(GLOBAL_DAILY_LIMIT + 1);
+    let room = asked.length - 1;
+    if (!isAdminEmail(requester.email)) {
+      const since = Date.now() - 24 * 60 * 60 * 1000;
+      const today = recent.filter((e) => e._creationTime > since);
+      const mine = today.filter((e) => e.requesterId === r.requesterId);
+      room = Math.min(
+        room,
+        MEMBER_DAILY_LIMIT - mine.length,
+        GLOBAL_DAILY_LIMIT - today.length,
+      );
+    }
+    const kept = asked.slice(0, 1 + Math.max(0, room));
+    if (kept.length < 2) return null;
+
+    const of = kept.length;
+    await ctx.db.patch(id, {
+      request: kept[0],
+      split: { from: id, part: 1, of },
+    });
+    let number = Math.max(recent[0]?.number ?? 0, r.number);
+    for (const [i, request] of kept.slice(1).entries()) {
+      number++;
+      const part = i + 2;
+      const child = await ctx.db.insert("improvements", {
+        number,
+        requesterId: r.requesterId,
+        channelId: r.channelId,
+        threadId: r.threadId,
+        requestMessageId: r.requestMessageId,
+        request,
+        status: "queued",
+        steps: [
+          {
+            label: `Part ${part} of ${of}, split from run #${r.number}`,
+            state: "done",
+          },
+          { label: "Getting started", state: "active" },
+        ],
+        branch: branchFor(number),
+        effort: r.effort,
+        split: { from: id, part, of },
+      });
+      await postCard(ctx, {
+        _id: child,
+        channelId: r.channelId,
+        threadId: r.threadId,
+      });
+      // A few seconds apart, so the sandboxes don't all start in the same moment.
+      await ctx.scheduler.runAfter(i * 5000, internal.improvements.kick, {
+        id: child,
+      });
+    }
+    const updated = await ctx.db.get(id);
+    return {
+      of,
+      left: asked.length - of,
+      split: updated!.split!,
+      request: await splitRequest(ctx, updated!),
     };
   },
 });
@@ -526,6 +662,9 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     // A chat task sent during a code run gets its own run (and the other way round).
     if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind)
       continue;
+    // A part of a split request can't tell which part a follow-up is about, and a request to
+    // split needs its own runs, so those wait for this run to end (releaseWaiting).
+    if (r.split || PARALLEL.test(w.request)) continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,

@@ -201,15 +201,28 @@ export async function startFromMessage(
       prUrl: args.continues.prUrl,
     }),
   });
-  const replyMessageId = await postAsClaude(ctx, {
+  const replyMessageId = await postCard(ctx, {
+    _id: id,
     channelId: args.channelId,
-    parentId: threadId,
-    body: emptyDoc,
-    improvementId: id,
+    threadId,
   });
-  await ctx.db.patch(id, { replyMessageId });
   if (!busy)
     await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
+  return replyMessageId;
+}
+
+// Posts a run's status card in its thread (components/portal/improvement.tsx fills it in).
+export async function postCard(
+  ctx: MutationCtx,
+  r: Pick<Doc<"improvements">, "_id" | "channelId" | "threadId">,
+) {
+  const replyMessageId = await postAsClaude(ctx, {
+    channelId: r.channelId,
+    parentId: r.threadId,
+    body: emptyDoc,
+    improvementId: r._id,
+  });
+  await ctx.db.patch(r._id, { replyMessageId });
   return replyMessageId;
 }
 
@@ -226,6 +239,20 @@ export async function releaseWaiting(
     .collect();
   for (const w of waiters) {
     if (w.waitingOn !== finished._id || w.status !== "queued") continue;
+    // The parts of a split request (server.splitRun) run side by side. A follow-up could be
+    // about any of them, so it waits until they've all ended, then the route picks its PR.
+    const sibling = waiters.find(
+      (o) =>
+        o._id !== w._id &&
+        o._id !== finished._id &&
+        o.kind === w.kind &&
+        !o.waitingOn &&
+        (o.status === "queued" || o.status === "running"),
+    );
+    if (sibling) {
+      await ctx.db.patch(w._id, { waitingOn: sibling._id });
+      continue;
+    }
     await ctx.db.patch(w._id, {
       waitingOn: undefined,
       steps: [
