@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   closeImprovement,
@@ -10,6 +11,10 @@ import {
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ImprovementCard as Card } from "@/convex/improvements";
+import { chatLinkClick } from "@/lib/chat-url";
+import { addToComposer } from "./composer";
+import { usePortal } from "./context";
+import { RichText } from "./rich-text";
 import { useNow } from "./util";
 
 function duration(ms: number) {
@@ -28,7 +33,135 @@ export function LiveImprovementCard({
 }) {
   const card = useQuery(api.improvements.card, { id });
   if (!card) return null;
+  if (card.kind === "chat") return <ChatTaskCard card={card} />;
   return <ImprovementCard card={card} isAdmin={isAdmin} />;
+}
+
+// Claude's reply to a chat task (convex/chatTasks.ts): the checklist and answer, then what
+// it posted, or the draft it left when it couldn't post (chatTasks.result).
+function ChatTaskCard({ card }: { card: Card }) {
+  const result = useQuery(api.chatTasks.result, { id: card._id });
+  const working = card.status === "queued" || card.status === "running";
+  const now = useNow(working ? 1000 : 60_000);
+  const started = card.startedAt;
+  const elapsed =
+    started && (card.finishedAt ?? now)
+      ? duration((card.finishedAt ?? now!) - started)
+      : null;
+
+  if (working)
+    return (
+      <div className="flex max-w-[38rem] flex-col gap-2 py-1">
+        <p className="text-[15px] text-ink-muted">
+          {card.waiting
+            ? "Got it. I’ll start on this when the request above finishes."
+            : card.status === "queued"
+              ? "On it."
+              : "Looking through the club’s data"}
+          {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
+        </p>
+        <Steps steps={card.steps} />
+      </div>
+    );
+
+  return (
+    <div className="flex max-w-[38rem] flex-col gap-2.5 py-1">
+      {card.summary && (
+        <p className="text-[17px] leading-[1.35] whitespace-pre-line">
+          {card.summary}
+        </p>
+      )}
+      {card.status === "failed" && (
+        <p className="text-[15px] text-ink-muted">
+          Something went wrong. {card.error ?? ""}
+        </p>
+      )}
+      {result && (result.postId || result.postRemoved ? (
+        <ChatPost post={result} />
+      ) : (
+        <ChatDraft draft={result} />
+      ))}
+      <details className="group/steps text-[14px] text-ink-muted">
+        <summary className="w-fit cursor-pointer list-none select-none hover:text-ink">
+          <span className="inline-block transition-transform group-open/steps:rotate-90">
+            ▸
+          </span>{" "}
+          Chat task · {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
+        </summary>
+        <div className="flex flex-col gap-2 pt-2">
+          <Steps steps={card.steps} />
+          <p>
+            I read the club’s data and don’t change the site in a chat task. For a
+            change to the site, mention me with “new PR”.
+          </p>
+        </div>
+      </details>
+    </div>
+  );
+}
+
+// What Claude posted for a chat task.
+function ChatPost({
+  post,
+}: {
+  post: { channelSlug: string; channelName: string; postId: string | null };
+}) {
+  if (!post.postId)
+    return <p className="text-[15px] text-ink-muted">The post was removed.</p>;
+  const href = `/chat/${post.channelSlug}/${post.postId}`;
+  return (
+    <div>
+      <Link
+        href={href}
+        onClick={(e) => chatLinkClick(e, href)}
+        className="inline-block border border-ink/20 px-3 py-1 text-[14px] no-underline transition-colors hover:border-ink/50"
+      >
+        Posted in #{post.channelName}
+      </Link>
+    </div>
+  );
+}
+
+// A post Claude couldn't send (its channel doesn't take Claude's posts, or the day's limit
+// was hit). The button puts it in the viewer's own message box there, to edit and send.
+function ChatDraft({
+  draft,
+}: {
+  draft: { channelSlug: string; channelName: string; body: string };
+}) {
+  const { me } = usePortal();
+  const [added, setAdded] = useState(false);
+  const href = `/chat/${draft.channelSlug}`;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="border border-ink/15 bg-cream px-3.5 py-2.5">
+        <p className="pb-1 text-[13px] text-ink-muted">
+          Draft for #{draft.channelName}
+        </p>
+        <div className="text-[17px] leading-[1.35]">
+          <RichText body={draft.body} />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Link
+          href={href}
+          onClick={(e) => {
+            if (!added) addToComposer(me._id, draft.channelSlug, draft.body);
+            setAdded(true);
+            chatLinkClick(e, href);
+          }}
+          className="bg-ink px-3.5 py-1 text-[14px] text-cream no-underline transition-colors hover:bg-ink-muted"
+        >
+          {added ? `Go to #${draft.channelName}` : `Use this draft in #${draft.channelName}`}
+        </Link>
+        <span className="text-[14px] text-ink-muted">
+          {added
+            ? "It’s in your message box there."
+            : "It goes in your message box there, to edit and send."}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 // Claude's reply to an @Claude request: a live checklist while it works, then the result.

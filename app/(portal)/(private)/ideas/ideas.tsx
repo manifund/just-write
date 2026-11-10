@@ -267,10 +267,132 @@ function Board() {
                       : `I’d read this${i.votes ? ` · ${i.votes}` : ""}`}
                 </button>
               </div>
+              <Comments
+                ideaId={i._id}
+                count={i.comments}
+                ideaAuthorId={i.memberId}
+              />
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+function Comments({
+  ideaId,
+  count,
+  ideaAuthorId,
+}: {
+  ideaId: Id<"ideas">;
+  count: number;
+  ideaAuthorId: Id<"members">;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-2 border-t border-ink/10 pt-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="cursor-pointer self-start text-[14px] text-ink-muted underline"
+      >
+        {open
+          ? "Hide comments"
+          : count
+            ? `${count} comment${count === 1 ? "" : "s"}`
+            : "Comment"}
+      </button>
+      {open && <CommentThread ideaId={ideaId} ideaAuthorId={ideaAuthorId} />}
+    </div>
+  );
+}
+
+function CommentThread({
+  ideaId,
+  ideaAuthorId,
+}: {
+  ideaId: Id<"ideas">;
+  ideaAuthorId: Id<"members">;
+}) {
+  const comments = useQuery(api.ideas.comments, { ideaId });
+  const add = useMutation(api.ideas.addComment);
+  const remove = useMutation(api.ideas.removeComment);
+  const { me, viewer } = usePortal();
+  const now = useNow();
+  const [body, setBody] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {comments && comments.length > 0 && (
+        <ul className="flex flex-col gap-2.5">
+          {comments.map((c) => (
+            <li key={c._id} className="flex gap-2">
+              <Avatar member={c.author} size={20} />
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] text-ink-muted">
+                  <span className="text-ink">{c.author.name}</span>
+                  {now && <span>{timeAgo(c._creationTime, now)}</span>}
+                  {(c.memberId === me._id ||
+                    ideaAuthorId === me._id ||
+                    viewer.isAdmin) && (
+                    <button
+                      type="button"
+                      onClick={() => remove({ commentId: c._id })}
+                      className="cursor-pointer underline"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </p>
+                <p className="text-[15px] leading-[1.45] break-words whitespace-pre-line">
+                  {c.body}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setSaving(true);
+          setError(null);
+          try {
+            await add({ ideaId, body });
+            setBody("");
+          } catch (err) {
+            setError(errorMessage(err));
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <textarea
+          aria-label="Comment"
+          rows={2}
+          placeholder="Add a comment"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          className={`${input} resize-y text-[15px] leading-[1.45]`}
+        />
+        <button
+          type="submit"
+          disabled={saving || !body.trim()}
+          className="cursor-pointer self-end bg-ink px-4 py-1.5 text-[15px] text-cream transition-colors enabled:hover:bg-ink-muted disabled:opacity-45"
+        >
+          {saving ? "Posting…" : "Post"}
+        </button>
+        {error && (
+          <p role="alert" className="text-[14px] text-brass-text">
+            {error}
+          </p>
+        )}
+      </form>
+    </div>
   );
 }

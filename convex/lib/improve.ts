@@ -44,17 +44,21 @@ export const CLAUDE_EMAIL = "claude@bot.invalid";
 export const SENSITIVE_PATHS = [
   /^convex\/schema\.ts$/,
   /^convex\/auth/,
-  /^convex\/(server|runner|http|crons|improvements|previewAccess|convex\.config)\.ts$/,
+  /^convex\/(server|runner|chatTasks|http|crons|previewAccess|convex\.config)\.ts$/,
+  // What keeps chat tasks' data and #check-ins text members-only.
+  /^convex\/(improvements|chat|activity)\.ts$/,
+  /^convex\/lib\/(markdown|richtext|channels)\.ts$/,
   /^convex\/lib\/(viewer|improve|messages|email|claude)\.ts$/,
   /^convex\/(gcal|pushAction|similarAction)\.ts$/,
   /^app\/api\//,
   /^app\/\(site\)\/commit\//,
   /^app\/\(portal\)\/\(private\)\/(improvements|admin)\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
-  /^\.claude\//, // project settings and hooks the agent itself loads
+  // Instructions and hooks every agent run loads, chat tasks included.
   /^(CLAUDE|AGENTS)\.md$/,
+  /^\.claude\//,
   /^public\/sw\.js$/, // the service worker runs in every member's browser
   /^package\.json$/,
   /^bun\.lock$/,
@@ -70,6 +74,41 @@ export const SENSITIVE_PATHS = [
 // Sandboxes are saved when they stop and kept this long, so a follow-up in the same
 // thread resumes with the clone, node_modules, and the agent's session already there.
 export const SANDBOX_KEEP_MS = 24 * 60 * 60 * 1000;
+
+// Chat tasks (convex/chatTasks.ts): runs that read the club's data instead of changing
+// code, to answer a question or post something for the member who asked. A request is one
+// if it says "chat task", or if every earlier run in its thread was one and it doesn't ask
+// for a PR. Their sandboxes are always behind a firewall (lib/chat-task-sandbox.ts); if
+// that stops working, set CHAT_TASKS_ENABLED to false to turn them off.
+export const CHAT_TASKS_ENABLED = true;
+export const CHAT_DRAFT_MAX_CHARS = 6000;
+export const CHAT_MENTION_LIMIT = 10;
+// Where Claude may post a chat task's result. Never #check-ins: a check-in is a member's
+// own writing, and posting one unlocks everyone else's.
+export const CHAT_POST_CHANNELS = ["general", "published", "meetups", "random", "site"];
+// Posts per member and for the whole club in 24 hours. Past these, Claude leaves a draft on
+// its card for the member to send instead.
+export const CHAT_POSTS_PER_MEMBER = 5;
+export const CHAT_POSTS_PER_DAY = 20;
+
+const CHAT_TASK = /\bchat[- ]task\b/i;
+// "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
+export const NEW_PR = /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
+// Not a bare "#2": in a chat thread that's usually "week #2" or "#1 on the board".
+const NAMES_PR = /\b(?:pr|pull request|continue)\s*#?\d+\b/i;
+
+// `earlier`: the kinds of the thread's earlier runs. A thread that has only had chat
+// tasks keeps going as one; any code run in it means a request needs the keyword.
+export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {
+  if (!CHAT_TASKS_ENABLED) return false;
+  if (CHAT_TASK.test(request)) return true;
+  return (
+    earlier.length > 0 &&
+    earlier.every((k) => k === "chat") &&
+    !NEW_PR.test(request) &&
+    !NAMES_PR.test(request)
+  );
+}
 
 // The sandbox holds no site secrets. It gets a random key that only works for its own run
 // while it's going (convex/runner.ts, and finishing through /api/improve); Convex keeps its hash.

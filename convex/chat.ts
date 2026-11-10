@@ -315,6 +315,7 @@ async function hydrate(
         const event = m.eventId ? await ctx.db.get(m.eventId) : null;
         return {
           ...m,
+          postedFor: m.postedFrom ? await postedFor(ctx, m.postedFrom) : null,
           reactions: [...grouped].map(([emoji, memberIds]) => ({
             emoji,
             memberIds,
@@ -343,6 +344,23 @@ async function hydrate(
   );
 }
 export type ChatMessage = Awaited<ReturnType<typeof hydrate>>[number];
+
+// Who asked for something Claude posted (a chat task's result, convex/chatTasks.ts), and
+// the thread they asked in. Shown under the post; that member can delete it.
+async function postedFor(ctx: QueryCtx, runId: Id<"improvements">) {
+  const run = await ctx.db.get(runId);
+  if (!run) return null;
+  const [asker, channel] = await Promise.all([
+    ctx.db.get(run.requesterId),
+    ctx.db.get(run.channelId),
+  ]);
+  if (!asker || !channel) return null;
+  return {
+    memberId: asker._id,
+    name: asker.name,
+    threadHref: `/chat/${channel.slug}/${run.threadId}`,
+  };
+}
 
 // Top-level messages in a channel, newest first (the UI reverses them).
 export const messages = query({
@@ -590,8 +608,13 @@ export const remove = mutation({
     const { member, isAdmin } = await requireMember(ctx);
     const m = await ctx.db.get(messageId);
     if (!m) return;
-    if (m.authorId !== member._id && !isAdmin)
+    // Something Claude posted for a member is theirs to delete too.
+    const askedBy = m.postedFrom ? (await ctx.db.get(m.postedFrom))?.requesterId : null;
+    if (m.authorId !== member._id && askedBy !== member._id && !isAdmin)
       throw new ConvexError("You can only delete your own messages.");
+    // Deleting a post takes its thread with it, and those replies aren't the asker's.
+    if (m.authorId !== member._id && !isAdmin && (m.replyCount ?? 0) > 0)
+      throw new ConvexError("This has replies now, so ask an admin to remove it.");
     if (m.essayId)
       throw new ConvexError(
         "Remove the essay from your progress page instead.",

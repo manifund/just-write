@@ -141,6 +141,7 @@ function pendingMessage(
       reactions: [],
       essay: null,
       event: null,
+      postedFor: null,
       hidden: false,
     };
   } catch {
