@@ -92,7 +92,7 @@ function CheckIns({ done, days }: { done: number; days: number }) {
       className="shrink-0 tabular-nums"
       title={`Checked in on ${done} of ${days} days this week`}
     >
-      {done}/{days} check-ins
+      {done}/{days} check-ins this week
     </span>
   );
 }
