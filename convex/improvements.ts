@@ -2,6 +2,7 @@
 // startFromMessage, which records a run, posts Claude's status card in the thread, and
 // asks the Next.js route /api/improve to start a Vercel Sandbox. The runner inside it
 // (scripts/improve-runner.ts) reports progress back through server.reportImprovement.
+import type { WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -10,26 +11,15 @@ import {
   internalMutation,
   query,
   type MutationCtx,
-  type QueryCtx,
 } from "./_generated/server";
-import {
-  CLAUDE_EMAIL,
-  GLOBAL_DAILY_LIMIT,
-  MEMBER_DAILY_LIMIT,
-  branchFor,
-} from "./lib/improve";
+import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
+import { recordActivity } from "./lib/activity";
+import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
 import { publicMember, requireAdmin } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
-
-export async function getClaude(ctx: QueryCtx) {
-  return await ctx.db
-    .query("members")
-    .withIndex("by_email", (q) => q.eq("email", CLAUDE_EMAIL))
-    .unique();
-}
 
 export async function ensureClaude(ctx: MutationCtx) {
   const existing = await getClaude(ctx);
@@ -148,7 +138,7 @@ export async function startFromMessage(
     .order("desc")
     .first();
   // If that run is still going, this one waits. The runner hands it to the agent mid-run
-  // (server.claimFollowUps); if the agent has already finished, it starts when the run ends
+  // (runner.followUps); if the agent has already finished, it starts when the run ends
   // (releaseWaiting).
   const busy =
     previous && (previous.status === "queued" || previous.status === "running")
@@ -241,20 +231,44 @@ export const kick = internalAction({
   },
 });
 
+// Gives a run its final fields. The first time it ends, that also sets finishedAt and makes
+// Claude's reply card an Activity item for the thread's members (it was posted empty, so
+// postMessage didn't). Callers release any waiting follow-up themselves.
+export async function endRun(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  patch: Partial<WithoutSystemFields<Doc<"improvements">>>,
+) {
+  const first = !r.finishedAt;
+  await ctx.db.patch(r._id, {
+    ...patch,
+    runTokenHash: undefined, // the sandbox's key stops working
+    ...(first ? { finishedAt: Date.now() } : {}),
+  });
+  if (!first) return;
+  const after = { ...r, ...patch };
+  const reply = r.replyMessageId && (await ctx.db.get(r.replyMessageId));
+  if (reply && (after.summary || after.error))
+    await recordActivity(ctx, reply, Date.now());
+}
+
+async function failRun(ctx: MutationCtx, r: Doc<"improvements">, error: string) {
+  await endRun(ctx, r, {
+    status: "failed",
+    error,
+    steps: r.steps.map((s) =>
+      s.state === "active" ? { ...s, state: "failed" as const } : s,
+    ),
+  });
+  await releaseWaiting(ctx, { ...r, status: "failed" });
+}
+
 export const markFailed = internalMutation({
   args: { id: v.id("improvements"), error: v.string() },
   handler: async (ctx, { id, error }) => {
     const r = await ctx.db.get(id);
     if (!r || (r.status !== "queued" && r.status !== "running")) return;
-    await ctx.db.patch(id, {
-      status: "failed",
-      error,
-      finishedAt: Date.now(),
-      steps: r.steps.map((s) =>
-        s.state === "active" ? { ...s, state: "failed" as const } : s,
-      ),
-    });
-    await releaseWaiting(ctx, { ...r, status: "failed" });
+    await failRun(ctx, r, error);
   },
 });
 
@@ -273,21 +287,12 @@ export const reapStale = internalMutation({
         (r.status === "queued" || r.status === "running") &&
         !r.waitingOn && // waiting its turn, not stuck
         (r.startedAt ?? r._creationTime) < cutoff
-      ) {
-        await ctx.db.patch(r._id, {
-          status: "failed",
-          error: "The sandbox stopped before finishing.",
-          finishedAt: Date.now(),
-          steps: r.steps.map((s) =>
-            s.state === "active" ? { ...s, state: "failed" as const } : s,
-          ),
-        });
-        await releaseWaiting(ctx, { ...r, status: "failed" });
-      }
+      )
+        await failRun(ctx, r, "The sandbox stopped before finishing.");
   },
 });
 
-// The fields a status card needs. Shared by chat (hydrate) and /improvements.
+// The fields a status card needs. Shared by the card in chat and /improvements.
 export function cardOf(r: Doc<"improvements">) {
   return {
     _id: r._id,
@@ -312,6 +317,17 @@ export function cardOf(r: Doc<"improvements">) {
   };
 }
 export type ImprovementCard = ReturnType<typeof cardOf>;
+
+// One run's card, subscribed by the message that shows it (components/portal/improvement.tsx).
+// Kept out of the message queries so progress updates re-run only this. No per-user reads,
+// so every subscriber shares one cached result; the same fields are public on /improvements.
+export const card = query({
+  args: { id: v.id("improvements") },
+  handler: async (ctx, { id }) => {
+    const r = await ctx.db.get(id);
+    return r ? cardOf(r) : null;
+  },
+});
 
 // /improvements: every run, newest first. Public, like the members directory.
 export const list = query({

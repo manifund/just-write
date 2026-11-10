@@ -72,6 +72,9 @@ export default defineSchema({
     title: v.string(),
     wordCount: v.optional(v.number()),
     submittedAt: v.number(),
+    // The week (1–4) the writer put this essay toward, e.g. two short posts that
+    // together make one week's essay. Unset means the earliest open week.
+    week: v.optional(v.number()),
     review: v.union(
       v.literal("pending"),
       v.literal("verified"),
@@ -147,21 +150,19 @@ export default defineSchema({
     lastReadAt: v.number(),
   }).index("by_member_channel", ["memberId", "channelId"]),
 
-  // When each member last had a thread open, so /activity can count replies they've
-  // already seen there as read. Channel reads above only cover top-level messages.
-  threadReads: defineTable({
+  // The /activity page (convex/activity.ts): one row per member a message involves, written
+  // when the message is posted (convex/lib/activity.ts). `at` is when it happened; Claude's
+  // status card gets its row when the run finishes, not when the empty card is posted.
+  activity: defineTable({
     memberId: v.id("members"),
-    threadId: v.id("messages"), // the thread's top-level message
-    lastReadAt: v.number(),
-  }).index("by_member_thread", ["memberId", "threadId"]),
-
-  // When each member last looked at /activity (convex/activity.ts). Kept off the members
-  // row so marking it doesn't re-run every query that reads members.
-  activitySeen: defineTable({
-    memberId: v.id("members"),
-    seenAt: v.number(), // everything up to here counts as read ("Mark all as read")
-    readIds: v.optional(v.array(v.id("messages"))), // newer items they've opened, newest last
-  }).index("by_member", ["memberId"]),
+    messageId: v.id("messages"),
+    kind: v.union(v.literal("mention"), v.literal("reply")),
+    at: v.number(),
+    readAt: v.optional(v.number()), // unset until they open it or mark all read
+  })
+    .index("by_member", ["memberId", "at"])
+    .index("by_member_unread", ["memberId", "readAt"])
+    .index("by_message", ["messageId"]),
 
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.
   improvements: defineTable({
@@ -198,6 +199,8 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    // SHA-256 of the sandbox's key for this run (convex/runner.ts). Cleared when the run ends.
+    runTokenHash: v.optional(v.string()),
     error: v.optional(v.string()),
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),

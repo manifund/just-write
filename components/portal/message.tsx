@@ -12,12 +12,13 @@ import { Avatar } from "./avatar";
 import { Composer } from "./composer";
 import { EmojiPicker } from "./emoji-picker";
 import { useMember, usePortal } from "./context";
-import { ImprovementCard } from "./improvement";
+import { LiveImprovementCard } from "./improvement";
 import {
   useEditMessage,
   useRemoveMessage,
   useToggleReaction,
 } from "./optimistic";
+import { MessageLinkPreviews } from "./message-link-preview";
 import { RichText } from "./rich-text";
 import { clockTime, hostOf, PENDING, timeAgo } from "./util";
 
@@ -30,6 +31,8 @@ export function Message({
   inThread,
   highlight,
   onMarkUnread,
+  editNow,
+  onEditEnd,
 }: {
   m: ChatMessage;
   compact: boolean; // same author as the previous message, shortly after
@@ -39,13 +42,16 @@ export function Message({
   inThread?: boolean;
   highlight?: boolean; // the reply a shared link points to
   onMarkUnread?: () => void; // channel messages only: this one and later count as unread
+  editNow?: boolean; // opened for editing from the composer (Up arrow)
+  onEditEnd?: () => void;
 }) {
   const { me, viewer } = usePortal();
   const author = useMember(m.authorId);
   const toggle = useToggleReaction(me._id);
   const edit = useEditMessage();
   const remove = useRemoveMessage();
-  const [editing, setEditing] = useState(false);
+  const [editingHere, setEditing] = useState(false);
+  const editing = editingHere || !!editNow;
   // An edit that didn't save: the editor reopens with it so nothing is lost.
   const [failedEdit, setFailedEdit] = useState<{
     body: string;
@@ -91,6 +97,16 @@ export function Message({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [held, closeActions]);
   useEffect(() => () => cancelPress(), []);
+  useEffect(() => {
+    if (editNow) articleRef.current?.scrollIntoView({ block: "nearest" });
+  }, [editNow]);
+  const copyLink = () => {
+    void navigator.clipboard
+      .writeText(messageLink(m))
+      .then(() => setCopied(true))
+      .catch(() => {});
+    if (held) closeActions();
+  };
   const react = (emoji: string) => {
     void toggle({ messageId: m._id, emoji });
     if (held) closeActions();
@@ -151,10 +167,14 @@ export function Message({
       <div className="relative pt-0.5">
         {compact ? (
           // Out of flow and only toggling visibility, so hovering never changes the row's height.
-          <time className="invisible absolute inset-x-0 top-1.5 text-right text-[11px] leading-none whitespace-nowrap text-ink-muted tabular-nums group-hover:visible">
-            {clockTime(m._creationTime)}
+          <span
+            className={`absolute inset-x-0 top-1.5 text-right text-[11px] leading-none whitespace-nowrap text-ink-muted tabular-nums group-focus-within:visible group-hover:visible ${
+              held || copied ? "visible" : "invisible"
+            }`}
+          >
+            <Timestamp m={m} copied={copied} onCopy={copyLink} />
             {m.editedAt && <span className="block">edited</span>}
-          </time>
+          </span>
         ) : (
           <Link href={profileHref} aria-label={author?.name}>
             <Avatar member={author} size={40} />
@@ -175,12 +195,9 @@ export function Message({
                 bot
               </span>
             )}
-            <time
-              className="text-[13px] text-ink-muted"
-              title={new Date(m._creationTime).toLocaleString()}
-            >
-              {clockTime(m._creationTime)}
-            </time>
+            <span className="text-[13px] text-ink-muted">
+              <Timestamp m={m} copied={copied} onCopy={copyLink} />
+            </span>
             {m.editedAt && (
               <span className="text-[12px] text-ink-muted">(edited)</span>
             )}
@@ -198,11 +215,13 @@ export function Message({
               onCancel={() => {
                 setEditing(false);
                 setFailedEdit(null);
+                onEditEnd?.();
               }}
               onSend={async (body) => {
                 // Shows the new text right away; the save finishes in the background.
                 setEditing(false);
                 setFailedEdit(null);
+                onEditEnd?.();
                 edit({ messageId: m._id, body }).catch((err) => {
                   setFailedEdit({ body, error: errorMessage(err) });
                   setEditing(true);
@@ -215,8 +234,8 @@ export function Message({
               </p>
             )}
           </div>
-        ) : m.improvement ? (
-          <ImprovementCard card={m.improvement} isAdmin={viewer.isAdmin} />
+        ) : m.improvementId ? (
+          <LiveImprovementCard id={m.improvementId} isAdmin={viewer.isAdmin} />
         ) : m.essay ? (
           <EssayPost essay={m.essay} />
         ) : m.event ? (
@@ -230,6 +249,7 @@ export function Message({
         ) : (
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
+            <MessageLinkPreviews body={m.body} />
           </div>
         )}
 
@@ -281,7 +301,7 @@ export function Message({
         <div
           ref={actionsRef}
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
-            picker || confirmDelete || held || copied
+            picker || confirmDelete || held
               ? "flex"
               : "hidden group-focus-within:flex group-hover:flex"
           }`}
@@ -372,46 +392,6 @@ export function Message({
                   </svg>
                 </ActionButton>
               )}
-              <ActionButton
-                label={copied ? "Link copied" : "Copy link"}
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(messageLink(m))
-                    .then(() => setCopied(true))
-                    .catch(() => {});
-                  if (held) closeActions();
-                }}
-              >
-                {copied ? (
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M5 12.5l4.5 4.5L19 7" />
-                  </svg>
-                ) : (
-                  <svg
-                    aria-hidden="true"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                  >
-                    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
-                    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
-                  </svg>
-                )}
-              </ActionButton>
               {onMarkUnread && !m.parentId && (
                 <ActionButton
                   label="Mark unread"
@@ -499,6 +479,41 @@ function messageLink(m: ChatMessage) {
   );
   if (m.parentId) url.searchParams.set("message", m._id);
   return url.toString();
+}
+
+// The message's time; clicking it copies a link to the message.
+function Timestamp({
+  m,
+  copied,
+  onCopy,
+}: {
+  m: ChatMessage;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <span className="relative inline-block">
+      <button
+        type="button"
+        onClick={onCopy}
+        title={`${new Date(m._creationTime).toLocaleString()} · Click to copy link`}
+        aria-label={`${clockTime(m._creationTime)}, copy link to message`}
+        className="cursor-pointer hover:text-ink hover:underline"
+      >
+        <time dateTime={new Date(m._creationTime).toISOString()}>
+          {clockTime(m._creationTime)}
+        </time>
+      </button>
+      {copied && (
+        <span
+          role="status"
+          className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 -translate-x-1/2 bg-ink px-2 py-1 text-[12px] leading-none whitespace-nowrap text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] motion-safe:animate-[fade-in_120ms_ease-out]"
+        >
+          Link copied
+        </span>
+      )}
+    </span>
+  );
 }
 
 function ActionButton({
@@ -602,7 +617,7 @@ function ReactionChip({
       {memberIds.length}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-max max-w-[16rem] -translate-x-1/2 bg-ink px-2 py-1 text-left text-[13px] leading-snug text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] group-hover/chip:block group-focus-visible/chip:block"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 hidden w-max max-w-[16rem] bg-ink px-2 py-1 text-left text-[13px] leading-snug text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] group-hover/chip:block group-focus-visible/chip:block"
       >
         {names.join(", ")} reacted {emoji}
       </span>

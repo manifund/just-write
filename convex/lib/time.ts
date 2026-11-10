@@ -47,6 +47,12 @@ export function ptToUtc(
   return guess;
 }
 
+// The first midnight Pacific after a moment: when that Pacific day ends.
+export function nextPtMidnight(ms: number) {
+  const p = ptParts(ms);
+  return ptToUtc(p.year, p.month, p.day + 1);
+}
+
 // "2026-11-07", the Pacific calendar day, for grouping and for <input type="date">.
 export function ptDayKey(ms: number) {
   const p = ptParts(ms);

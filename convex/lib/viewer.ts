@@ -5,12 +5,15 @@ import { authComponent } from "../auth";
 
 type Ctx = QueryCtx | MutationCtx;
 
-export function isAdminEmail(email: string) {
-  const admins = (process.env.ADMIN_EMAILS ?? "")
+export function adminEmails() {
+  return (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
-  return admins.includes(email.toLowerCase());
+}
+
+export function isAdminEmail(email: string) {
+  return adminEmails().includes(email.toLowerCase());
 }
 
 // Read-only sessions come from preview links (convex/previewAccess.ts): they can see

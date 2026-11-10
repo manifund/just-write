@@ -11,18 +11,16 @@ import {
 import {
   CHECK_IN_PREVIEW_CHARS,
   CHECK_IN_SLUG,
-  CHECK_IN_WINDOW_MS,
   DEFAULT_CHANNELS,
-  PAGE_SIZE,
+  RECENT_SIZE,
 } from "./lib/channels";
+import { forgetActivity, markSeenInChat } from "./lib/activity";
 import { postMessage } from "./lib/messages";
+import { nextPtMidnight } from "./lib/time";
+import { DEADLINES, fillSlots } from "./lib/program";
 import { isReaction } from "./lib/reactions";
-import {
-  cardOf,
-  ensureClaude,
-  getClaude,
-  startFromMessage,
-} from "./improvements";
+import { ensureClaude, startFromMessage } from "./improvements";
+import { getClaude } from "./lib/claude";
 import {
   cleanBody,
   mentionIds,
@@ -197,16 +195,21 @@ export const channel = query({
   },
 });
 
-// #check-ins is gated: until you've posted a top-level check-in yourself in the last 24
-// hours, everyone else's posts and thread replies show only their first 100 characters.
-// Posts you could already read stay readable: anything written before your last
-// check-in's 24 hours ran out, plus replies in those threads. The channel's oldest post,
+// #check-ins is gated: until you've posted a top-level check-in yourself today (Pacific
+// time; the day turns over at midnight), everyone else's posts and thread replies show
+// only their first 100 characters. Posts you could already read stay readable: anything
+// written before the end of the day of your last check-in, plus replies in those threads.
+// An essay that counts toward a week also unlocks that week's check-ins: everything
+// posted after the previous deadline and before midnight PT at the end of that week's
+// deadline day, so the rest of deadline Monday is included. The channel's oldest post,
 // when an admin wrote it, is the standing intro and always shows in full. Returns null
 // when nothing should be hidden from this viewer.
 type Gate = {
   viewerId: Id<"members">;
   introId: Id<"messages"> | null;
   seenUntil: number;
+  // [from, until) windows of check-ins unlocked by the viewer's essays, one per week.
+  weeks: [number, number][];
 };
 export async function checkInGate(
   ctx: QueryCtx,
@@ -224,8 +227,20 @@ export async function checkInGate(
     )
     .order("desc")
     .first();
-  const seenUntil = lastOwn ? lastOwn._creationTime + CHECK_IN_WINDOW_MS : 0;
-  if (seenUntil > Date.now()) return null;
+  const seenUntil = lastOwn ? nextPtMidnight(lastOwn._creationTime) : 0;
+  const now = Date.now();
+  if (seenUntil > now) return null;
+  const essays = await ctx.db
+    .query("essays")
+    .withIndex("by_member", (q) => q.eq("memberId", member._id))
+    .collect();
+  const weeks = fillSlots(essays)
+    .filter((s) => s.essayIds.length > 0)
+    .map((s): [number, number] => [
+      s.week === 1 ? 0 : DEADLINES[s.week - 2],
+      nextPtMidnight(s.deadline),
+    ]);
+  if (weeks.some(([from, until]) => from <= now && now < until)) return null;
   const first = await ctx.db
     .query("messages")
     .withIndex("by_channel_parent", (q) =>
@@ -236,8 +251,12 @@ export async function checkInGate(
   const firstAuthor = first ? await ctx.db.get(first.authorId) : null;
   const introId =
     first && firstAuthor && isAdminEmail(firstAuthor.email) ? first._id : null;
-  return { viewerId: member._id, introId, seenUntil };
+  return { viewerId: member._id, introId, seenUntil, weeks };
 }
+
+const unlocked = (gate: Gate, t: number) =>
+  t < gate.seenUntil ||
+  gate.weeks.some(([from, until]) => from <= t && t < until);
 
 // Replaces a message's body with a short preview when the gate hides it. Pass the
 // thread's parent for replies, so replies to a post the viewer has seen stay readable.
@@ -250,8 +269,8 @@ export function veil(
     !gate ||
     m.authorId === gate.viewerId ||
     m._id === gate.introId ||
-    m._creationTime < gate.seenUntil ||
-    (parent && parent._creationTime < gate.seenUntil) ||
+    unlocked(gate, m._creationTime) ||
+    (parent && unlocked(gate, parent._creationTime)) ||
     m.kind ||
     m.essayId ||
     m.eventId ||
@@ -292,9 +311,6 @@ async function hydrate(
         for (const r of reacts)
           grouped.set(r.emoji, [...(grouped.get(r.emoji) ?? []), r.memberId]);
         const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
-        const improvement = m.improvementId
-          ? await ctx.db.get(m.improvementId)
-          : null;
         const event = m.eventId ? await ctx.db.get(m.eventId) : null;
         return {
           ...m,
@@ -309,7 +325,7 @@ async function hydrate(
                 wordCount: essay.wordCount ?? null,
               }
             : null,
-          improvement: improvement ? cardOf(improvement) : null,
+          // Claude's status card (improvementId) loads itself: see improvements.card.
           event: event
             ? {
                 _id: event._id,
@@ -345,8 +361,8 @@ export const messages = query({
   },
 });
 
-// The newest page of a channel, newest first. The sidebar keeps this subscribed for every
-// channel so switching channels can show messages right away, before `messages` loads.
+// The newest messages in a channel, newest first. The sidebar keeps this subscribed for
+// every channel so switching channels can show messages right away, before `messages` loads.
 export const recent = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
@@ -358,11 +374,11 @@ export const recent = query({
         q.eq("channelId", c._id).eq("parentId", undefined),
       )
       .order("desc")
-      .take(PAGE_SIZE + 1);
+      .take(RECENT_SIZE + 1);
     const gate = await checkInGate(ctx, c, member);
     return {
-      messages: await hydrate(ctx, rows.slice(0, PAGE_SIZE), gate),
-      more: rows.length > PAGE_SIZE,
+      messages: await hydrate(ctx, rows.slice(0, RECENT_SIZE), gate),
+      more: rows.length > RECENT_SIZE,
     };
   },
 });
@@ -389,6 +405,51 @@ export const thread = query({
       parent,
     );
     return { parent: hydratedParent, replies: hydratedReplies };
+  },
+});
+
+// A short preview of one message, for links to it posted in chat. Takes a plain string
+// because it comes from a pasted link; a bad id reads as deleted (null). Follows the
+// #check-ins gate like everywhere else.
+const LINK_PREVIEW_CHARS = 280;
+export const linkPreview = query({
+  args: { messageId: v.string() },
+  handler: async (ctx, args) => {
+    const { member } = await requireMember(ctx);
+    const id = ctx.db.normalizeId("messages", args.messageId);
+    const m = id && (await ctx.db.get(id));
+    if (!m) return null;
+    const c = await ctx.db.get(m.channelId);
+    if (!c) return null;
+    const parent = m.parentId ? await ctx.db.get(m.parentId) : null;
+    const gate = await checkInGate(ctx, c, member);
+    const shown = veil(m, gate, parent);
+    const essay = m.essayId ? await ctx.db.get(m.essayId) : null;
+    const event = m.eventId ? await ctx.db.get(m.eventId) : null;
+    const flat = (
+      essay
+        ? `published an essay: ${essay.title}`
+        : event
+          ? `scheduled a session: ${event.title}`
+          : m.kind === "joined"
+            ? "joined Just Write"
+            : shown.text
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    return {
+      _id: m._id,
+      _creationTime: m._creationTime,
+      authorId: m.authorId,
+      channelSlug: c.slug,
+      channelName: c.name,
+      inThread: !!m.parentId,
+      hidden: shown.hidden,
+      text:
+        flat.length > LINK_PREVIEW_CHARS
+          ? flat.slice(0, LINK_PREVIEW_CHARS).trimEnd() + "…"
+          : flat,
+    };
   },
 });
 
@@ -545,6 +606,7 @@ export const remove = mutation({
         .withIndex("by_message", (q) => q.eq("messageId", doomed._id))
         .collect();
       for (const r of reacts) await ctx.db.delete(r._id);
+      await forgetActivity(ctx, doomed._id);
       await ctx.db.delete(doomed._id);
     }
     if (m.parentId) {
@@ -587,7 +649,7 @@ export const markRead = mutation({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
     // Allowed in read-only previews: it only records what this person has seen.
-    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const { member } = await requireMember(ctx);
     const c = await channelBySlug(ctx, slug);
     const read = await ctx.db
       .query("reads")
@@ -603,29 +665,17 @@ export const markRead = mutation({
         channelId: c._id,
         lastReadAt: now,
       });
+    await markSeenInChat(ctx, member._id, { channelId: c._id });
   },
 });
 
-// Records that the viewer has seen a thread's replies up to now (used by /activity).
+// Marks a thread's replies as seen in Activity while the viewer has it open.
 export const markThreadRead = mutation({
   args: { parentId: v.id("messages") },
   handler: async (ctx, { parentId }) => {
     // Allowed in read-only previews: it only records what this person has seen.
     const { member } = await requireMember(ctx, { allowReadonly: true });
-    const read = await ctx.db
-      .query("threadReads")
-      .withIndex("by_member_thread", (q) =>
-        q.eq("memberId", member._id).eq("threadId", parentId),
-      )
-      .unique();
-    const now = Date.now();
-    if (read) await ctx.db.patch(read._id, { lastReadAt: now });
-    else
-      await ctx.db.insert("threadReads", {
-        memberId: member._id,
-        threadId: parentId,
-        lastReadAt: now,
-      });
+    await markSeenInChat(ctx, member._id, { parentId });
   },
 });
 
@@ -634,7 +684,7 @@ export const markThreadRead = mutation({
 export const markUnread = mutation({
   args: { messageId: v.id("messages") },
   handler: async (ctx, { messageId }) => {
-    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const { member } = await requireMember(ctx);
     const m = await ctx.db.get(messageId);
     if (!m) throw new ConvexError("That message was deleted.");
     if (m.parentId)
@@ -714,5 +764,36 @@ export const typing = query({
         parentId: r.parentId ?? null,
         expiresAt: r.expiresAt,
       }));
+  },
+});
+
+// /check-ins: the viewer's own top-level #check-ins posts, newest first. Only their own,
+// so nothing here is behind the gate.
+export const myCheckIns = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx);
+    const channel = await ctx.db
+      .query("channels")
+      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+      .unique();
+    if (!channel) return [];
+    const posts = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent_author", (q) =>
+        q
+          .eq("channelId", channel._id)
+          .eq("parentId", undefined)
+          .eq("authorId", member._id),
+      )
+      .order("desc")
+      .collect();
+    return posts.map((m) => ({
+      _id: m._id,
+      _creationTime: m._creationTime,
+      body: m.body,
+      text: m.text,
+      replyCount: m.replyCount ?? 0,
+    }));
   },
 });

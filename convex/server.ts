@@ -1,11 +1,20 @@
 // Functions called by trusted Next.js server code (Stripe webhook, email, data import).
 // They're public Convex functions guarded by CONVEX_SERVER_SECRET, which only the server knows.
-import { v } from "convex/values";
+import type { WithoutSystemFields } from "convex/server";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { improvementStatus, status } from "./schema";
-import { mention, paragraph, postAsClaude, releaseWaiting, txt } from "./improvements";
+import {
+  endRun,
+  mention,
+  paragraph,
+  postAsClaude,
+  releaseWaiting,
+  txt,
+} from "./improvements";
+import { hashRunToken } from "./lib/improve";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -180,17 +189,20 @@ export const importLegacy = mutation({
 
 // Marks a queued run as running and returns everything the runner needs. Null if it
 // was already claimed, so a retried request can't start a second sandbox.
+// `runTokenHash` is the hash of the key the route hands the sandbox (convex/runner.ts).
 export const claimImprovement = mutation({
-  args: { secret: v.string(), id: v.id("improvements") },
-  handler: async (ctx, { secret, id }) => {
+  args: {
+    secret: v.string(),
+    id: v.id("improvements"),
+    runTokenHash: v.optional(v.string()),
+  },
+  handler: async (ctx, { secret, id, runTokenHash }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r || r.status !== "queued") return null;
-    await ctx.db.patch(id, { status: "running", startedAt: Date.now() });
+    await ctx.db.patch(id, { status: "running", startedAt: Date.now(), runTokenHash });
 
-    const [requester, channel, root, previous] = await Promise.all([
-      ctx.db.get(r.requesterId),
-      ctx.db.get(r.channelId),
+    const [root, previous] = await Promise.all([
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
     ]);
@@ -232,6 +244,10 @@ export const claimImprovement = mutation({
         title: e.title ?? e.request.slice(0, 100),
         request: e.request.slice(0, 500),
       }));
+    // The run right before this one, if it failed after its sandbox started (out of steps,
+    // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
+    // reply in the thread picks it up (lib/improve-target.ts).
+    const failed = runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
     return {
       number: r.number,
       branch: r.branch,
@@ -241,17 +257,77 @@ export const claimImprovement = mutation({
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
       latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
-      request: r.request,
-      requester: requester?.name ?? "A member",
-      channel: channel?.name ?? "chat",
-      threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+      failedRun: failed
+        ? {
+            id: failed._id,
+            run: failed.number,
+            prNumber: failed.prNumber ?? null,
+            title: failed.title ?? failed.request.slice(0, 100),
+            request: failed.request.slice(0, 500),
+          }
+        : null,
+      // Set by continuePr when this picks up a failed run.
+      resumesFailedRun: null as number | null,
+      ...(await whoAndWhere(ctx, r)),
       thread,
     };
   },
 });
 
-// Points a just-claimed run at an earlier run's open PR in the same thread, so it builds on
-// that branch. Returns what the runner needs, or null if that PR isn't open anymore.
+// Who asked for a run and where, for the prompt, commit message, and PR.
+async function whoAndWhere(ctx: MutationCtx, r: Doc<"improvements">) {
+  const [requester, channel] = await Promise.all([
+    ctx.db.get(r.requesterId),
+    ctx.db.get(r.channelId),
+  ]);
+  return {
+    request: r.request,
+    requester: requester?.name ?? "A member",
+    channel: channel?.name ?? "chat",
+    threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+  };
+}
+
+// The sandbox is done and asks /api/improve to push its changes (or record its answer).
+// Checks the run's key and retires it, so this happens once and the sandbox can't report
+// anything after it. Returns what the route needs to push and open the PR.
+export const startFinish = mutation({
+  args: { secret: v.string(), id: v.id("improvements"), runToken: v.string() },
+  handler: async (ctx, { secret, id, runToken }) => {
+    checkServerSecret(secret);
+    const r = await checkRunToken(ctx, id, runToken);
+    await ctx.db.patch(id, { runTokenHash: undefined });
+    return {
+      number: r.number,
+      branch: r.branch,
+      prNumber: r.prNumber ?? null,
+      sandboxId: r.sandboxId ?? null,
+      ...(await whoAndWhere(ctx, r)),
+    };
+  },
+});
+
+// The run, if `runToken` is the key for it and it's still going.
+export async function checkRunToken(
+  ctx: MutationCtx,
+  id: Id<"improvements">,
+  runToken: string,
+) {
+  const r = await ctx.db.get(id);
+  if (
+    !r ||
+    r.status !== "running" ||
+    !r.runTokenHash ||
+    r.runTokenHash !== (await hashRunToken(runToken))
+  )
+    throw new ConvexError("This run has ended.");
+  return r;
+}
+
+// Points a just-claimed run at an earlier run in the same thread, so it builds on that
+// branch: one with an open PR, or the run right before this one if it failed after its
+// sandbox started (its saved sandbox may still have its uncommitted edits and agent
+// session). Returns what the runner needs, or null if that run can't be continued.
 export const continuePr = mutation({
   args: {
     secret: v.string(),
@@ -261,15 +337,17 @@ export const continuePr = mutation({
   handler: async (ctx, { secret, id, previousId }) => {
     checkServerSecret(secret);
     const [r, prev] = await Promise.all([ctx.db.get(id), ctx.db.get(previousId)]);
-    if (
-      !r ||
-      !prev ||
-      r.status !== "running" ||
-      prev.threadId !== r.threadId ||
-      prev.status !== "pr" ||
-      !prev.prNumber
-    )
-      return null;
+    if (!r || !prev || r.status !== "running" || prev.threadId !== r.threadId) return null;
+    const openPr = prev.status === "pr" && !!prev.prNumber;
+    const failed = prev.status === "failed" && !!prev.sandboxId && prev.number < r.number;
+    if (failed) {
+      const later = await ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .collect();
+      if (later.some((e) => e.number > prev.number && e.number < r.number)) return null;
+    }
+    if (!openPr && !failed) return null;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,
@@ -278,43 +356,39 @@ export const continuePr = mutation({
     });
     return {
       branch: prev.branch,
-      prNumber: prev.prNumber,
+      prNumber: prev.prNumber ?? null,
       resumeSessionId: prev.sessionId ?? null,
+      resumesFailedRun: failed ? prev.number : null,
     };
   },
 });
 
 // Follow-ups sent in the thread while this run is going (rows waiting on it). The runner
-// polls this while the agent works and hands each one to it right after its current tool
-// call. Claimed rows are closed out, so they don't also start as their own run later.
-export const claimFollowUps = mutation({
-  args: { secret: v.string(), id: v.id("improvements") },
-  handler: async (ctx, { secret, id }) => {
-    checkServerSecret(secret);
-    const r = await ctx.db.get(id);
-    if (!r || r.status !== "running") return [];
-    const rows = await ctx.db
-      .query("improvements")
-      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
-      .collect();
-    const out = [];
-    for (const w of rows) {
-      if (w.waitingOn !== id || w.status !== "queued") continue;
-      await ctx.db.patch(w._id, {
-        status: "answered",
-        waitingOn: undefined,
-        summary: `Passed this along to run #${r.number} while it was working.`,
-        finishedAt: Date.now(),
-        steps: w.steps.map((s) =>
-          s.state === "active" ? { ...s, state: "done" as const } : s,
-        ),
-      });
-      const author = await ctx.db.get(w.requesterId);
-      out.push({ author: author?.name ?? "A member", text: w.request });
-    }
-    return out;
-  },
-});
+// polls these while the agent works (convex/runner.ts#followUps) and hands each one to it right
+// after its current tool call. Claimed rows are closed out, so they don't also start as their
+// own run later.
+export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
+  const id = r._id;
+  const rows = await ctx.db
+    .query("improvements")
+    .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+    .collect();
+  const out = [];
+  for (const w of rows) {
+    if (w.waitingOn !== id || w.status !== "queued") continue;
+    await endRun(ctx, w, {
+      status: "answered",
+      waitingOn: undefined,
+      summary: `Passed this along to run #${r.number} while it was working.`,
+      steps: w.steps.map((s) =>
+        s.state === "active" ? { ...s, state: "done" as const } : s,
+      ),
+    });
+    const author = await ctx.db.get(w.requesterId);
+    out.push({ author: author?.name ?? "A member", text: w.request });
+  }
+  return out;
+}
 
 // Progress and results from the runner, and decisions from admins. `step` starts a new
 // checklist line (finishing the active one); `fail` marks the active line failed.
@@ -348,40 +422,55 @@ export const reportImprovement = mutation({
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r) return;
-    let steps = r.steps;
-    const finish = (state: "done" | "failed") =>
-      steps.map((s) => (s.state === "active" ? { ...s, state } : s));
-    if (fail) steps = finish("failed");
-    if (step) {
-      if (steps.at(-1)?.label === step && steps.at(-1)?.state === "active") {
-        // same line again; nothing to do
-      } else steps = [...finish("done"), { label: step, state: "active" as const }].slice(-40);
-    }
-    const final = patch.status && patch.status !== "running" && patch.status !== "queued";
-    if (final && !fail) steps = finish("done");
-    await ctx.db.patch(id, {
-      ...patch,
-      steps,
-      ...(final && !r.finishedAt ? { finishedAt: Date.now() } : {}),
-    });
-
-    // A follow-up that produced new work takes over the earlier run's card.
-    if (
-      r.previousId &&
-      (patch.status === "pr" || patch.status === "merged")
-    ) {
-      const prev = await ctx.db.get(r.previousId);
-      if (prev?.status === "pr")
-        await ctx.db.patch(prev._id, { status: "superseded" });
-    }
-
-    if (final && (r.status === "queued" || r.status === "running"))
-      await releaseWaiting(ctx, { ...r, ...patch });
-
-    if (patch.status === "merged" && r.status !== "merged")
-      await announceMerge(ctx, { ...r, ...patch });
+    await applyReport(ctx, r, { step, fail, patch });
   },
 });
+
+// Shared by reportImprovement and the sandbox's runner.report.
+export async function applyReport(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  {
+    step,
+    fail,
+    patch,
+  }: {
+    step?: string;
+    fail?: boolean;
+    patch: Partial<WithoutSystemFields<Doc<"improvements">>>;
+  },
+) {
+  const id = r._id;
+  let steps = r.steps;
+  const finish = (state: "done" | "failed") =>
+    steps.map((s) => (s.state === "active" ? { ...s, state } : s));
+  if (fail) steps = finish("failed");
+  if (step) {
+    if (steps.at(-1)?.label === step && steps.at(-1)?.state === "active") {
+      // same line again; nothing to do
+    } else steps = [...finish("done"), { label: step, state: "active" as const }].slice(-40);
+  }
+  const final = patch.status && patch.status !== "running" && patch.status !== "queued";
+  if (final && !fail) steps = finish("done");
+  if (final) await endRun(ctx, r, { ...patch, steps });
+  else await ctx.db.patch(id, { ...patch, steps });
+
+  // A follow-up that produced new work takes over the earlier run's card.
+  if (
+    r.previousId &&
+    (patch.status === "pr" || patch.status === "merged")
+  ) {
+    const prev = await ctx.db.get(r.previousId);
+    if (prev?.status === "pr")
+      await ctx.db.patch(prev._id, { status: "superseded" });
+  }
+
+  if (final && (r.status === "queued" || r.status === "running"))
+    await releaseWaiting(ctx, { ...r, ...patch });
+
+  if (patch.status === "merged" && r.status !== "merged")
+    await announceMerge(ctx, { ...r, ...patch });
+}
 
 // One line in #site for every change that goes live.
 async function announceMerge(ctx: MutationCtx, r: Doc<"improvements">) {

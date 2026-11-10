@@ -39,6 +39,13 @@
     --color-brass-numeral: #fa8a7c;
     --color-brass-text: #ff9e91;
   }
+  /* The portal sidebar is ink-on-cream inverted (bg-ink text-cream). In dark
+     mode keep it dark, a shade deeper than the page, with the light text. */
+  :root[data-theme="dark"] [data-sidebar] {
+    --color-ink: #150d19;
+    --color-cream: #f3e7e9;
+    --color-wash-light: #ded3e2;
+  }
 
   body {
     background: var(--color-cream);

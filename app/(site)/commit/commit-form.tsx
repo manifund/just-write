@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useActionState, useState, useSyncExternalStore } from "react";
 import { SignInPanel } from "@/components/sign-in";
 import { api } from "@/convex/_generated/api";
-import { SIGNUPS_CLOSE } from "@/convex/lib/program";
+import { commitmentsClosed } from "@/convex/lib/program";
 import { signOut } from "@/lib/auth-client";
 import { startCommitment, type CommitState } from "./actions";
 
@@ -22,7 +22,7 @@ export function CommitForm() {
   const viewer = useQuery(api.members.viewer);
   const closed = useSyncExternalStore(
     noop,
-    () => Date.now() >= SIGNUPS_CLOSE,
+    () => commitmentsClosed(),
     () => false,
   );
   if (viewer === undefined) {

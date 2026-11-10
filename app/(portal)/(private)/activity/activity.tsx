@@ -11,6 +11,7 @@ type Item = NonNullable<typeof api.activity.feed._returnType>["items"][number];
 
 export function Activity() {
   const feed = useQuery(api.activity.feed);
+  // Both update the sidebar count (activity.unreadCount) along with the feed.
   const markSeen = useMutation(api.activity.markSeen).withOptimisticUpdate(
     (store) => {
       const cur = store.getQuery(api.activity.feed, {});
@@ -18,25 +19,29 @@ export function Activity() {
         store.setQuery(
           api.activity.feed,
           {},
-          {
-            items: cur.items.map((i) => ({ ...i, read: true })),
-            unread: 0,
-          },
+          { items: cur.items.map((i) => ({ ...i, read: true })), unread: 0 },
         );
+      store.setQuery(api.activity.unreadCount, {}, 0);
     },
   );
   const markRead = useMutation(api.activity.markRead).withOptimisticUpdate(
     (store, { messageId }) => {
       const cur = store.getQuery(api.activity.feed, {});
       if (!cur) return;
-      const items = cur.items.map((i) =>
-        i._id === messageId ? { ...i, read: true } : i,
-      );
+      const wasUnread = cur.items.some((i) => i._id === messageId && !i.read);
+      if (!wasUnread) return;
+      const unread = Math.max(0, cur.unread - 1);
       store.setQuery(
         api.activity.feed,
         {},
-        { items, unread: items.filter((i) => !i.read).length },
+        {
+          items: cur.items.map((i) =>
+            i._id === messageId ? { ...i, read: true } : i,
+          ),
+          unread,
+        },
       );
+      store.setQuery(api.activity.unreadCount, {}, unread);
     },
   );
   const now = useNow();

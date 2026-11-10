@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/portal/avatar";
 import { hostOf } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
+import { PROGRAM_START } from "@/convex/lib/program";
 
 type Row = (typeof api.members.directory._returnType)[number];
 
@@ -12,9 +13,17 @@ const GOAL = 4;
 
 // Server-rendered first, then live. Sized so the whole roster fits on one screen.
 export function Directory({ initial }: { initial: Row[] }) {
-  const members = useQuery(api.members.directory) ?? initial;
+  const rows = useQuery(api.members.directory) ?? initial;
+  const checkIns = useQuery(api.members.checkInDays, { since: PROGRAM_START });
+  // Most essays first, then most check-in days, then by name.
+  const members = rows.toSorted(
+    (a, b) =>
+      b.essayCount - a.essayCount ||
+      (checkIns?.[b._id]?.length ?? 0) - (checkIns?.[a._id]?.length ?? 0) ||
+      a.name.localeCompare(b.name),
+  );
   const published = members.reduce(
-    (n, m) => n + Math.min(m.essayCount, GOAL),
+    (n, m) => n + Math.min(m.weeksDone, GOAL),
     0,
   );
   return (
@@ -43,8 +52,8 @@ export function Directory({ initial }: { initial: Row[] }) {
                 </span>
                 <span className="flex items-center gap-2 text-[13px] text-ink-muted">
                   <Pips
-                    filled={m.essayCount}
-                    label={`${Math.min(m.essayCount, GOAL)} of ${GOAL} essays`}
+                    filled={m.weeksDone}
+                    label={`${Math.min(m.weeksDone, GOAL)} of ${GOAL} weeks done`}
                   />
                   {m.link && <span className="truncate">{hostOf(m.link)}</span>}
                 </span>
@@ -59,11 +68,7 @@ export function Directory({ initial }: { initial: Row[] }) {
 
 function Pips({ filled, label }: { filled: number; label: string }) {
   return (
-    <span
-      className="flex shrink-0 gap-[3px]"
-      role="img"
-      aria-label={label}
-    >
+    <span className="flex shrink-0 gap-[3px]" role="img" aria-label={label}>
       {Array.from({ length: GOAL }, (_, i) => (
         <span
           key={i}

@@ -8,6 +8,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import {
+  adminEmails,
   canEnter,
   getViewer,
   isAdminEmail,
@@ -15,7 +16,17 @@ import {
   publicMember,
   requireMember,
 } from "./lib/viewer";
-import { SIGNUPS_CLOSE, SIGNUPS_CLOSED_MESSAGE } from "./lib/program";
+import { getClaude } from "./lib/claude";
+import { CHECK_IN_SLUG } from "./lib/channels";
+import {
+  fillSlots,
+  PROGRAM_START,
+  COMMITMENTS_CLOSED_MESSAGE,
+  commitmentsClosed,
+  SIGNUPS_CLOSE,
+  SIGNUPS_CLOSED_MESSAGE,
+} from "./lib/program";
+import { ptDayKey } from "./lib/time";
 import { EMAIL_RE, HANDLE_RE, parseWebsite, slugify } from "./lib/util";
 
 // Picks an unused handle based on the name: "kit-when", then "kit-when-2", ...
@@ -100,8 +111,12 @@ export const expressInterest = mutation({
     if (!link) throw new ConvexError("Please add a valid website link.");
 
     const existing = await memberByEmail(ctx, email);
-    if (existing) await ctx.db.patch(existing._id, { name, link });
-    else
+    // Anyone can submit this form without signing in, so it only updates rows that are
+    // still "interested". Signed and committed members change their name in /settings.
+    if (existing) {
+      if (existing.status === "interested" && !existing.bot)
+        await ctx.db.patch(existing._id, { name, link });
+    } else
       await ctx.db.insert("members", {
         name,
         email,
@@ -137,7 +152,9 @@ export const signTerms = mutation({
     const viewer = await getViewer(ctx);
     if (!viewer) throw new ConvexError("Please sign in first.");
     if (viewer.readonly)
-      throw new ConvexError("This is a read-only preview, so changes aren’t saved.");
+      throw new ConvexError(
+        "This is a read-only preview, so changes aren’t saved.",
+      );
     const signature = args.signature.trim().replace(/\s+/g, " ").slice(0, 200);
     if (!signature)
       throw new ConvexError("Please type your full name to sign.");
@@ -147,7 +164,8 @@ export const signTerms = mutation({
       return { memberId: member._id, email, alreadyCommitted: true };
     }
     const now = Date.now();
-    if (now >= SIGNUPS_CLOSE) throw new ConvexError(SIGNUPS_CLOSED_MESSAGE);
+    if (commitmentsClosed(now))
+      throw new ConvexError(COMMITMENTS_CLOSED_MESSAGE);
     if (member) {
       await ctx.db.patch(member._id, {
         signedName: signature,
@@ -187,11 +205,43 @@ export const directory = query({
         return {
           ...publicMember(m),
           essayCount: visible.length,
+          // Weeks covered, so several short posts toward one week count once.
+          weeksDone: fillSlots(visible).filter((s) => s.essayId).length,
           latestEssay: latest ? { title: latest.title, url: latest.url } : null,
         };
       }),
     );
     return out.sort((a, b) => (a.committedAt ?? 0) - (b.committedAt ?? 0));
+  },
+});
+
+// /members: the Pacific days each member posted a top-level check-in since `since` (the
+// start of the current week, from the client so this query doesn't depend on the clock).
+// Only counts days, never the check-ins' text, which stays behind the #check-ins gate.
+export const checkInDays = query({
+  args: { since: v.number() },
+  handler: async (ctx, { since }) => {
+    const channel = await ctx.db
+      .query("channels")
+      .withIndex("by_slug", (q) => q.eq("slug", CHECK_IN_SLUG))
+      .unique();
+    if (!channel) return {};
+    const posts = await ctx.db
+      .query("messages")
+      .withIndex("by_channel_parent", (q) =>
+        q
+          .eq("channelId", channel._id)
+          .eq("parentId", undefined)
+          .gte("_creationTime", Math.max(since, PROGRAM_START)),
+      )
+      .collect();
+    const days: Record<string, string[]> = {};
+    for (const m of posts) {
+      const key = ptDayKey(m._creationTime);
+      const list = (days[m.authorId] ??= []);
+      if (!list.includes(key)) list.push(key);
+    }
+    return days;
   },
 });
 
@@ -218,6 +268,7 @@ export const profile = query({
         url: e.url,
         wordCount: e.wordCount ?? null,
         submittedAt: e.submittedAt,
+        week: e.week,
       }));
     return { member: publicMember(m), essays };
   },
@@ -343,10 +394,15 @@ export const roster = query({
       .query("members")
       .withIndex("by_status", (q) => q.eq("status", "committed"))
       .collect();
-    // Admins may not be committed but still post, and Claude (the bot) posts too.
-    const others = (await ctx.db.query("members").collect()).filter(
-      (m) => m.status !== "committed" && (isAdminEmail(m.email) || m.bot),
-    );
+    // Admins may not be committed but still post, and Claude (the bot) posts too. Looked
+    // up by email so this never reads the whole table (every member subscribes to it).
+    const others = [];
+    for (const email of adminEmails()) {
+      const m = await memberByEmail(ctx, email);
+      if (m && m.status !== "committed") others.push(m);
+    }
+    const claude = await getClaude(ctx);
+    if (claude && claude.status !== "committed") others.push(claude);
     return [...rows, ...others].map(publicMember);
   },
 });

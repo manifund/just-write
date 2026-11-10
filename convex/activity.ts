@@ -1,79 +1,27 @@
 // The /activity page: recent messages that involve the viewer, like Slack's Activity view.
-// That's messages that @mention them, and replies in threads they started or replied in
-// (only replies posted after they joined the thread). Computed from recent messages
-// rather than stored, so it covers past messages and follows edits and deletes.
+// Items are `activity` rows written when a message is posted (convex/lib/activity.ts), so
+// the feed is a small indexed read per member. Text is read from the message itself, so
+// edits show and deleted messages drop out.
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import { checkInGate, veil } from "./chat";
-import { mentionIds, type RichNode } from "./lib/richtext";
 import { requireMember } from "./lib/viewer";
 
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-const MAX_SCANNED = 1500;
 const MAX_ITEMS = 60;
 
 export const feed = query({
   args: {},
   handler: async (ctx) => {
     const { member } = await requireMember(ctx, { allowReadonly: true });
-    const me = member._id;
-    const recent = await ctx.db
-      .query("messages")
-      .withIndex("by_creation_time", (q) =>
-        q.gt("_creationTime", Date.now() - WINDOW_MS),
+    const rows = await ctx.db
+      .query("activity")
+      .withIndex("by_member", (q) =>
+        q.eq("memberId", member._id).gt("at", Date.now() - WINDOW_MS),
       )
       .order("desc")
-      .take(MAX_SCANNED);
-
-    // When the viewer joined each thread that has recent replies, or null if they never did.
-    const joined = new Map<Id<"messages">, number | null>();
-    const joinedAt = async (parentId: Id<"messages">) => {
-      if (joined.has(parentId)) return joined.get(parentId) ?? null;
-      let at: number | null = null;
-      const parent = await ctx.db.get(parentId);
-      if (parent?.authorId === me) at = parent._creationTime;
-      else if (parent) {
-        const mine = (
-          await ctx.db
-            .query("messages")
-            .withIndex("by_parent", (q) => q.eq("parentId", parentId))
-            .collect()
-        ).find((r) => r.authorId === me);
-        at = mine?._creationTime ?? null;
-      }
-      joined.set(parentId, at);
-      return at;
-    };
-
-    const picked: {
-      m: Doc<"messages">;
-      kind: "mention" | "reply";
-      text: string;
-      at: number;
-    }[] = [];
-    for (const m of recent) {
-      if (picked.length >= MAX_ITEMS) break;
-      if (m.authorId === me) continue;
-      let text = m.text;
-      let at = m._creationTime;
-      // @Claude's reply card is an empty message filled in from its run, so it shows
-      // once the run has a reply, dated when the run finished.
-      if (!text && m.improvementId) {
-        const run = await ctx.db.get(m.improvementId);
-        text = run?.summary ?? run?.error ?? "";
-        at = run?.finishedAt ?? at;
-      }
-      if (!text) continue;
-      const mentioned = mentionIds(JSON.parse(m.body) as RichNode).includes(me);
-      if (mentioned) picked.push({ m, kind: "mention", text, at });
-      else if (m.parentId) {
-        const joinedTime = await joinedAt(m.parentId);
-        if (joinedTime !== null && m._creationTime > joinedTime)
-          picked.push({ m, kind: "reply", text, at });
-      }
-    }
-    picked.sort((a, b) => b.at - a.at);
+      .take(MAX_ITEMS);
 
     const channels = new Map<Id<"channels">, Doc<"channels"> | null>();
     const gates = new Map<
@@ -81,7 +29,16 @@ export const feed = query({
       Awaited<ReturnType<typeof checkInGate>>
     >();
     const items = [];
-    for (const { m, kind, text, at } of picked) {
+    for (const row of rows) {
+      const m = await ctx.db.get(row.messageId);
+      if (!m) continue;
+      let text = m.text;
+      // @Claude's reply card is an empty message filled in from its run.
+      if (!text && m.improvementId) {
+        const run = await ctx.db.get(m.improvementId);
+        text = run?.summary ?? run?.error ?? "";
+      }
+      if (!text) continue;
       if (!channels.has(m.channelId))
         channels.set(m.channelId, await ctx.db.get(m.channelId));
       const channel = channels.get(m.channelId);
@@ -92,63 +49,39 @@ export const feed = query({
       const parent = m.parentId ? await ctx.db.get(m.parentId) : null;
       items.push({
         _id: m._id,
-        kind,
+        kind: row.kind,
         authorId: m.authorId,
         text: veil({ ...m, text }, gate, parent).text,
-        createdAt: at,
+        createdAt: row.at,
         channel: { slug: channel.slug, name: channel.name },
-        channelId: channel._id,
         threadId: m.parentId ?? m._id,
         // The thread's first message, so replies make sense on their own.
         parentText: parent ? veil(parent, gate).text : null,
+        read: row.readAt !== undefined,
       });
     }
-    const row = await seenRow(ctx, me);
-    const seenAt = row?.seenAt ?? 0;
-    const readIds = new Set(row?.readIds ?? []);
-    // Items already seen in chat count as read too: top-level messages up to the
-    // channel's read marker, and replies up to when the viewer last had the thread open.
-    const channelReads = new Map(
-      (
-        await ctx.db
-          .query("reads")
-          .withIndex("by_member_channel", (q) => q.eq("memberId", me))
-          .collect()
-      ).map((r) => [r.channelId, r.lastReadAt]),
-    );
-    const threadReads = new Map<Id<"messages">, number>();
-    for (const threadId of new Set(
-      picked.flatMap(({ m }) => (m.parentId ? [m.parentId] : [])),
-    )) {
-      const r = await ctx.db
-        .query("threadReads")
-        .withIndex("by_member_thread", (q) =>
-          q.eq("memberId", me).eq("threadId", threadId),
-        )
-        .unique();
-      if (r) threadReads.set(threadId, r.lastReadAt);
-    }
-    const withRead = items.map(({ channelId, ...i }) => {
-      const chatReadAt =
-        i.threadId === i._id
-          ? channelReads.get(channelId)
-          : threadReads.get(i.threadId);
-      return {
-        ...i,
-        read:
-          i.createdAt <= seenAt ||
-          readIds.has(i._id) ||
-          (chatReadAt !== undefined && i.createdAt <= chatReadAt),
-      };
-    });
-    return {
-      items: withRead,
-      unread: withRead.filter((i) => !i.read).length,
-    };
+    return { items, unread: (await unreadRows(ctx, member._id)).length };
   },
 });
 
-const MAX_READ_IDS = 300;
+// How many items the viewer hasn't read, for the sidebar. Reads only their activity rows,
+// so it stays cheap to keep subscribed everywhere in the portal.
+export const unreadCount = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    return (await unreadRows(ctx, member._id)).length;
+  },
+});
+
+async function unreadRows(ctx: QueryCtx, memberId: Id<"members">) {
+  return await ctx.db
+    .query("activity")
+    .withIndex("by_member_unread", (q) =>
+      q.eq("memberId", memberId).eq("readAt", undefined),
+    )
+    .collect();
+}
 
 // Marks one item read, when the viewer opens it from /activity.
 export const markRead = mutation({
@@ -156,20 +89,13 @@ export const markRead = mutation({
   handler: async (ctx, { messageId }) => {
     // Allowed in read-only previews: like chat read markers, it only records what they've seen.
     const { member } = await requireMember(ctx, { allowReadonly: true });
-    const row = await seenRow(ctx, member._id);
-    if (!row) {
-      await ctx.db.insert("activitySeen", {
-        memberId: member._id,
-        seenAt: 0,
-        readIds: [messageId],
-      });
-      return;
-    }
-    const ids = row.readIds ?? [];
-    if (ids.includes(messageId)) return;
-    await ctx.db.patch(row._id, {
-      readIds: [...ids, messageId].slice(-MAX_READ_IDS),
-    });
+    const rows = await ctx.db
+      .query("activity")
+      .withIndex("by_message", (q) => q.eq("messageId", messageId))
+      .collect();
+    const row = rows.find((r) => r.memberId === member._id);
+    if (row && row.readAt === undefined)
+      await ctx.db.patch(row._id, { readAt: Date.now() });
   },
 });
 
@@ -179,16 +105,8 @@ export const markSeen = mutation({
   handler: async (ctx) => {
     // Allowed in read-only previews: like chat read markers, it only records what they've seen.
     const { member } = await requireMember(ctx, { allowReadonly: true });
-    const row = await seenRow(ctx, member._id);
-    const seenAt = Date.now();
-    if (row) await ctx.db.patch(row._id, { seenAt, readIds: [] });
-    else await ctx.db.insert("activitySeen", { memberId: member._id, seenAt });
+    const now = Date.now();
+    for (const row of await unreadRows(ctx, member._id))
+      await ctx.db.patch(row._id, { readAt: now });
   },
 });
-
-async function seenRow(ctx: QueryCtx, memberId: Id<"members">) {
-  return await ctx.db
-    .query("activitySeen")
-    .withIndex("by_member", (q) => q.eq("memberId", memberId))
-    .unique();
-}
