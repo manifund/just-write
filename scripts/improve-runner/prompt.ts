@@ -5,7 +5,7 @@ import {
   CHAT_POST_CHANNELS,
   REPO,
 } from "../../convex/lib/improve";
-import { CHAT, CLUB_DIR, RESUMES_WORK, brief } from "./context";
+import { CHAT, CLUB_DIR, RESUMES_WORK, brief, type OtherPr } from "./context";
 
 export const RULES = `You are Claude, working in the codebase of the Just Write site (justwrite.club) at the request of a club member. Just Write is a small online writing club: members commit to publishing 4 essays in November 2026, and they talk in the site's own chat. A member mentioned you in that chat to ask for a change to the site, and they and others are watching your progress live.
 
@@ -103,7 +103,40 @@ export function prompt(extra = "") {
     !CHAT && !brief.prNumber && !brief.restart && brief.openPrs?.length
       ? `This starts a new PR. The thread's other open PRs (${brief.openPrs.map((p) => `#${p.prNumber} "${p.title}"`).join(", ")}) were judged separate from this request. If it's really about one of them, say so in your chat reply and suggest naming it ("@Claude !pr ${brief.openPrs[0].prNumber}"); members can also start with "@Claude !new" to force a fresh one.`
       : "",
+    CHAT ? "" : otherWork(),
     extra,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+// Other threads' open PRs and latest merges (convex/server.ts#otherWork), so the agent knows
+// what else is changing on the site.
+function otherWork() {
+  const w = brief.otherWork;
+  // The PR this run continues may have been picked after the brief was made (continuePr).
+  const open = (w?.open ?? []).filter((p) => p.prNumber !== brief.prNumber);
+  const merged = w?.merged ?? [];
+  if (!open.length && !merged.length) return "";
+  const day = (at: number) =>
+    new Date(at).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      timeZone: "America/Los_Angeles",
+    });
+  const line = (p: OtherPr, isOpen: boolean) =>
+    `- PR #${p.prNumber} "${p.title}" (run #${p.run}, ${p.requester} in #${p.channel}, ${day(p.at)}${isOpen ? `; branch ${p.branch}` : ""})${p.conflictsWithMain && isOpen ? ", conflicts with main" : ""}${p.files.length ? `\n  Files: ${p.files.join(", ")}${p.moreFiles ? `, and ${p.moreFiles} more` : ""}` : ""}`;
+  return [
+    "Other work on the site from other threads, for context. Leave it alone unless this request is about it.",
+    open.length
+      ? `Open PRs, not on main yet (the repo is public, so \`git fetch origin <branch>\` works if you need to look at one):\n${open.map((p) => line(p, true)).join("\n")}`
+      : "",
+    merged.length
+      ? `Recently merged, already on main:\n${merged.map((p) => line(p, false)).join("\n")}`
+      : "",
+    open.length
+      ? "If this request repeats one of those open PRs or would undo it, say so in your chat reply. Where yours changes the same files, keep your edits to what this request needs, so both merge cleanly."
+      : "",
   ]
     .filter(Boolean)
     .join("\n\n");

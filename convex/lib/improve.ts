@@ -288,6 +288,13 @@ export const CHAT_POSTS_PER_DAY = 20;
 export const BRIEF_IMAGES_MAX = 8;
 export const BRIEF_IMAGE_BYTES = 3_750_000;
 
+// A code run's brief also lists other threads' open PRs and latest merges, so the agent knows
+// what else is changing on the site (convex/server.ts#otherWork): at most this many of each,
+// with up to BRIEF_FILES_MAX of each PR's files.
+export const BRIEF_OTHER_OPEN_MAX = 20;
+export const BRIEF_OTHER_MERGED_MAX = 10;
+export const BRIEF_FILES_MAX = 12;
+
 // `earlier`: the kinds of the thread's earlier runs. A request that doesn't say which kind it
 // is (readRequest) stays a chat task in a thread that has only had chat tasks.
 export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {

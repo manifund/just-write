@@ -18,7 +18,10 @@ import {
 } from "./improvements";
 import {
   AGENT_MODEL,
+  BRIEF_FILES_MAX,
   BRIEF_IMAGES_MAX,
+  BRIEF_OTHER_MERGED_MAX,
+  BRIEF_OTHER_OPEN_MAX,
   CHAT_TASKS_ENABLED,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
@@ -418,9 +421,68 @@ async function briefFor(
     effort: r.effort ?? null,
     askKind: kindUnsaid(r),
     split: r.split ?? null,
+    // Chat tasks read the club's data instead of the code, so this is only for code runs.
+    otherWork: r.kind === "chat" ? null : await otherWork(ctx, r),
     ...(await whoAndWhere(ctx, r)),
     request: await splitRequest(ctx, r),
     thread,
+  };
+}
+
+// Other threads' open PRs and latest merges, so a code run knows what else is changing on
+// the site and can say when a request repeats or clashes with one. Only what those PRs
+// already show on GitHub: title, branch, files, and who asked where. Newest first (merges by
+// when their run started, since a merge's own time isn't kept).
+async function otherWork(ctx: MutationCtx, r: Doc<"improvements">) {
+  const names = new Map<string, string>();
+  const cached = async (id: string, read: () => Promise<string>) => {
+    if (!names.has(id)) names.set(id, await read());
+    return names.get(id)!;
+  };
+  const memberName = (id: Id<"members">) =>
+    cached(id, async () => (await ctx.db.get(id))?.name ?? "Someone");
+  const channelName = (id: Id<"channels">) =>
+    cached(id, async () => (await ctx.db.get(id))?.name ?? "chat");
+  const list = async (status: "pr" | "merged", max: number) => {
+    const runs = await ctx.db
+      .query("improvements")
+      .withIndex("by_status", (q) => q.eq("status", status))
+      .order("desc")
+      .take(max * 3);
+    const seen = new Set<number>();
+    const out = [];
+    for (const e of runs) {
+      if (out.length >= max) break;
+      const pr = e.prNumber;
+      if (!pr || seen.has(pr) || e.threadId === r.threadId || pr === r.prNumber)
+        continue;
+      seen.add(pr);
+      // A PR's runs each list the files they pushed; together they're the PR's files.
+      const files = new Set<string>();
+      for (const run of await ctx.db
+        .query("improvements")
+        .withIndex("by_pr", (q) => q.eq("prNumber", pr))
+        .collect())
+        for (const f of run.files ?? []) files.add(f);
+      const all = [...files].sort();
+      out.push({
+        prNumber: pr,
+        run: e.number,
+        branch: e.branch,
+        title: e.title ?? e.request.slice(0, 100),
+        requester: await memberName(e.requesterId),
+        channel: await channelName(e.channelId),
+        at: e.finishedAt ?? e._creationTime,
+        files: all.slice(0, BRIEF_FILES_MAX),
+        moreFiles: Math.max(0, all.length - BRIEF_FILES_MAX),
+        conflictsWithMain: !!e.conflictsWithMain,
+      });
+    }
+    return out;
+  };
+  return {
+    open: await list("pr", BRIEF_OTHER_OPEN_MAX),
+    merged: await list("merged", BRIEF_OTHER_MERGED_MAX),
   };
 }
 

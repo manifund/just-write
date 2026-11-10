@@ -296,7 +296,8 @@ export default defineSchema({
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])
     .index("by_requester", ["requesterId"])
-    .index("by_pr", ["prNumber"]),
+    .index("by_pr", ["prNumber"])
+    .index("by_status", ["status"]),
 
   // The detailed log of each @Claude run, for members (convex/lib/improveLogs.ts).
   improvementLogs: defineTable({

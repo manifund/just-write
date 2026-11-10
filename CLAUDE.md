@@ -95,6 +95,7 @@ How a run goes:
 - `startFromMessage` schedules `improvements.kick`, which POSTs to `IMPROVE_URL` (`app/api/improve/route.ts`).
 - The route claims the run and starts a Vercel Sandbox with the repo cloned at `/vercel/just-write`, then launches `scripts/improve-runner.ts` detached.
 - The runner runs the Claude Agent SDK (Opus via OpenRouter's Anthropic endpoint).
+- A code run's brief also lists other threads' open PRs and latest merges (title, branch, files, who asked where; `server.ts#otherWork`, limits in `convex/lib/improve.ts`), so the agent knows what else is changing.
 - The runner typechecks and lints (giving the agent two tries to fix failures), and reports its steps to `convex/runner.ts`.
 - The agent returns a structured result: `title`, a 1–2 sentence `chat` reply for the card, and `details` for the PR body.
 - Then the runner sends its list of changed files back to the route.
