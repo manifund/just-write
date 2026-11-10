@@ -281,6 +281,38 @@ function useTyping(slug: string, parentId?: Id<"messages">) {
   }, [setTyping, slug, parentId]);
 }
 
+// Up arrow in an empty composer opens your latest message (of those loaded) for
+// editing, as in Slack and Discord; closing the editor puts focus back in the composer.
+function useEditLast(messages: ChatMessage[]) {
+  const { me } = usePortal();
+  const [editId, setEditId] = useState<Id<"messages"> | null>(null);
+  const returnTo = useRef<HTMLElement | null>(null);
+  const onEditLast = () => {
+    const last = messages.findLast(
+      (m) =>
+        m.authorId === me._id &&
+        !m._id.startsWith(PENDING) &&
+        !m.essay &&
+        !m.event &&
+        !m.kind,
+    );
+    if (!last) return false;
+    returnTo.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setEditId(last._id);
+    return true;
+  };
+  const onEditEnd = () => {
+    setEditId(null);
+    const el = returnTo.current;
+    returnTo.current = null;
+    requestAnimationFrame(() => el?.isConnected && el.focus());
+  };
+  return { editId, onEditLast, onEditEnd };
+}
+
 function TypingIndicator({
   slug,
   parentId,
@@ -368,6 +400,7 @@ function MessageList({
   const [openedAt] = useState(() => Date.now());
   const messages = [...results].reverse();
   const newest = results[0]?._id;
+  const { editId, onEditLast, onEditEnd } = useEditLast(messages);
 
   // Stick to the bottom as messages arrive (if you were already there),
   // and keep your place when older messages load above.
@@ -427,6 +460,8 @@ function MessageList({
             now={now}
             animateAfter={openedAt}
             onOpenThread={onOpenThread}
+            editId={editId}
+            onEditEnd={onEditEnd}
             unreadFrom={unreadFrom}
             onMarkUnread={(m) => {
               holdUnread.current = true;
@@ -453,6 +488,7 @@ function MessageList({
             locked ? "About 100 words of today’s writing" : `Message #${slug}`
           }
           onTyping={onTyping}
+          onEditLast={onEditLast}
           onSend={async (body) => {
             setError(null);
             atBottom.current = true;
@@ -486,6 +522,8 @@ function MessageRun({
   highlightId,
   unreadFrom,
   onMarkUnread,
+  editId,
+  onEditEnd,
 }: {
   messages: ChatMessage[];
   now: number | null;
@@ -495,6 +533,8 @@ function MessageRun({
   highlightId?: Id<"messages"> | null;
   unreadFrom?: number | null; // draw an "Unread" line above the first message from here on
   onMarkUnread?: (m: ChatMessage) => void;
+  editId?: Id<"messages"> | null;
+  onEditEnd?: () => void;
 }) {
   const { me } = usePortal();
   return messages.map((m, i) => {
@@ -543,6 +583,8 @@ function MessageRun({
           inThread={inThread}
           highlight={m._id === highlightId}
           onMarkUnread={onMarkUnread && (() => onMarkUnread(m))}
+          editNow={m._id === editId}
+          onEditEnd={onEditEnd}
         />
       </div>
     );
@@ -697,6 +739,9 @@ function Thread({
   const [width, setWidth] = useThreadWidth();
   const jumped = useRef(false);
   const count = data?.replies.length ?? 0;
+  const { editId, onEditLast, onEditEnd } = useEditLast(
+    data ? [data.parent, ...data.replies] : [],
+  );
 
   useEffect(() => {
     // A shared link to a reply scrolls to that reply once, instead of the end.
@@ -758,7 +803,14 @@ function Thread({
         )}
         {data && (
           <>
-            <Message m={data.parent} compact={false} now={now} inThread />
+            <Message
+              m={data.parent}
+              compact={false}
+              now={now}
+              inThread
+              editNow={data.parent._id === editId}
+              onEditEnd={onEditEnd}
+            />
             <div className="flex items-center gap-3 px-8 py-2 text-[13px] text-ink-muted">
               {count} {count === 1 ? "reply" : "replies"}{" "}
               <span className="h-px flex-1 bg-ink/12" />
@@ -769,6 +821,8 @@ function Thread({
               animateAfter={openedAt}
               inThread
               highlightId={replyId}
+              editId={editId}
+              onEditEnd={onEditEnd}
             />
           </>
         )}
@@ -786,6 +840,7 @@ function Thread({
             draftKey={`${slug}/${parentId}`}
             placeholder="Reply…"
             onTyping={onTyping}
+            onEditLast={onEditLast}
             onSend={async (body) => void (await send({ slug, body, parentId }))}
           />
         </div>

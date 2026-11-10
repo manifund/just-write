@@ -31,6 +31,8 @@ export function Message({
   inThread,
   highlight,
   onMarkUnread,
+  editNow,
+  onEditEnd,
 }: {
   m: ChatMessage;
   compact: boolean; // same author as the previous message, shortly after
@@ -40,13 +42,16 @@ export function Message({
   inThread?: boolean;
   highlight?: boolean; // the reply a shared link points to
   onMarkUnread?: () => void; // channel messages only: this one and later count as unread
+  editNow?: boolean; // opened for editing from the composer (Up arrow)
+  onEditEnd?: () => void;
 }) {
   const { me, viewer } = usePortal();
   const author = useMember(m.authorId);
   const toggle = useToggleReaction(me._id);
   const edit = useEditMessage();
   const remove = useRemoveMessage();
-  const [editing, setEditing] = useState(false);
+  const [editingHere, setEditing] = useState(false);
+  const editing = editingHere || !!editNow;
   // An edit that didn't save: the editor reopens with it so nothing is lost.
   const [failedEdit, setFailedEdit] = useState<{
     body: string;
@@ -92,6 +97,9 @@ export function Message({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [held, closeActions]);
   useEffect(() => () => cancelPress(), []);
+  useEffect(() => {
+    if (editNow) articleRef.current?.scrollIntoView({ block: "nearest" });
+  }, [editNow]);
   const copyLink = () => {
     void navigator.clipboard
       .writeText(messageLink(m))
@@ -207,11 +215,13 @@ export function Message({
               onCancel={() => {
                 setEditing(false);
                 setFailedEdit(null);
+                onEditEnd?.();
               }}
               onSend={async (body) => {
                 // Shows the new text right away; the save finishes in the background.
                 setEditing(false);
                 setFailedEdit(null);
+                onEditEnd?.();
                 edit({ messageId: m._id, body }).catch((err) => {
                   setFailedEdit({ body, error: errorMessage(err) });
                   setEditing(true);

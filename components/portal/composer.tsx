@@ -71,6 +71,7 @@ export function Composer({
   compact,
   draftKey,
   wordCount,
+  onEditLast,
 }: {
   placeholder: string;
   onSend: (body: string) => Promise<void>;
@@ -84,6 +85,8 @@ export function Composer({
   draftKey?: string;
   /** Shows how many words the message has so far, e.g. in #check-ins. */
   wordCount?: boolean;
+  /** Up arrow in an empty box: edit your latest message here. Returns false if there's none. */
+  onEditLast?: () => boolean;
 }) {
   const { roster, me } = usePortal();
   const storageKey = draftKey ? `jw-draft:${me._id}:${draftKey}` : null;
@@ -96,6 +99,7 @@ export function Composer({
   const emojiRef = useRef<EmojiState>(null);
   const sendRef = useRef<() => void>(() => {});
   const cancelRef = useRef(onCancel);
+  const editLastRef = useRef(onEditLast);
   const typingRef = useRef(onTyping);
   const filesRef = useRef<(files: File[]) => void>(() => {});
   const [start] = useState(() =>
@@ -352,6 +356,18 @@ export function Composer({
               sendRef.current();
               return true;
             },
+            // Like Slack and Discord: Up in an empty box edits your last message.
+            ArrowUp: ({ editor }) => {
+              if (
+                !editLastRef.current ||
+                mentionRef.current ||
+                emojiRef.current?.items.length ||
+                !editor.isEmpty ||
+                imagesRef.current.length > 0
+              )
+                return false;
+              return editLastRef.current();
+            },
             Escape: () => {
               if (cancelRef.current) {
                 cancelRef.current();
@@ -491,6 +507,7 @@ export function Composer({
     mentionRef.current = mention;
     emojiRef.current = emoji;
     cancelRef.current = onCancel;
+    editLastRef.current = onEditLast;
     typingRef.current = onTyping;
     sendRef.current = send;
     filesRef.current = (files) => void addFiles(files);
