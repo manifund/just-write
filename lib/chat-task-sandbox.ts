@@ -1,9 +1,11 @@
 // The firewall in front of a chat task's sandbox (app/api/improve/route.ts; also used by
 // scripts/improve-try.ts --chat). The sandbox may reach: the model API, only its messages
 // endpoint, with our key added by the firewall (the sandbox only has a placeholder); this
-// site's Convex backend, where every public function checks who's calling and none fetch
-// other sites for anonymous callers. Nothing else: bun and the Agent SDK are installed
-// (SETUP) before the policy goes on and before any club data is written.
+// site's Convex backend, where every public function checks who's calling; and any other
+// site, but only to read (GET/HEAD), for the agent's WebFetch. That last part means a
+// confused agent could leak members-only data in a URL; admins accepted that (the data is
+// what any member sees, never emails, payments, or check-in text). bun and the Agent SDK
+// are installed (SETUP) before the policy goes on and before any club data is written.
 import type { NetworkPolicy } from "@vercel/sandbox";
 
 export const KEY_PLACEHOLDER = "added-by-the-sandbox-firewall";
@@ -31,6 +33,11 @@ export function chatTaskPolicy(openRouterKey: string, convexHost: string): Netwo
         { response: { statusCode: 403 } },
       ],
       [convexHost]: [],
+      // The web, read-only: anything but GET/HEAD gets a 403 from the firewall.
+      "*": [
+        { match: { method: ["GET", "HEAD"] }, transform: [] },
+        { response: { statusCode: 403 } },
+      ],
     },
   };
 }
