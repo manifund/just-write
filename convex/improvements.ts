@@ -23,6 +23,7 @@ import {
   MEMBER_DAILY_LIMIT,
   branchFor,
   isChatTask,
+  modelLabel,
   muteCommand,
   staleAfterMs,
 } from "./lib/improve";
@@ -515,6 +516,10 @@ export function cardOf(r: Doc<"improvements">) {
     startedAt: r.startedAt ?? null,
     finishedAt: r.finishedAt ?? null,
     activity: r.status === "running" ? (r.activity ?? null) : null,
+    // "Opus 5.5, high effort". Runs from before models were saved show nothing.
+    model: r.model
+      ? `${modelLabel(r.model)}, ${r.effort ?? "default"} effort`
+      : null,
   };
 }
 export type ImprovementCard = ReturnType<typeof cardOf>;

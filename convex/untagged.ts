@@ -245,3 +245,34 @@ export const pickUp = internalMutation({
     });
   },
 });
+
+// Called from chat.edit. If the edited message is the request of a code run that's still
+// going, the new text is queued for the agent as a note (server.takeFollowUps), like an
+// untagged reply; a later edit replaces a note the runner hasn't taken yet. A queued request
+// just gets the new text, since nothing has read it yet.
+export async function noteEditedRequest(
+  ctx: MutationCtx,
+  message: Doc<"messages">,
+  text: string,
+) {
+  const runs = await threadRuns(ctx, message.parentId ?? message._id);
+  for (const r of runs) {
+    if (r.requestMessageId !== message._id) continue;
+    if (r.status === "queued") {
+      await ctx.db.patch(r._id, { request: text.slice(0, 8000) });
+      continue;
+    }
+    // Chat tasks take no follow-ups, a stopped run takes no more, and the parts of a split
+    // request can't tell which part an edit is about.
+    if (r.kind || r.status !== "running" || r.stopRequestedAt || r.split)
+      continue;
+    const pending = (r.untaggedReplies ?? []).filter((u) => !u.edited);
+    if (pending.length >= UNTAGGED_PER_RUN) continue;
+    await ctx.db.patch(r._id, {
+      untaggedReplies: [
+        ...pending,
+        { authorId: message.authorId, text: text.slice(0, 4000), edited: true },
+      ],
+    });
+  }
+}
