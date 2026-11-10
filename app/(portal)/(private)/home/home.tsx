@@ -603,6 +603,7 @@ function Board() {
         <h2 id="board" className={h2}>
           Everyone’s progress
         </h2>
+        <RecapLinks />
       </div>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-x-6 gap-y-1">
         {sorted.map((r) => (
@@ -642,5 +643,21 @@ function Board() {
         ))}
       </ul>
     </section>
+  );
+}
+
+// Links to the recap of each week whose deadline has passed.
+function RecapLinks() {
+  const now = useNow(60_000);
+  const done = now === null ? [] : DEADLINES.filter((d) => d <= now);
+  if (done.length === 0) return null;
+  return (
+    <p className="flex flex-wrap gap-x-4 text-ink-muted">
+      {done.map((d, i) => (
+        <Link key={d} href={`/recap/${i + 1}`}>
+          Week {i + 1} recap
+        </Link>
+      ))}
+    </p>
   );
 }

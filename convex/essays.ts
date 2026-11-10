@@ -252,3 +252,41 @@ export const recent = query({
     return out.filter((e) => e !== null);
   },
 });
+
+// The essays that filled a week's slot, for that week's recap page.
+export const recap = query({
+  args: { week: v.number() },
+  handler: async (ctx, { week }) => {
+    await requireMember(ctx);
+    const members = (
+      await ctx.db
+        .query("members")
+        .withIndex("by_status", (q) => q.eq("status", "committed"))
+        .collect()
+    ).filter((m) => !m.bot);
+    const rows = await Promise.all(
+      members.map(async (m) => {
+        const essays = await ctx.db
+          .query("essays")
+          .withIndex("by_member", (q) => q.eq("memberId", m._id))
+          .collect();
+        const slot = fillSlots(essays).find((s) => s.week === week);
+        const ids = new Set<string>(slot?.essayIds ?? []);
+        return essays
+          .filter((e) => ids.has(e._id))
+          .map((e) => ({
+            _id: e._id,
+            title: e.title,
+            url: e.url,
+            wordCount: e.wordCount ?? null,
+            submittedAt: e.submittedAt,
+            author: publicMember(m),
+          }));
+      }),
+    );
+    return {
+      writers: members.length,
+      essays: rows.flat().sort((a, b) => a.submittedAt - b.submittedAt),
+    };
+  },
+});
