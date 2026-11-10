@@ -19,14 +19,13 @@ import {
 import {
   AGENT_MODEL,
   BRIEF_IMAGES_MAX,
+  CHAT_TASKS_ENABLED,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
   MEMBER_DAILY_LIMIT,
-  PARALLEL,
   branchFor,
   hashRunToken,
-  parseEffort,
-  restartCommand,
+  readRequest,
 } from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
@@ -219,13 +218,11 @@ export const claimImprovement = mutation({
     // A chat task's sandbox reads the club's data with this key (convex/chatTasks.ts).
     if (r.kind === "chat" && !runTokenHash)
       throw new ConvexError("A chat task needs a run key.");
-    const [root, previous] = await Promise.all([
-      ctx.db.get(r.threadId),
-      r.previousId ? ctx.db.get(r.previousId) : null,
-    ]);
+    const previous = r.previousId ? await ctx.db.get(r.previousId) : null;
     // continuePr may change this once the route knows which run this continues. A part of a
     // split request already has the effort of the run it was split from (splitRun).
-    const effort = parseEffort(r.request) ?? r.effort ?? previous?.effort;
+    const effort =
+      readRequest(r.request).effort ?? r.effort ?? previous?.effort;
     // A restart ("@Claude !restart") goes on the PR of the run it starts over, if that PR is
     // still open (a run stopped partway opens its PR as it wraps up), with a fresh session.
     const restartPr =
@@ -238,147 +235,173 @@ export const claimImprovement = mutation({
             prUrl: previous.prUrl,
           }
         : null;
-    await ctx.db.patch(id, {
-      status: "running",
+    const claimed = {
+      status: "running" as const,
       startedAt: Date.now(),
       runTokenHash,
       effort,
       model: AGENT_MODEL,
       ...restartPr,
-    });
-
-    const replies = await ctx.db
-      .query("messages")
-      .withIndex("by_parent", (q) => q.eq("parentId", r.threadId))
-      .collect();
-    const names = new Map<string, string>();
-    const thread: {
-      author: string;
-      text: string;
-      at: number;
-      images?: string[];
-    }[] = [];
-    // In #check-ins the agent only learns who wrote what length, apart from the request
-    // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
-    // posting, while what Claude writes back is seen by every member, ungated (and, for
-    // code runs, in public PRs).
-    const channel = await ctx.db.get(r.channelId);
-    const inCheckIns = channel?.slug === CHECK_IN_SLUG;
-    for (const m of [root, ...replies]) {
-      if (!m || (!m.improvementId && !m.text)) continue;
-      if (!names.has(m.authorId))
-        names.set(
-          m.authorId,
-          (await ctx.db.get(m.authorId))?.name ?? "Someone",
-        );
-      const author = names.get(m.authorId)!;
-      let text = m.text;
-      if (m.improvementId) {
-        // Claude's own cards: include what that run did instead of the empty body.
-        const earlier = await ctx.db.get(m.improvementId);
-        if (!earlier || earlier._id === id) continue;
-        if (earlier.kind === "chat" && r.kind !== "chat")
-          // What a chat task found comes from members-only data; keep it out of public PRs.
-          text = `[Run #${earlier.number}, chat task: its reply is only shown in the thread]`;
-        else {
-          text = `[Run #${earlier.number}, ${earlier.kind === "chat" ? "chat task, " : ""}${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
-          // A chat task's draft or post, so "make it shorter" has something to work from.
-          if (earlier.draft && !inCheckIns) {
-            const to = await ctx.db.get(earlier.draft.channelId);
-            text += `\n\n${earlier.postId ? "Posted" : "Draft"} for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
-          }
-        }
-      } else if (m.postedFrom && r.kind !== "chat") {
-        // Claude's post of a chat task's result: members-only data, kept out of public PRs.
-        text = "[A post Claude made for a chat task; only shown in chat]";
-      } else if (
-        inCheckIns &&
-        m._id !== r.requestMessageId &&
-        (m.authorId !== r.requesterId || r.kind === "chat")
-      ) {
-        text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
-      } else {
-        // A member's own message, shown as written: its images go to the agent too.
-        const images = imageSources(m.body);
-        if (images.length) {
-          thread.push({ author, text, at: m._creationTime, images });
-          continue;
-        }
-      }
-      thread.push({ author, text, at: m._creationTime });
-    }
-    // Keep only the newest images, so a long thread can't send dozens.
-    let imagesLeft = BRIEF_IMAGES_MAX;
-    for (const m of [...thread].reverse()) {
-      if (!m.images) continue;
-      m.images = imagesLeft > 0 ? m.images.slice(-imagesLeft) : [];
-      imagesLeft -= m.images.length;
-      if (!m.images.length) delete m.images;
-    }
-    // PRs still open from earlier runs in this thread (the latest run on each). The route
-    // decides which one, if any, this request continues (lib/improve-target.ts). A part of a
-    // split request always starts its own PR, so it gets none.
-    const runs = r.split
-      ? []
-      : (
-          await ctx.db
-            .query("improvements")
-            .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
-            .collect()
-        )
-          // Chat tasks in the thread don't count: they never have a PR or saved work.
-          .filter(
-            (e) => e._id !== id && e.number < r.number && e.kind !== "chat",
-          )
-          .sort((a, b) => b.number - a.number);
-    const openPrs = runs
-      .filter((e) => e.status === "pr" && e.prNumber)
-      .map((e) => ({
-        id: e._id,
-        run: e.number,
-        prNumber: e.prNumber!,
-        title: e.title ?? e.request.slice(0, 100),
-        request: e.request.slice(0, 500),
-      }));
-    // The run right before this one, if it failed after its sandbox started (out of steps,
-    // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
-    // reply in the thread picks it up (lib/improve-target.ts).
-    const failed =
-      runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
-    return {
-      number: r.number,
-      kind: r.kind ?? null,
-      branch: restartPr?.branch ?? r.branch,
-      prNumber: restartPr?.prNumber ?? r.prNumber ?? null,
-      // If the earlier run's sandbox is still saved, the agent picks up where it left off
-      // (not after a restart, which is for leaving that session behind).
-      resumeSessionId: r.restart ? null : (previous?.sessionId ?? null),
-      restart: r.restart
-        ? { ...r.restart, note: restartCommand(r.request) ?? "" }
-        : null,
-      openPrs,
-      // The PR of the run right before this one, if it's still open: the fallback choice.
-      latestOpenPr:
-        runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
-      failedRun: failed
-        ? {
-            id: failed._id,
-            run: failed.number,
-            prNumber: failed.prNumber ?? null,
-            title: failed.title ?? failed.request.slice(0, 100),
-            request: failed.request.slice(0, 500),
-          }
-        : null,
-      // Set by continuePr when this picks up a failed run.
-      resumesFailedRun: null as number | null,
-      effort: effort ?? null,
-      split: r.split ?? null,
-      ...(await whoAndWhere(ctx, r)),
-      request: await splitRequest(ctx, r),
-      thread,
     };
+    await ctx.db.patch(id, claimed);
+    return await briefFor(ctx, { ...r, ...claimed }, previous);
   },
 });
+
+// Whether a code run's request doesn't say if it's code or a chat task (readRequest) and
+// isn't tied to earlier work (a restart, a part of a split request, fixConflicts). The route
+// then asks a quick model call (lib/improve-kind.ts) before the sandbox starts, and may make
+// it a chat task (becomeChatTask).
+function kindUnsaid(r: Doc<"improvements">) {
+  return (
+    CHAT_TASKS_ENABLED &&
+    !r.kind &&
+    !r.restart &&
+    !r.previousId &&
+    !r.split &&
+    !r.prNumber &&
+    !readRequest(r.request).kind
+  );
+}
+
+// Everything the runner needs for a just-claimed run: what was asked, the thread, and the
+// thread's earlier work. Code runs and chat tasks see the thread differently (below), so a
+// run that becomes a chat task gets a new brief (becomeChatTask).
+async function briefFor(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  previous: Doc<"improvements"> | null,
+) {
+  const id = r._id;
+  const [root, replies] = await Promise.all([
+    ctx.db.get(r.threadId),
+    ctx.db
+      .query("messages")
+      .withIndex("by_parent", (q) => q.eq("parentId", r.threadId))
+      .collect(),
+  ]);
+  const names = new Map<string, string>();
+  const thread: {
+    author: string;
+    text: string;
+    at: number;
+    images?: string[];
+  }[] = [];
+  // In #check-ins the agent only learns who wrote what length, apart from the request
+  // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
+  // posting, while what Claude writes back is seen by every member, ungated (and, for
+  // code runs, in public PRs).
+  const channel = await ctx.db.get(r.channelId);
+  const inCheckIns = channel?.slug === CHECK_IN_SLUG;
+  for (const m of [root, ...replies]) {
+    if (!m || (!m.improvementId && !m.text)) continue;
+    if (!names.has(m.authorId))
+      names.set(m.authorId, (await ctx.db.get(m.authorId))?.name ?? "Someone");
+    const author = names.get(m.authorId)!;
+    let text = m.text;
+    if (m.improvementId) {
+      // Claude's own cards: include what that run did instead of the empty body.
+      const earlier = await ctx.db.get(m.improvementId);
+      if (!earlier || earlier._id === id) continue;
+      if (earlier.kind === "chat" && r.kind !== "chat")
+        // What a chat task found comes from members-only data; keep it out of public PRs.
+        text = `[Run #${earlier.number}, chat task: its reply is only shown in the thread]`;
+      else {
+        text = `[Run #${earlier.number}, ${earlier.kind === "chat" ? "chat task, " : ""}${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
+        // A chat task's draft or post, so "make it shorter" has something to work from.
+        if (earlier.draft && !inCheckIns) {
+          const to = await ctx.db.get(earlier.draft.channelId);
+          text += `\n\n${earlier.postId ? "Posted" : "Draft"} for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
+        }
+      }
+    } else if (m.postedFrom && r.kind !== "chat") {
+      // Claude's post of a chat task's result: members-only data, kept out of public PRs.
+      text = "[A post Claude made for a chat task; only shown in chat]";
+    } else if (
+      inCheckIns &&
+      m._id !== r.requestMessageId &&
+      (m.authorId !== r.requesterId || r.kind === "chat")
+    ) {
+      text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
+    } else {
+      // A member's own message, shown as written: its images go to the agent too.
+      const images = imageSources(m.body);
+      if (images.length) {
+        thread.push({ author, text, at: m._creationTime, images });
+        continue;
+      }
+    }
+    thread.push({ author, text, at: m._creationTime });
+  }
+  // Keep only the newest images, so a long thread can't send dozens.
+  let imagesLeft = BRIEF_IMAGES_MAX;
+  for (const m of [...thread].reverse()) {
+    if (!m.images) continue;
+    m.images = imagesLeft > 0 ? m.images.slice(-imagesLeft) : [];
+    imagesLeft -= m.images.length;
+    if (!m.images.length) delete m.images;
+  }
+  // PRs still open from earlier runs in this thread (the latest run on each). The route
+  // decides which one, if any, this request continues (lib/improve-target.ts). A part of a
+  // split request always starts its own PR, so it gets none.
+  const runs = r.split
+    ? []
+    : (
+        await ctx.db
+          .query("improvements")
+          .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+          .collect()
+      )
+        // Chat tasks in the thread don't count: they never have a PR or saved work.
+        .filter((e) => e._id !== id && e.number < r.number && e.kind !== "chat")
+        .sort((a, b) => b.number - a.number);
+  const openPrs = runs
+    .filter((e) => e.status === "pr" && e.prNumber)
+    .map((e) => ({
+      id: e._id,
+      run: e.number,
+      prNumber: e.prNumber!,
+      title: e.title ?? e.request.slice(0, 100),
+      request: e.request.slice(0, 500),
+    }));
+  // The run right before this one, if it failed after its sandbox started (out of steps,
+  // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
+  // reply in the thread picks it up (lib/improve-target.ts).
+  const failed =
+    runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
+  return {
+    number: r.number,
+    kind: r.kind ?? null,
+    branch: r.branch,
+    prNumber: r.prNumber ?? null,
+    // If the earlier run's sandbox is still saved, the agent picks up where it left off
+    // (not after a restart, which is for leaving that session behind).
+    resumeSessionId: r.restart ? null : (previous?.sessionId ?? null),
+    restart: r.restart
+      ? { ...r.restart, note: readRequest(r.request).restart ?? "" }
+      : null,
+    openPrs,
+    // The PR of the run right before this one, if it's still open: the fallback choice.
+    latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
+    failedRun: failed
+      ? {
+          id: failed._id,
+          run: failed.number,
+          prNumber: failed.prNumber ?? null,
+          title: failed.title ?? failed.request.slice(0, 100),
+          request: failed.request.slice(0, 500),
+        }
+      : null,
+    // Set by continuePr when this picks up a failed run.
+    resumesFailedRun: null as number | null,
+    effort: r.effort ?? null,
+    askKind: kindUnsaid(r),
+    split: r.split ?? null,
+    ...(await whoAndWhere(ctx, r)),
+    request: await splitRequest(ctx, r),
+    thread,
+  };
+}
 
 // The request as the agent sees it. For a part of a split request, that's its own part plus
 // what the other parts are doing, so it leaves those alone.
@@ -399,6 +422,40 @@ async function splitRequest(ctx: MutationCtx, r: Doc<"improvements">) {
     ...others.map((e) => `- Run #${e.number}: ${e.request.slice(0, 500)}`),
   ].join("\n\n");
 }
+
+// The route's quick check (lib/improve-kind.ts) read a just-claimed code run whose request
+// didn't say which kind it is as a chat task. Until its sandbox starts, nothing has been read
+// or written for it, so it can still change, and only this way round: a chat task's brief
+// and log hold members-only data that code runs keep out of public PRs. Follow-ups that were
+// waiting on it as a code run start on their own, and untagged replies queued for its agent
+// are dropped. Returns the chat task's brief, or null if it can't change any more.
+export const becomeChatTask = mutation({
+  args: { secret: v.string(), id: v.id("improvements"), reason: v.string() },
+  handler: async (ctx, { secret, id, reason }) => {
+    checkServerSecret(secret);
+    const r = await ctx.db.get(id);
+    if (
+      !r ||
+      r.status !== "running" ||
+      r.sandboxId ||
+      r.stopRequestedAt ||
+      !r.runTokenHash ||
+      !kindUnsaid(r)
+    )
+      return null;
+    const patch = { kind: "chat" as const, untaggedReplies: undefined };
+    await ctx.db.patch(id, patch);
+    const chat = { ...r, ...patch };
+    await appendLogs(ctx, id, [
+      {
+        kind: "info",
+        text: `The request didn’t say !chat or !code, and a quick check read it as a chat task: ${reason.slice(0, 200) || "no reason given"}`,
+      },
+    ]);
+    await releaseWaiting(ctx, chat);
+    return await briefFor(ctx, chat, null);
+  },
+});
 
 // The route split a just-claimed run's request into parts that can be done at the same time
 // (lib/improve-split.ts). This run keeps part 1; every other part becomes a run of its own in
@@ -421,7 +478,7 @@ export const splitRun = mutation({
       r.split ||
       r.previousId ||
       r.prNumber ||
-      !PARALLEL.test(r.request)
+      !readRequest(r.request).parallel
     )
       return null;
     const asked = parts
@@ -597,7 +654,7 @@ export const continuePr = mutation({
     }
     if (!openPr && !failed) return null;
     // The request's own effort wins; otherwise keep the one the earlier run used.
-    const effort = parseEffort(r.request) ?? prev.effort;
+    const effort = readRequest(r.request).effort ?? prev.effort;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,
@@ -687,7 +744,7 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     // A part of a split request can't tell which part a follow-up is about, and a request to
     // split needs its own runs, so those wait for this run to end (releaseWaiting).
     // A restart wants a fresh session, so it never joins the one it's restarting.
-    if (r.split || w.restart || PARALLEL.test(w.request)) continue;
+    if (r.split || w.restart || readRequest(w.request).parallel) continue;
     // A run already tied to another PR's branch (server.fixConflicts) can't be done here,
     // since this run only pushes to its own branch; it starts on its own when this one ends.
     if (w.previousId && w.branch !== r.branch) continue;

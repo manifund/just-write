@@ -2,7 +2,8 @@
 // question or post one message for the member who asked.
 //
 // A run is a chat task from the start (improvements.startFromMessage, lib/improve.ts
-// isChatTask). app/api/improve/route.ts claims it with a run key (server.claimImprovement),
+// isChatTask), or becomes one right after it's claimed, before its sandbox starts
+// (server.becomeChatTask). app/api/improve/route.ts claims it with a run key (server.claimImprovement),
 // reads `snapshot` and `messages` once, and writes them into a firewalled sandbox that has
 // neither the server secret nor a GitHub token. The runner there (scripts/improve-runner.ts)
 // reports steps through convex/runner.ts and its result through `finish`, both of which only

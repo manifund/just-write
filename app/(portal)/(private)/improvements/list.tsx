@@ -7,6 +7,7 @@ import { Avatar } from "@/components/portal/avatar";
 import { ImprovementCard } from "@/components/portal/improvement";
 import { timeAgo, useNow } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
+import { HELP } from "@/convex/lib/improve";
 
 type Row = (typeof api.improvements.list._returnType)[number];
 type Status = Row["status"];
@@ -126,22 +127,35 @@ function List({ rows }: { rows: Row[] }) {
           {rows.filter((r) => r.status === "merged").length} merged
         </p>
         <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
-          Members can mention @Claude in chat to ask for a change to this site.
-          Claude writes the code, and small changes go live after review. Add
-          “effort: low” (or medium, high, xhigh, max) to the request to set how
-          hard it thinks. A reply in the same thread keeps working on that
-          thread’s open PR if it’s about the same change, or starts a new one if
-          not. Write “new PR” or “continue #40” to choose yourself. A reply that
-          continues a PR keeps its effort unless it sets its own. To ask for
-          several changes at once, say “in parallel” and list them: each one
-          gets its own card and PR, and they all run at the same time.
+          Members can mention @Claude in chat to ask for a change to this site,
+          or for something from the club’s chat, essays, and calendar, like a
+          weekly recap in #published. Claude works out which one you mean. For a
+          change, it writes the code, and small changes go live after review. A
+          reply in the same thread keeps working on that thread’s open PR if
+          it’s about the same change, or starts a new one if not, and keeps its
+          effort unless it sets its own. Claude’s posts say who asked for them,
+          and they can delete them.
         </p>
-        <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
-          Write “chat task” instead to have Claude read the club’s chat, essays,
-          and calendar to answer a question or post something, like a weekly
-          recap in #published. Claude’s post says who asked for it, and they can
-          delete it.
-        </p>
+        <details className="group/help max-w-[36rem] text-[15px] text-ink-muted">
+          <summary className="w-fit cursor-pointer list-none select-none hover:text-ink">
+            <span className="inline-block transition-transform group-open/help:rotate-90">
+              ▸
+            </span>{" "}
+            What @Claude understands
+          </summary>
+          <div className="flex flex-col gap-2 pt-2">
+            <p>
+              Start a message with any of these to steer it, like{" "}
+              <code className="font-mono text-[13px] text-ink">
+                {HELP.example}
+              </code>
+              :
+            </p>
+            <HelpList items={HELP.steer} />
+            <p>On their own, these reply right away:</p>
+            <HelpList items={HELP.commands} />
+          </div>
+        </details>
       </header>
 
       <div className="flex flex-col border border-ink/15">
@@ -282,6 +296,23 @@ function List({ rows }: { rows: Row[] }) {
 }
 
 // A small status icon, like an issue tracker's open/merged/closed mark.
+// The `!` words from HELP (convex/lib/improve.ts), the same list "@Claude !help" replies with.
+function HelpList({
+  items,
+}: {
+  items: readonly (readonly [string, string])[];
+}) {
+  return (
+    <ul className="flex flex-col gap-1">
+      {items.map(([word, what]) => (
+        <li key={word}>
+          <code className="font-mono text-[13px] text-ink">{word}</code> {what}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function StatusMark({ status }: { status: Status }) {
   const base = "mt-[5px] inline-block size-3 shrink-0 rounded-full";
   const cls =

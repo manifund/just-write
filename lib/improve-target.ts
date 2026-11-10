@@ -2,10 +2,10 @@
 // one. Called by app/api/improve/route.ts before the sandbox starts, since the sandbox
 // (and the agent session saved in it) belongs to a branch.
 //
-// Order: an explicit "new PR" or "#40" in the request wins; then, if the run just before
+// Order: an explicit "!new" or "!pr 40" (or "new PR", "#40") in the request wins; then, if the run just before
 // this one failed partway (out of steps, timed out), pick that up; otherwise a quick model
 // call reads the thread; if that fails, continue the PR of the run just before this one.
-import { CLASSIFIER_MODEL, NEW_PR } from "@/convex/lib/improve";
+import { CLASSIFIER_MODEL, readRequest } from "@/convex/lib/improve";
 
 export type OpenPr = {
   id: string;
@@ -31,9 +31,11 @@ export async function pickTarget(brief: {
   const { request, openPrs, failedRun } = brief;
   if (openPrs.length === 0 && !failedRun)
     return { pr: null, why: "no open PRs in this thread" };
-  if (NEW_PR.test(request)) return { pr: null, why: "asked for a new PR" };
+  if (readRequest(request).newPr)
+    return { pr: null, why: "asked for a new PR" };
 
-  // "#40", "PR 40", "run 78": a PR number or a run number of an open PR or the failed run.
+  // "!pr 40", "#40", "PR 40", "run 78": a PR number or a run number of an open PR or the
+  // failed run.
   // The failed run comes first: it may be a follow-up on one of the open PRs, with newer work.
   const named = failedRun ? [failedRun, ...openPrs] : openPrs;
   for (const m of request.matchAll(

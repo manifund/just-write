@@ -2,14 +2,14 @@
 // your local runner, and runs it as a dry run (no Convex reports, no push, no PR). Streams logs,
 // then shows the change the site would have pushed.
 //   bun scripts/improve-try.ts "Add a tooltip to the Send button"
-//   bun scripts/improve-try.ts --chat "chat task: how many essays came in this week?"
+//   bun scripts/improve-try.ts --chat "!chat how many essays came in this week?"
 // --chat runs a chat task behind the same firewall as the real thing (lib/chat-task-sandbox.ts),
 // on a few made-up members and essays instead of the club's data. It checks the setup, the
 // firewall, and the model key the firewall adds; nothing is posted.
 // Needs VERCEL_OIDC_TOKEN (vercel env pull) and OPENROUTER_API_KEY in .env.local.
 import { readFileSync, readdirSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
-import { REPO, SANDBOX_ROOT, parseEffort } from "../convex/lib/improve";
+import { REPO, SANDBOX_ROOT, readRequest } from "../convex/lib/improve";
 import {
   KEY_PLACEHOLDER,
   SETUP,
@@ -21,7 +21,7 @@ const chat = process.argv[2] === "--chat";
 const request =
   process.argv[chat ? 3 : 2] ??
   (chat
-    ? "chat task: how many essays are there, and who wrote the longest? Post it in #published."
+    ? "!chat how many essays are there, and who wrote the longest? Post it in #published."
     : "Add a tooltip to the chat Send button that says “Enter to send”.");
 
 // Made-up data in the shape lib/club-snapshot.ts writes.
@@ -137,7 +137,7 @@ try {
           branch: "claude/try",
           prNumber: null,
           resumeSessionId: null,
-          effort: parseEffort(request) ?? null,
+          effort: readRequest(request).effort ?? null,
           request,
           requester: "Austin",
           channel: "site",

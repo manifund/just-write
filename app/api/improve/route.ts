@@ -17,12 +17,12 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import {
   CHAT_TIMEOUT_MS,
-  PARALLEL,
   REPO,
   RUN_TIMEOUT_MS,
   SANDBOX_KEEP_MS,
   SANDBOX_ROOT,
   hashRunToken,
+  readRequest,
   sandboxNameFor,
 } from "@/convex/lib/improve";
 import { serverSecret } from "@/lib/auth-server";
@@ -33,6 +33,7 @@ import {
 } from "@/lib/chat-task-sandbox";
 import { readClub } from "@/lib/club-snapshot";
 import { finishRun, parseResult } from "@/lib/improve-finish";
+import { pickKind } from "@/lib/improve-kind";
 import { splitRequest } from "@/lib/improve-split";
 import { pickTarget } from "@/lib/improve-target";
 import {
@@ -145,11 +146,34 @@ export async function POST(req: Request) {
   if (!claimed) return Response.json({ ok: true, skipped: true });
   const brief = { ...claimed };
   const report = reporter(convex, id);
+  // A request that didn't say "!chat" or "!code" may be a chat task (lib/improve-kind.ts).
+  // Asked first, so a run that becomes one has done nothing as a code run yet.
+  if (brief.askKind) {
+    const picked = await pickKind(brief);
+    console.log("improve: kind", id, picked.kind, picked.why);
+    const chat =
+      picked.kind === "chat"
+        ? await convex
+            .mutation(api.server.becomeChatTask, {
+              secret,
+              id,
+              reason: picked.why,
+            })
+            .catch((err) => {
+              console.error("improve: couldn't make it a chat task", id, err);
+              return null;
+            })
+        : null;
+    if (chat) {
+      Object.assign(brief, chat);
+      await report({ step: "Handling this as a chat task" }).catch(() => {});
+    }
+  }
   if (brief.kind === "chat") return await runChatTask();
 
   // A request for several changes at once becomes one run per change, all going at the same
   // time (convex/server.ts#splitRun). This run keeps the first; each part starts a new PR.
-  if (!brief.prNumber && !brief.split && PARALLEL.test(brief.request)) {
+  if (!brief.prNumber && !brief.split && readRequest(brief.request).parallel) {
     const parts = await splitRequest(brief);
     const split =
       parts.length > 1

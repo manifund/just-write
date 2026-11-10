@@ -23,22 +23,165 @@ export function modelLabel(slug: string) {
   return `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}`;
 }
 
-// Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
-// A follow-up that doesn't set one keeps the effort of the run it continues
-// (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
+// ---------- What a message to @Claude can say ----------
+// Members steer a request with `!` words at the start of the message, right after the
+// mention: "@Claude !chat !effort high who has published twice?". readRequest is the one
+// parser for them, and HELP (below) lists the same words for "@Claude !help" and the
+// /improvements page, so add a word to both. A `!` word later in the message is just text,
+// so "add a !mute command" is still a request. The older phrases ("chat task", "new PR",
+// "continue #40", "effort: high", "in parallel") still work anywhere in the message.
+
+// The agent's effort level. A follow-up that doesn't set one keeps the effort of the run it
+// continues (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
-
-export function parseEffort(request: string): Effort | undefined {
-  const m = request.match(
-    new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"),
-  );
-  return m ? (m[1].toLowerCase() as Effort) : undefined;
-}
 
 export function isEffort(value: unknown): value is Effort {
   return EFFORTS.includes(value as Effort);
 }
+
+// Commands get a reply right away and start no run (improvements.ts#startFromMessage). A
+// message that starts with one is only that command.
+// !status: the thread's latest run. !help: HELP. !mute/!unmute: whether replies that don't
+// mention @Claude reach it in this thread (convex/untagged.ts).
+export const COMMANDS = ["status", "help", "mute", "unmute"] as const;
+export type Command = (typeof COMMANDS)[number];
+
+export type Directions = {
+  command: Command | null;
+  // A `!` word at the start that isn't one of ours ("!stauts"), or one missing its value
+  // ("!pr" without a number): what to tell the member instead of starting a run.
+  problem: string | null;
+  // !chat: a chat task (convex/chatTasks.ts). !code, !new, !pr 40, !parallel: a code run.
+  // null when the message doesn't say: then a thread of only chat tasks keeps going as one
+  // (isChatTask), and otherwise a quick check decides before the sandbox starts
+  // (lib/improve-kind.ts).
+  kind: "chat" | "code" | null;
+  newPr: boolean; // !new: a new PR, not one already open in the thread (lib/improve-target.ts)
+  pr: number | null; // !pr 40: continue PR #40
+  effort: Effort | undefined; // !effort high
+  // !parallel: split a list of changes into runs that go at the same time (lib/improve-split.ts)
+  parallel: boolean;
+  // !restart: start the thread's latest code run over with a fresh agent session, on the same
+  // PR if it has an open one, instead of resuming the old session (which would carry a wrong
+  // turn along). A run still going is stopped first, as with the Stop button. The directions
+  // written after the switches ("" if none); null without !restart.
+  restart: string | null;
+};
+
+const CHAT_TASK = /\bchat[- ]task\b/i;
+const NEW_PR =
+  /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
+// "PR 40", "continue #40". Not a bare "#2": in a chat thread that's usually "week #2".
+const NAMES_PR = /\b(?:pr|pull request|continue)\s*#?\d+\b/i;
+const EFFORT = new RegExp(
+  `\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`,
+  "i",
+);
+const PARALLEL =
+  /\bparallel\b|\bseparate (?:prs|pull requests|runs|sessions)\b/i;
+
+export function readRequest(text: string): Directions {
+  const out: Directions = {
+    command: null,
+    problem: null,
+    kind: null,
+    newPr: false,
+    pr: null,
+    effort: undefined,
+    parallel: false,
+    restart: null,
+  };
+  let rest = text.replace(/@\S+/g, " ").trim();
+  let restart = false;
+  // The value after "!pr" or "!effort", taken off `rest`.
+  const value = (re: RegExp) => {
+    const m = re.exec(rest);
+    if (m) rest = rest.slice(m[0].length);
+    return m?.[1];
+  };
+  for (let m; (m = /^!([a-z]+)\b/i.exec(rest));) {
+    const word = m[1].toLowerCase();
+    rest = rest.slice(m[0].length);
+    if (COMMANDS.includes(word as Command)) {
+      out.command = word as Command;
+      return out;
+    }
+    if (word === "chat" || word === "code") out.kind = word;
+    else if (word === "new") {
+      out.kind = "code";
+      out.newPr = true;
+    } else if (word === "parallel") {
+      out.kind = "code";
+      out.parallel = true;
+    } else if (word === "restart") restart = true;
+    else if (word === "pr") {
+      const n = value(/^[\s:]*#?(\d+)\b/);
+      if (!n) {
+        out.problem = "“!pr” needs a PR number, like “!pr 40”.";
+        return out;
+      }
+      out.kind = "code";
+      out.pr = Number(n);
+    } else if (word === "effort") {
+      const e = value(new RegExp(`^[\\s:=]*(${EFFORTS.join("|")})\\b`, "i"));
+      if (!e) {
+        out.problem = `“!effort” needs a level: ${EFFORTS.join(", ")}.`;
+        return out;
+      }
+      out.effort = e.toLowerCase() as Effort;
+    } else {
+      out.problem = `I don’t know “!${word}”.`;
+      return out;
+    }
+    rest = rest.replace(/^[\s:.,;-]+/, "");
+  }
+  if (restart) out.restart = rest.trim();
+  // The older phrases, anywhere in the message. A `!` word wins over them.
+  out.effort ??= EFFORT.exec(text)?.[1].toLowerCase() as Effort | undefined;
+  out.newPr ||= NEW_PR.test(text);
+  out.parallel ||= PARALLEL.test(text);
+  out.kind ??= CHAT_TASK.test(text)
+    ? "chat"
+    : out.newPr || NAMES_PR.test(text)
+      ? "code"
+      : null;
+  return out;
+}
+
+// What @Claude understands, for "@Claude !help" (convex/improvements.ts#helpDoc) and the
+// /improvements page. Keep it in step with readRequest.
+export const HELP = {
+  example: "@Claude !chat !effort high who has published twice?",
+  steer: [
+    [
+      "!chat",
+      "Read the club’s chat, essays, and calendar to answer a question or post one message.",
+    ],
+    ["!code", "Change the site and open a PR."],
+    ["!new", "Change the site in a new PR, not one already open here."],
+    ["!pr 40", "Keep working on PR #40."],
+    ["!effort high", "How hard I think: low, medium, high, xhigh, or max."],
+    [
+      "!parallel",
+      "Split a list of changes into separate runs and PRs that go at the same time.",
+    ],
+    [
+      "!restart",
+      "Redo this thread’s last change from scratch, on the same PR, with any directions after it.",
+    ],
+  ],
+  commands: [
+    ["!status", "What I’m doing in this thread."],
+    ["!help", "This list."],
+    ["!mute", "Only read messages in this thread that mention me."],
+    ["!unmute", "Read replies in this thread without a tag again."],
+  ],
+  notes: [
+    "Without !chat or !code, I work out which one you mean. In a thread where I’ve only done chat tasks, I keep doing those.",
+    "A reply in a thread keeps working on its open PR if it’s about the same change. Replies reach me without a tag while I’m working and for a day after.",
+  ],
+} as const;
 
 // Replies that don't mention @Claude (convex/untagged.ts). While a code run is going, they're
 // passed to it. After that, for a day after Claude's last run in the thread, a quick model
@@ -48,39 +191,11 @@ export function isEffort(value: unknown): value is Effort {
 export const UNTAGGED_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const UNTAGGED_CHECKS_PER_DAY = 10;
 export const UNTAGGED_PER_RUN = 20; // replies queued for one running code run
-// Commands in a thread: !mute/!unmute (above), !status (the thread's latest run), and
-// !help (what @Claude understands). Only a message that is just the command
-// ("@Claude !mute"), so a request like "add a !mute command" is still a request.
-export const COMMANDS = ["mute", "unmute", "status", "help"] as const;
-export type Command = (typeof COMMANDS)[number];
-export function claudeCommand(text: string): Command | null {
-  const rest = text
-    .replace(/@\S+/g, "")
-    .trim()
-    .replace(/\.+$/, "")
-    .toLowerCase();
-  const name = rest.startsWith("!") ? rest.slice(1) : "";
-  return COMMANDS.includes(name as Command) ? (name as Command) : null;
-}
-
-// "@Claude !restart" (optionally followed by more directions): start the thread's latest code
-// run over with a fresh agent session, on the same PR if it has an open one, instead of
-// resuming the old session (which would carry a wrong turn along). A run still going is
-// stopped first, as with the Stop button. Returns the text after the command ("" if none),
-// or null if the message doesn't start with it.
-export function restartCommand(text: string): string | null {
-  const rest = text.replace(/@\S+/g, "").trim();
-  const m = /^!restart\b[\s:.,-]*/i.exec(rest);
-  return m ? rest.slice(m[0].length).trim() : null;
-}
-
-// One message can ask for several separate changes at once ("in parallel: add X, fix Y").
-// If a code run's request matches PARALLEL, the route asks a quick model call to split it
-// (lib/improve-split.ts); each part becomes its own run, with its own card, sandbox, and new
-// PR, all going at the same time (convex/server.ts#splitRun). A request that's really one
-// change stays one run. Each part counts toward the daily limits.
-export const PARALLEL =
-  /\bparallel\b|\bseparate (?:prs|pull requests|runs|sessions)\b/i;
+// One message can ask for several separate changes at once ("!parallel add X, fix Y").
+// If a code run's request asks for that (readRequest's `parallel`), the route asks a quick
+// model call to split it (lib/improve-split.ts); each part becomes its own run, with its own
+// card, sandbox, and new PR, all going at the same time (convex/server.ts#splitRun). A
+// request that's really one change stays one run. Each part counts toward the daily limits.
 export const MAX_PARALLEL = 5;
 
 // Runs per non-admin member per 24 hours, and for everyone combined.
@@ -105,7 +220,7 @@ export const SENSITIVE_PATHS = [
   /^app\/api\//,
   /^app\/\(site\)\/commit\//,
   /^app\/\(portal\)\/\(private\)\/(improvements|admin)\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target|chat-task-sandbox|club-snapshot)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target|improve-kind|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
   // Instructions and hooks every agent run loads, chat tasks included.
@@ -145,9 +260,11 @@ export function staleAfterMs(kind: "chat" | undefined) {
 
 // Chat tasks (convex/chatTasks.ts): runs that read the club's data instead of changing
 // code, to answer a question or post something for the member who asked. A request is one
-// if it says "chat task", or if every earlier run in its thread was one and it doesn't ask
-// for a PR. Their sandboxes are always behind a firewall (lib/chat-task-sandbox.ts); if
-// that stops working, set CHAT_TASKS_ENABLED to false to turn them off.
+// if it says "!chat" (readRequest), if every earlier run in its thread was one and it doesn't
+// ask for code, or if a quick check before its sandbox starts reads it as one
+// (lib/improve-kind.ts). Their sandboxes are always behind a firewall
+// (lib/chat-task-sandbox.ts); if that stops working, set CHAT_TASKS_ENABLED to false to turn
+// them off.
 export const CHAT_TASKS_ENABLED = true;
 export const CHAT_DRAFT_MAX_CHARS = 6000;
 export const CHAT_MENTION_LIMIT = 10;
@@ -170,24 +287,13 @@ export const CHAT_POSTS_PER_DAY = 20;
 export const BRIEF_IMAGES_MAX = 8;
 export const BRIEF_IMAGE_BYTES = 3_750_000;
 
-const CHAT_TASK = /\bchat[- ]task\b/i;
-// "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
-export const NEW_PR =
-  /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
-// Not a bare "#2": in a chat thread that's usually "week #2" or "#1 on the board".
-const NAMES_PR = /\b(?:pr|pull request|continue)\s*#?\d+\b/i;
-
-// `earlier`: the kinds of the thread's earlier runs. A thread that has only had chat
-// tasks keeps going as one; any code run in it means a request needs the keyword.
+// `earlier`: the kinds of the thread's earlier runs. A request that doesn't say which kind it
+// is (readRequest) stays a chat task in a thread that has only had chat tasks.
 export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {
   if (!CHAT_TASKS_ENABLED) return false;
-  if (CHAT_TASK.test(request)) return true;
-  return (
-    earlier.length > 0 &&
-    earlier.every((k) => k === "chat") &&
-    !NEW_PR.test(request) &&
-    !NAMES_PR.test(request)
-  );
+  const { kind } = readRequest(request);
+  if (kind) return kind === "chat";
+  return earlier.length > 0 && earlier.every((k) => k === "chat");
 }
 
 // The sandbox holds no site secrets. It gets a random key that only works for its own run
