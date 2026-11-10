@@ -104,6 +104,7 @@ export async function POST(req: Request) {
   // Starting a sandbox sometimes fails for a moment (Vercel hiccups, the last run's
   // sandbox still stopping), so try a few times before giving up.
   let lastError: unknown;
+  let resumeFailed = false;
   for (let attempt = 0; attempt < START_ATTEMPTS; attempt++) {
     if (attempt > 0) {
       await report({
@@ -112,7 +113,8 @@ export async function POST(req: Request) {
       await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt - 1]));
     }
     try {
-      const sandbox = await startSandbox();
+      // A saved sandbox that failed once (for example its snapshot is gone) gets replaced.
+      const sandbox = await startSandbox({ discardSaved: resumeFailed });
       return Response.json({ ok: true, sandbox: sandbox.name, attempt: attempt + 1 });
     } catch (err) {
       lastError = err;
@@ -126,13 +128,22 @@ export async function POST(req: Request) {
   });
   return new Response("Couldn't start", { status: 500 });
 
-  async function startSandbox(): Promise<Sandbox> {
+  async function startSandbox({ discardSaved }: { discardSaved: boolean }): Promise<Sandbox> {
     let sandbox: Sandbox | null = null;
     let fresh = false;
     try {
+      const name = sandboxNameFor(brief.branch);
+      if (discardSaved) {
+        const saved = await Sandbox.get({ name }).catch(() => null);
+        await saved?.delete().catch(() => {});
+      }
       // Follow-ups on the same branch get the saved sandbox back (if it's under 24h old).
+      // `resume: true` starts it here, so an expired snapshot shows up inside getOrCreate,
+      // which then makes a fresh sandbox. Without it the VM starts on the first command,
+      // and an expired snapshot fails every attempt.
       sandbox = await Sandbox.getOrCreate({
-        name: sandboxNameFor(brief.branch),
+        name,
+        resume: true,
         source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 50 },
         resources: { vcpus: 4 },
         timeout: RUN_TIMEOUT_MS,
@@ -190,6 +201,7 @@ export async function POST(req: Request) {
       });
       return sandbox;
     } catch (err) {
+      if (sandbox && !fresh) resumeFailed = true;
       await sandbox?.stop().catch(() => {});
       throw err;
     }
