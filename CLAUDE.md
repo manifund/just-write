@@ -150,6 +150,8 @@ Replies without @Claude:
 - Replies that don't mention @Claude can reach it too (`convex/untagged.ts#handleUntaggedReply`, called by `chat.send`; never in #check-ins).
 - While a code run in the thread is going, they're queued on it (`untaggedReplies`, capped), and `server.takeFollowUps` hands them over with the tagged ones.
 - The runner tells the agent those replies may be members talking to each other.
+- If the member who asked edits their request message while the code run is going, `chat.edit` queues the new text the same way (`untagged.ts#noteEditedRequest`, marked `edited`), and the agent reads it as a follow-up note.
+- Editing a request that's still queued just updates it.
 - After that, for a day after Claude's last run in the thread, `untagged.check` asks `CLASSIFIER_MODEL` whether the reply is a request for Claude.
 - `untagged.check` runs at most `UNTAGGED_CHECKS_PER_DAY` times per thread, counted in `claudeThreads.checks`.
 - If it is a request, `untagged.pickUp` calls `startFromMessage` with `untagged`, which stays silent if limits stop it.
