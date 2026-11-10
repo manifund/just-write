@@ -66,7 +66,11 @@ const liveComposers = new Map<string, (doc: JSONContent) => void>();
 // Adds a (server-cleaned) Tiptap document to the end of a member's message box, e.g.
 // "Use this draft" on a chat task's card (improvement.tsx). Goes straight into the box if
 // it's on screen, otherwise into its saved draft, which it reads when it next opens.
-export function addToComposer(memberId: string, draftKey: string, body: string) {
+export function addToComposer(
+  memberId: string,
+  draftKey: string,
+  body: string,
+) {
   const key = `jw-draft:${memberId}:${draftKey}`;
   const content = ((JSON.parse(body) as JSONContent).content ?? []).filter(
     (n) => n.type !== "image",
@@ -77,7 +81,10 @@ export function addToComposer(memberId: string, draftKey: string, body: string) 
     const saved = readDraft(key);
     localStorage.setItem(
       key,
-      JSON.stringify({ type: "doc", content: [...(saved?.content ?? []), ...content] }),
+      JSON.stringify({
+        type: "doc",
+        content: [...(saved?.content ?? []), ...content],
+      }),
     );
   } catch {
     // Storage can be full or blocked.
@@ -532,13 +539,18 @@ export function Composer({
     const add = (doc: JSONContent) => {
       if (editor.isDestroyed) return;
       if (editor.isEmpty) editor.commands.setContent(doc);
-      else editor.commands.insertContentAt(editor.state.doc.content.size, doc.content ?? []);
+      else
+        editor.commands.insertContentAt(
+          editor.state.doc.content.size,
+          doc.content ?? [],
+        );
       editor.commands.focus("end");
       writeDraft(storageKey, editor, imagesRef.current);
     };
     liveComposers.set(storageKey, add);
     return () => {
-      if (liveComposers.get(storageKey) === add) liveComposers.delete(storageKey);
+      if (liveComposers.get(storageKey) === add)
+        liveComposers.delete(storageKey);
     };
   }, [storageKey, editor]);
 
@@ -616,9 +628,7 @@ export function Composer({
               {words} {words === 1 ? "word" : "words"}
             </span>
           )}
-          <span
-            className="hidden pr-2 text-[13px] text-ink-muted @xl:inline"
-          >
+          <span className="hidden pr-2 text-[13px] text-ink-muted @xl:inline">
             {onCancel ? "Esc to cancel · " : ""}Shift+Enter for a new line
           </span>
           {onCancel && (

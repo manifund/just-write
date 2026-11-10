@@ -33,7 +33,9 @@ const response = v.union(v.literal("yes"), v.literal("maybe"), v.literal("no"));
 // ---------- Reading ----------
 
 function isHost(e: Doc<"events">, memberId: Id<"members"> | undefined) {
-  return !!memberId && (e.ownerId === memberId || e.cohostIds.includes(memberId));
+  return (
+    !!memberId && (e.ownerId === memberId || e.cohostIds.includes(memberId))
+  );
 }
 
 // Hosts (and admins) can edit a session; deadline reminders are admin-only.
@@ -87,8 +89,7 @@ async function hydrate(
     ownerId: e.ownerId,
     hosts,
     rsvps: people,
-    myRsvp:
-      rsvps.find((r) => r.memberId === viewer.memberId)?.response ?? null,
+    myRsvp: rsvps.find((r) => r.memberId === viewer.memberId)?.response ?? null,
     canEdit: canEdit(e, viewer.memberId, viewer.isAdmin),
     canTransfer: viewer.isAdmin || e.ownerId === viewer.memberId,
   };
@@ -126,9 +127,7 @@ export const calendarInfo = query({
     return {
       googleCalendarId: calendarId,
       sharedWith: viewer.member.calendarSharedWith ?? [],
-      feedUrl: viewer.member.icsToken
-        ? feedUrl(viewer.member.icsToken)
-        : null,
+      feedUrl: viewer.member.icsToken ? feedUrl(viewer.member.icsToken) : null,
     };
   },
 });
@@ -163,7 +162,8 @@ function clean(args: {
   if (description.length > 2000)
     throw new ConvexError("Keep the description under 2,000 characters.");
   const location = args.location.trim();
-  if (location.length > 200) throw new ConvexError("That location is too long.");
+  if (location.length > 200)
+    throw new ConvexError("That location is too long.");
   let link: string | undefined;
   if (args.link.trim()) {
     link = parseWebsite(args.link) ?? undefined;
@@ -270,7 +270,8 @@ export const update = mutation({
           ? "The location changed. Open the session on the calendar to see it."
           : "The location is now TBD.",
       );
-    if (notes.length) await note(ctx, event, viewer.member._id, notes.join(" "));
+    if (notes.length)
+      await note(ctx, event, viewer.member._id, notes.join(" "));
     await syncLater(ctx, eventId);
   },
 });
@@ -383,7 +384,9 @@ export const makeFeed = mutation({
     const { member } = await requireMember(ctx);
     if (member.icsToken) return feedUrl(member.icsToken);
     const bytes = crypto.getRandomValues(new Uint8Array(18));
-    const token = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const token = [...bytes]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
     await ctx.db.patch(member._id, { icsToken: token });
     return feedUrl(token);
   },
@@ -481,7 +484,8 @@ async function attendees(
   if (includeHosts)
     for (const id of [event.ownerId, ...event.cohostIds]) {
       const m = await ctx.db.get(id);
-      if (m && !m.bot) out.set(id, { email: m.email, name: m.name, role: "host" });
+      if (m && !m.bot)
+        out.set(id, { email: m.email, name: m.name, role: "host" });
     }
   const rsvps = await ctx.db
     .query("rsvps")
@@ -718,7 +722,10 @@ export const nameEvents = internalMutation({
   handler: async (ctx) => {
     const starters = starterEvents();
     let named = 0;
-    for (const e of await ctx.db.query("events").withIndex("by_start").collect()) {
+    for (const e of await ctx.db
+      .query("events")
+      .withIndex("by_start")
+      .collect()) {
       const s = starters.find(
         (x) => x.start === e.start && !!x.kind === (e.kind === "deadline"),
       );

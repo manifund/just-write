@@ -11,7 +11,9 @@
 import type { RichNode } from "./richtext";
 
 // Returns the member a handle names, or null to leave "@handle" as plain text.
-export type ResolveMention = (handle: string) => { id: string; label: string } | null;
+export type ResolveMention = (
+  handle: string,
+) => { id: string; label: string } | null;
 
 type Mark = NonNullable<RichNode["marks"]>[number];
 
@@ -214,31 +216,70 @@ function inline(
   const text = (t: string, extra: Mark[] = []) => {
     if (!t) return;
     const all = [...marks, ...extra];
-    out.push(all.length ? { type: "text", text: t, marks: all } : { type: "text", text: t });
+    out.push(
+      all.length
+        ? { type: "text", text: t, marks: all }
+        : { type: "text", text: t },
+    );
   };
   let last = 0;
   for (const m of s.matchAll(INLINE)) {
     const at = m.index;
-    const [whole, code, bold1, bold2, strike, em1, em2, label, href, url, handle] = m;
+    const [
+      whole,
+      code,
+      bold1,
+      bold2,
+      strike,
+      em1,
+      em2,
+      label,
+      href,
+      url,
+      handle,
+    ] = m;
     // Links and mentions don't nest inside a link's text.
     if (inLink && (label || url || handle)) continue;
     text(s.slice(last, at));
     last = at + whole.length;
     if (code !== undefined) text(code, [{ type: "code" }]);
     else if (bold1 ?? bold2)
-      out.push(...inline((bold1 ?? bold2)!, [...marks, { type: "bold" }], mention, inLink));
+      out.push(
+        ...inline(
+          (bold1 ?? bold2)!,
+          [...marks, { type: "bold" }],
+          mention,
+          inLink,
+        ),
+      );
     else if (strike !== undefined)
-      out.push(...inline(strike, [...marks, { type: "strike" }], mention, inLink));
+      out.push(
+        ...inline(strike, [...marks, { type: "strike" }], mention, inLink),
+      );
     else if (em1 ?? em2)
-      out.push(...inline((em1 ?? em2)!, [...marks, { type: "italic" }], mention, inLink));
+      out.push(
+        ...inline(
+          (em1 ?? em2)!,
+          [...marks, { type: "italic" }],
+          mention,
+          inLink,
+        ),
+      );
     else if (label !== undefined)
       out.push(
-        ...inline(label, [...marks, { type: "link", attrs: { href } }], mention, true),
+        ...inline(
+          label,
+          [...marks, { type: "link", attrs: { href } }],
+          mention,
+          true,
+        ),
       );
-    else if (url !== undefined) text(url, [{ type: "link", attrs: { href: url } }]);
+    else if (url !== undefined)
+      text(url, [{ type: "link", attrs: { href: url } }]);
     else if (handle !== undefined) {
       const who = mention(handle);
-      if (who) out.push({ type: "mention", attrs: { id: who.id, label: who.label } });
+      if (who)
+        out.push({ type: "mention", attrs: { id: who.id, label: who.label } });
       else text(whole);
     }
   }

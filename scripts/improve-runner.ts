@@ -81,7 +81,10 @@ const startedAt = Date.now();
 // The firewall in front of a chat task decrypts model API requests to add the key, so make
 // sure Node and Bun trust the system's certificates, where its certificate would be.
 if (CHAT && !env.NODE_EXTRA_CA_CERTS)
-  for (const f of ["/etc/pki/tls/certs/ca-bundle.crt", "/etc/ssl/certs/ca-certificates.crt"])
+  for (const f of [
+    "/etc/pki/tls/certs/ca-bundle.crt",
+    "/etc/ssl/certs/ca-certificates.crt",
+  ])
     if (existsSync(f)) {
       env.NODE_EXTRA_CA_CERTS = f;
       break;
@@ -105,7 +108,10 @@ type Report = {
 };
 
 // Calls a convex/runner.ts mutation for this run. Null if it failed; callers keep working.
-async function runnerMutation(path: string, args: Record<string, unknown> = {}) {
+async function runnerMutation(
+  path: string,
+  args: Record<string, unknown> = {},
+) {
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
@@ -144,7 +150,10 @@ const step = (label: string) => report({ step: label });
 async function claimFollowUps() {
   if (DRY || CHAT) return [];
   const rows = await runnerMutation("runner:followUps");
-  return (Array.isArray(rows) ? rows : []) as { author: string; text: string }[];
+  return (Array.isArray(rows) ? rows : []) as {
+    author: string;
+    text: string;
+  }[];
 }
 
 // --- Log -------------------------------------------------------------------------------
@@ -169,10 +178,14 @@ function redact(text: string) {
   return out;
 }
 
-const LOG_LIMITS: Partial<Record<LogKind, number>> = { tool: 1500, result: 2000 };
+const LOG_LIMITS: Partial<Record<LogKind, number>> = {
+  tool: 1500,
+  result: 2000,
+};
 const LOG_FLUSH_MS = 3000;
 
-const logBuffer: { kind: LogKind; text: string; agent?: string; t: number }[] = [];
+const logBuffer: { kind: LogKind; text: string; agent?: string; t: number }[] =
+  [];
 function log(kind: LogKind, text: string, agent?: string) {
   const t = redact(text).trim();
   if (!t) return;
@@ -182,7 +195,11 @@ function log(kind: LogKind, text: string, agent?: string) {
     agent: agent && redact(agent),
     t: Date.now(),
   };
-  if (DRY) console.log(`[log ${kind}${agent ? ` · ${agent}` : ""}]`, entry.text.slice(0, 300));
+  if (DRY)
+    console.log(
+      `[log ${kind}${agent ? ` · ${agent}` : ""}]`,
+      entry.text.slice(0, 300),
+    );
   else logBuffer.push(entry);
 }
 
@@ -195,7 +212,11 @@ function flushLogs() {
       const now = Date.now();
       const events = logBuffer
         .splice(0, LOG_BATCH_EVENTS)
-        .map(({ t, agent, ...e }) => ({ ...e, ...(agent ? { agent } : {}), ago: now - t }));
+        .map(({ t, agent, ...e }) => ({
+          ...e,
+          ...(agent ? { agent } : {}),
+          ago: now - t,
+        }));
       await runnerMutation("runner:log", { events });
     }
   });
@@ -208,7 +229,12 @@ setInterval(() => void flushLogs(), LOG_FLUSH_MS).unref();
 // subagents it started in the background. The card shows that from a heartbeat
 // (convex/runner.ts#activity), sent when something changes, at most every ACTIVITY_MS.
 
-type Task = { label: string; state: TaskState; lastAt: number; summary?: string };
+type Task = {
+  label: string;
+  state: TaskState;
+  lastAt: number;
+  summary?: string;
+};
 const tasks = new Map<string, Task>(); // by SDK task id
 const taskByToolUse = new Map<string, string>(); // the Agent/Bash call that started it → task id
 const agentLabels = new Map<string, string>(); // Agent tool call id → its description
@@ -223,7 +249,9 @@ let activityTimer: ReturnType<typeof setTimeout> | null = null;
 function touch(toolUseId?: string | null) {
   const now = Date.now();
   lastEventAt = now;
-  const task = toolUseId ? tasks.get(taskByToolUse.get(toolUseId) ?? "") : undefined;
+  const task = toolUseId
+    ? tasks.get(taskByToolUse.get(toolUseId) ?? "")
+    : undefined;
   if (task) task.lastAt = now;
   scheduleActivity();
 }
@@ -283,13 +311,19 @@ async function clearActivity() {
 
 // Which subagent a message came from, for the log.
 const agentLabel = (toolUseId: string) =>
-  agentLabels.get(toolUseId) ?? tasks.get(taskByToolUse.get(toolUseId) ?? "")?.label ?? "subagent";
+  agentLabels.get(toolUseId) ??
+  tasks.get(taskByToolUse.get(toolUseId) ?? "")?.label ??
+  "subagent";
 
 function describeInput(name: string, input: unknown) {
   const o = (input ?? {}) as Record<string, unknown>;
   if (typeof o.command === "string")
     return `${name}: $ ${o.command}${o.run_in_background ? " (background)" : ""}`;
-  if (typeof o.file_path === "string" && !("content" in o) && !("old_string" in o))
+  if (
+    typeof o.file_path === "string" &&
+    !("content" in o) &&
+    !("old_string" in o)
+  )
     return `${name}: ${o.file_path}`;
   return `${name}: ${JSON.stringify(o)}`;
 }
@@ -319,14 +353,16 @@ function sh(cmd: string, opts: { quiet?: boolean } = {}) {
   const out = opts.quiet ? raw : redact(raw);
   if (!opts.quiet) {
     console.log(`$ ${cmd}\n${out.slice(-4000)}`);
-    log("shell", `$ ${cmd}${r.status === 0 ? "" : ` (exit ${r.status})`}\n${tail(out.trim(), 2500)}`);
+    log(
+      "shell",
+      `$ ${cmd}${r.status === 0 ? "" : ` (exit ${r.status})`}\n${tail(out.trim(), 2500)}`,
+    );
   }
   return { ok: r.status === 0, out };
 }
 function must(cmd: string) {
   const r = sh(cmd);
-  if (!r.ok)
-    throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
+  if (!r.ok) throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
   return r.out.trim();
 }
 const tail = (s: string, n = 6000) => (s.length > n ? `…${s.slice(-n)}` : s);
@@ -396,9 +432,7 @@ type Final = {
 };
 
 function prompt() {
-  const thread = brief.thread
-    .map((m) => `${m.author}: ${m.text}`)
-    .join("\n\n");
+  const thread = brief.thread.map((m) => `${m.author}: ${m.text}`).join("\n\n");
   return [
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
@@ -424,7 +458,10 @@ function prompt() {
 function statusLine(text: string) {
   const t = text.trim();
   if (!t) return null;
-  const first = t.split(/(?<=[.!?:])\s|\n/)[0].replace(/[:.]$/, "").trim();
+  const first = t
+    .split(/(?<=[.!?:])\s|\n/)[0]
+    .replace(/[:.]$/, "")
+    .trim();
   // Long sentences are usually reasoning, not narration; skip them rather than truncate.
   return first.length >= 8 && first.length <= 100 ? first : null;
 }
@@ -432,7 +469,8 @@ function statusLine(text: string) {
 // The agent's structured result, or (if it somehow didn't return one) its last message.
 function parseFinal(structured: unknown, text: string): Final {
   const o = (structured ?? {}) as Record<string, unknown>;
-  const str = (k: string) => (typeof o[k] === "string" ? (o[k] as string).trim() : "");
+  const str = (k: string) =>
+    typeof o[k] === "string" ? (o[k] as string).trim() : "";
   if (CHAT && str("chat"))
     return {
       title: null,
@@ -446,7 +484,11 @@ function parseFinal(structured: unknown, text: string): Final {
         : undefined,
     };
   if (str("chat"))
-    return { title: str("title").slice(0, 100) || null, summary: str("chat"), details: str("details") };
+    return {
+      title: str("title").slice(0, 100) || null,
+      summary: str("chat"),
+      details: str("details"),
+    };
   // Fallback: a "TITLE: ..." line anywhere in the text, everything else as the summary.
   const m = text.match(/^TITLE:\s*(.+)$/m);
   const title = m?.[1].trim();
@@ -483,7 +525,11 @@ const userMessage = (
 // in at priority "next", so the agent reads them after its current tool call, like a message
 // typed into Claude Code mid-task. The stream ends once the agent has returned its result;
 // later follow-ups wait and start as their own run (convex/improvements.ts#releaseWaiting).
-async function* agentInput(first: string, isDone: () => boolean, waitForDone: Promise<void>) {
+async function* agentInput(
+  first: string,
+  isDone: () => boolean,
+  waitForDone: Promise<void>,
+) {
   yield userMessage(first);
   while (!isDone()) {
     await Promise.race([
@@ -508,7 +554,9 @@ async function loadSdk() {
   const path = createRequire(`${CHAT ? AGENT_DIR : ROOT}/package.json`).resolve(
     "@anthropic-ai/claude-agent-sdk",
   );
-  return (await import(pathToFileURL(path).href)) as typeof import("@anthropic-ai/claude-agent-sdk");
+  return (await import(
+    pathToFileURL(path).href
+  )) as typeof import("@anthropic-ai/claude-agent-sdk");
 }
 
 // The latest agent session, saved to the run as soon as it starts so a failed run (out of
@@ -522,7 +570,10 @@ async function saveSession(id: string) {
 
 // `outOfTurns`: the agent hit maxTurns before returning its result. Its edits are kept.
 async function runAgent(input: string, resume?: string) {
-  log("info", `${resume ? "Resuming the agent session with" : "Starting the agent with"}:\n${input}`);
+  log(
+    "info",
+    `${resume ? "Resuming the agent session with" : "Starting the agent with"}:\n${input}`,
+  );
   try {
     return await runAgentSession(input, resume);
   } finally {
@@ -535,7 +586,10 @@ async function runAgentSession(input: string, resume?: string) {
   // A chat task has to finish before its sandbox stops.
   const abortController = new AbortController();
   const timer = CHAT
-    ? setTimeout(() => abortController.abort(), Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()))
+    ? setTimeout(
+        () => abortController.abort(),
+        Math.max(0, startedAt + CHAT_AGENT_MS - Date.now()),
+      )
     : null;
   timer?.unref();
   let done = false;
@@ -593,18 +647,25 @@ async function runAgentSession(input: string, resume?: string) {
         switch (msg.subtype) {
           case "init":
             sessionId = msg.session_id;
-            log("info", `Agent session ${resume ? "resumed" : "started"} (${msg.model})`);
+            log(
+              "info",
+              `Agent session ${resume ? "resumed" : "started"} (${msg.model})`,
+            );
             await saveSession(sessionId);
             break;
           case "task_started":
             if (msg.ambient || msg.skip_transcript) break;
             tasks.set(msg.task_id, {
               // Subagents show their description; background commands are marked as such.
-              label: msg.task_type === "local_bash" ? `Command: ${msg.description}` : msg.description,
+              label:
+                msg.task_type === "local_bash"
+                  ? `Command: ${msg.description}`
+                  : msg.description,
               state: "running",
               lastAt: now,
             });
-            if (msg.tool_use_id) taskByToolUse.set(msg.tool_use_id, msg.task_id);
+            if (msg.tool_use_id)
+              taskByToolUse.set(msg.tool_use_id, msg.task_id);
             log(
               "task",
               `Started ${msg.subagent_type ?? msg.task_type ?? "task"}${msg.is_backgrounded ? " in the background" : ""}: ${msg.description}`,
@@ -633,17 +694,28 @@ async function runAgentSession(input: string, resume?: string) {
             // Can be for a task from before this session (a resume), which isn't tracked.
             const task = tasks.get(msg.task_id);
             const state: TaskState =
-              msg.status === "completed" ? "done" : msg.status === "failed" ? "failed" : "stopped";
+              msg.status === "completed"
+                ? "done"
+                : msg.status === "failed"
+                  ? "failed"
+                  : "stopped";
             if (task) {
               task.state = state;
               task.lastAt = now;
             }
             const label =
-              task?.label ?? (msg.tool_use_id && agentLabels.get(msg.tool_use_id)) ?? "a task";
+              task?.label ??
+              (msg.tool_use_id && agentLabels.get(msg.tool_use_id)) ??
+              "a task";
             const usage = msg.usage
               ? ` (${msg.usage.tool_uses} tool calls, ${Math.round(msg.usage.duration_ms / 1000)}s)`
               : "";
-            const verb = state === "done" ? "Finished" : state === "failed" ? "Failed" : "Stopped";
+            const verb =
+              state === "done"
+                ? "Finished"
+                : state === "failed"
+                  ? "Failed"
+                  : "Stopped";
             log("task", `${verb}: ${label}${usage}\n${msg.summary ?? ""}`);
             touch();
             break;
@@ -662,13 +734,23 @@ async function runAgentSession(input: string, resume?: string) {
             if (line) await step(line);
           } else if (block.type === "tool_use") {
             log("tool", describeInput(block.name, block.input), agent);
-            const input = (block.input ?? {}) as { command?: unknown; description?: unknown };
+            const input = (block.input ?? {}) as {
+              command?: unknown;
+              description?: unknown;
+            };
             if (block.name === "Agent" || block.name === "Task")
-              agentLabels.set(block.id, String(input.description ?? "subagent").slice(0, 120));
+              agentLabels.set(
+                block.id,
+                String(input.description ?? "subagent").slice(0, 120),
+              );
             if (sub) continue;
             openTools.set(block.id, { name: block.name, since: Date.now() });
             const cmd = String(input.command ?? "");
-            console.log("[tool]", block.name, JSON.stringify(block.input).slice(0, 200));
+            console.log(
+              "[tool]",
+              block.name,
+              JSON.stringify(block.input).slice(0, 200),
+            );
             if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
               typechecked = true;
               await step("Typechecking");
@@ -686,7 +768,11 @@ async function runAgentSession(input: string, resume?: string) {
           for (const block of content) {
             if (block.type !== "tool_result") continue;
             if (!sub) openTools.delete(block.tool_use_id);
-            log(block.is_error ? "error" : "result", resultText(block.content), agent);
+            log(
+              block.is_error ? "error" : "result",
+              resultText(block.content),
+              agent,
+            );
           }
         for (const f of dirtyFiles())
           if (!reported.has(f)) {
@@ -756,8 +842,11 @@ const OUT_OF_TURNS = "I ran out of steps before finishing.";
 // Every file that differs from `base` (tracked, new, and deleted), with its git file mode.
 function changedFiles(base: string): ChangedFile[] {
   must("git add -A");
-  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, { quiet: true });
-  if (!r.ok) throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
+  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, {
+    quiet: true,
+  });
+  if (!r.ok)
+    throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
   // -z output: ":<old mode> <new mode> <old sha> <new sha> <status>" NUL "<path>" NUL ...
   const parts = r.out.split("\0");
   const files: ChangedFile[] = [];
@@ -768,7 +857,8 @@ function changedFiles(base: string): ChangedFile[] {
     const [, mode] = meta.slice(1).split(" ");
     if (meta.endsWith("D")) files.push({ path, mode: null });
     else if (mode === "100644" || mode === "100755") files.push({ path, mode });
-    else throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
+    else
+      throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
   }
   return files;
 }
@@ -781,7 +871,9 @@ function postProblem(post: Final["post"]) {
   if (!post) return null;
   let channels: string[] = [];
   try {
-    const about = JSON.parse(readFileSync(`${CLUB_DIR}/about.json`, "utf8")) as {
+    const about = JSON.parse(
+      readFileSync(`${CLUB_DIR}/about.json`, "utf8"),
+    ) as {
       channels?: { slug: string }[];
     };
     channels = (about.channels ?? []).map((c) => c.slug);
@@ -798,7 +890,11 @@ function postProblem(post: Final["post"]) {
 }
 
 type ChatResult =
-  | { outcome: "answered"; summary: string; post?: { channel: string; markdown: string } }
+  | {
+      outcome: "answered";
+      summary: string;
+      post?: { channel: string; markdown: string };
+    }
   | { outcome: "failed"; error: string };
 
 async function chatMain(): Promise<ChatResult> {
@@ -829,7 +925,11 @@ async function chatMain(): Promise<ChatResult> {
 // Sends a chat task's result to Convex (chatTasks.finish), which posts it and ends the run.
 // A few tries: if it never gets through, the run is marked failed when it goes stale.
 async function finishChat(result: ChatResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt > 0) await new Promise((r) => setTimeout(r, 2000 * attempt));
     if (await runnerMutation("chatTasks:finish", result)) return;
@@ -869,15 +969,22 @@ async function main(): Promise<RunnerResult> {
   const base = must("git rev-parse HEAD");
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
-  const resume = RESUMED_SANDBOX ? (brief.resumeSessionId ?? undefined) : undefined;
+  const resume = RESUMED_SANDBOX
+    ? (brief.resumeSessionId ?? undefined)
+    : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step(resume ? "Picking up where I left off" : "Reading the code");
-  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch((err) => {
-    if (!resume) throw err;
-    console.error("resume failed; starting a new session", err);
-    log("error", `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`);
-    return runAgent(prompt());
-  });
+  let { final, sessionId, outOfTurns } = await runAgent(prompt(), resume).catch(
+    (err) => {
+      if (!resume) throw err;
+      console.error("resume failed; starting a new session", err);
+      log(
+        "error",
+        `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return runAgent(prompt());
+    },
+  );
 
   if (changedFiles(base).length === 0) {
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
@@ -926,12 +1033,20 @@ async function main(): Promise<RunnerResult> {
 
 // Hands the result to /api/improve, which pushes it, updates the card, and stops this sandbox.
 async function finish(result: RunnerResult) {
-  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  if (DRY)
+    return console.log(
+      "[dry run] would finish with",
+      JSON.stringify(result, null, 2),
+    );
   try {
     const res = await fetch(env.IMPROVE_URL!, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id: env.IMPROVEMENT_ID, runToken: RUN_TOKEN, finish: result }),
+      body: JSON.stringify({
+        id: env.IMPROVEMENT_ID,
+        runToken: RUN_TOKEN,
+        finish: result,
+      }),
     });
     if (!res.ok) console.error("finish failed", res.status, await res.text());
   } catch (err) {
@@ -955,7 +1070,10 @@ function failure(err: unknown) {
 }
 
 // Finishing retires this run's key, so send the rest of the log first.
-async function flushThen<T extends { outcome: string }>(result: T, send: (r: T) => Promise<unknown>) {
+async function flushThen<T extends { outcome: string }>(
+  result: T,
+  send: (r: T) => Promise<unknown>,
+) {
   log("info", `Sending the result: ${result.outcome}`);
   await flushLogs();
   await send(result);

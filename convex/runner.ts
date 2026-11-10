@@ -36,7 +36,11 @@ export const followUps = mutation({
 
 // A batch of log events (convex/lib/improveLogs.ts caps their size).
 export const log = mutation({
-  args: { id: v.id("improvements"), runToken: v.string(), events: v.array(logEvent) },
+  args: {
+    id: v.id("improvements"),
+    runToken: v.string(),
+    events: v.array(logEvent),
+  },
   handler: async (ctx, { id, runToken, events }) => {
     await checkRunToken(ctx, id, runToken);
     await appendLogs(ctx, id, events, { fromRunner: true });
@@ -52,20 +56,27 @@ export const activity = mutation({
     idleMs: v.number(),
     tool: v.optional(v.object({ name: v.string(), forMs: v.number() })),
     tasks: v.array(
-      v.object({ label: v.string(), state: taskState, summary: v.optional(v.string()) }),
+      v.object({
+        label: v.string(),
+        state: taskState,
+        summary: v.optional(v.string()),
+      }),
     ),
   },
   handler: async (ctx, { id, runToken, idleMs, tool, tasks }) => {
     await checkRunToken(ctx, id, runToken);
     const now = Date.now();
-    const ago = (ms: number) => now - Math.min(Math.max(ms, 0), 24 * 60 * 60_000);
+    const ago = (ms: number) =>
+      now - Math.min(Math.max(ms, 0), 24 * 60 * 60_000);
     await ctx.db.patch(id, {
       activity:
         !tool && tasks.length === 0
           ? undefined
           : {
               lastAt: ago(idleMs),
-              tool: tool ? { name: tool.name.slice(0, 60), since: ago(tool.forMs) } : undefined,
+              tool: tool
+                ? { name: tool.name.slice(0, 60), since: ago(tool.forMs) }
+                : undefined,
               tasks: tasks.slice(-8).map((t) => ({
                 label: t.label.slice(0, 120),
                 state: t.state,

@@ -25,7 +25,12 @@ function address(r: { name?: string; email: string }) {
 type Row = { name?: string; email: string; status: string };
 
 const GROUPS = [
-  { key: "all", label: "All", title: "Everyone on the list", match: () => true },
+  {
+    key: "all",
+    label: "All",
+    title: "Everyone on the list",
+    match: () => true,
+  },
   {
     key: "committed",
     label: "Committed",
@@ -78,7 +83,9 @@ function CopyEmails({ rows }: { rows: Row[] }) {
                   : "border-ink/25 hover:border-ink"
               }`}
             >
-              {copied === l.key ? `Copied ${l.count}` : `${l.label} (${l.count})`}
+              {copied === l.key
+                ? `Copied ${l.count}`
+                : `${l.label} (${l.count})`}
             </button>
           ))}
         </div>

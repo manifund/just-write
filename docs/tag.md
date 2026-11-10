@@ -5,10 +5,11 @@ I imagine that smaller changes should just be merged in automatically, and large
 Think about what it would take to be able to implement this kind of feature well, and ask me any questions you have before starting.
 
 Some references that might be helpful. Don't worry about matching the existing specs, instead, take these as inspiration, but focus on an amazing overall user experience.
+
 - https://claude.com/docs/claude-tag/overview
 - https://x.com/patrickc/status/2116636967517798672, replicated as:
 
- I'm now building an "improvements" feature into all of my personal vibecoded applications: a freeform text input that's hooked up to an agent that yolo implements whatever is submitted.
+I'm now building an "improvements" feature into all of my personal vibecoded applications: a freeform text input that's hooked up to an agent that yolo implements whatever is submitted.
 
 It's an interesting experience -- the activation energy barrier to sanding any rough edge or implementing any new feature becomes extremely low. Someone else who uses one of the applications I created has already implemented 150 improvements over the course of a few days. This pattern feels like a new kind of tool -- liquid software? -- and every application that doesn't have this feature now has a slightly rigid and anachronistic flavor. Why can't I just tell it how I want it to be different?
 

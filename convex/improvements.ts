@@ -2,7 +2,10 @@
 // startFromMessage, which records a run, posts Claude's status card in the thread, and
 // asks the Next.js route /api/improve to start a Vercel Sandbox. The runner inside it
 // (scripts/improve-runner.ts) reports progress back through server.reportImprovement.
-import { paginationOptsValidator, type WithoutSystemFields } from "convex/server";
+import {
+  paginationOptsValidator,
+  type WithoutSystemFields,
+} from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -161,7 +164,8 @@ export async function startFromMessage(
   // waits for the other.
   const busy =
     earlier.find(
-      (r) => r.kind === kind && (r.status === "queued" || r.status === "running"),
+      (r) =>
+        r.kind === kind && (r.status === "queued" || r.status === "running"),
     ) ?? null;
 
   const number = (recent[0]?.number ?? 0) + 1;
@@ -176,7 +180,9 @@ export async function startFromMessage(
     status: "queued",
     steps: [
       {
-        label: busy ? "Waiting for the request above to finish" : "Getting started",
+        label: busy
+          ? "Waiting for the request above to finish"
+          : "Getting started",
         state: "active",
       },
     ],
@@ -190,14 +196,18 @@ export async function startFromMessage(
     improvementId: id,
   });
   await ctx.db.patch(id, { replyMessageId });
-  if (!busy) await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
+  if (!busy)
+    await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
   return replyMessageId;
 }
 
 // Called when a run ends (any final status). Starts the follow-up that was waiting on it.
 // The kick is delayed so the finished run's sandbox, which the follow-up may reuse, has time
 // to stop first.
-export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvements">) {
+export async function releaseWaiting(
+  ctx: MutationCtx,
+  finished: Doc<"improvements">,
+) {
   const waiters = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", finished.threadId))
@@ -207,13 +217,17 @@ export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvemen
     await ctx.db.patch(w._id, {
       waitingOn: undefined,
       steps: [
-        ...w.steps.map((s) => (s.state === "active" ? { ...s, state: "done" as const } : s)),
+        ...w.steps.map((s) =>
+          s.state === "active" ? { ...s, state: "done" as const } : s,
+        ),
         { label: "Getting started", state: "active" as const },
       ],
     });
     // No sandbox to wait for after a chat task: each one gets a throwaway sandbox.
     const delay = finished.kind === "chat" ? 1000 : 60_000;
-    await ctx.scheduler.runAfter(delay, internal.improvements.kick, { id: w._id });
+    await ctx.scheduler.runAfter(delay, internal.improvements.kick, {
+      id: w._id,
+    });
   }
 }
 
@@ -239,10 +253,14 @@ export const kick = internalAction({
     if (error) {
       console.error(`improve kick failed (attempt ${attempt})`, id, error);
       if (attempt < KICK_ATTEMPTS) {
-        await ctx.scheduler.runAfter(30_000 * attempt, internal.improvements.kick, {
-          id,
-          attempt: attempt + 1,
-        });
+        await ctx.scheduler.runAfter(
+          30_000 * attempt,
+          internal.improvements.kick,
+          {
+            id,
+            attempt: attempt + 1,
+          },
+        );
         return;
       }
       await ctx.runMutation(internal.improvements.markFailed, {
@@ -286,7 +304,11 @@ export async function endRun(
     await recordActivity(ctx, reply, Date.now());
 }
 
-async function failRun(ctx: MutationCtx, r: Doc<"improvements">, error: string) {
+async function failRun(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  error: string,
+) {
   await endRun(ctx, r, {
     status: "failed",
     error,
@@ -404,7 +426,9 @@ export const forAdmin = query({
     const viewer = await requireAdmin(ctx);
     // A query, but it gates the Merge/Close/Revert actions, so read-only sessions can't use it.
     if (viewer.readonly)
-      throw new ConvexError("This is a read-only preview, so changes aren’t saved.");
+      throw new ConvexError(
+        "This is a read-only preview, so changes aren’t saved.",
+      );
     const r = await ctx.db.get(id);
     if (!r) return null;
     return {
@@ -428,7 +452,10 @@ async function canReadLog(ctx: QueryCtx, r: Doc<"improvements">) {
   const viewer = await requireMember(ctx, { allowReadonly: true });
   if (viewer.isAdmin) return true;
   if (r.kind === "chat") return false;
-  const [channel, root] = await Promise.all([ctx.db.get(r.channelId), ctx.db.get(r.threadId)]);
+  const [channel, root] = await Promise.all([
+    ctx.db.get(r.channelId),
+    ctx.db.get(r.threadId),
+  ]);
   if (!channel || !root) return false; // a deleted thread's log isn't shown either
   return !veil(root, await checkInGate(ctx, channel, viewer.member)).hidden;
 }

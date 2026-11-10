@@ -48,7 +48,10 @@ const UNFINISHED = "(unfinished)";
 
 type Run = NonNullable<FunctionReturnType<typeof api.server.startFinish>>;
 type Report = (
-  args: Omit<FunctionArgs<typeof api.server.reportImprovement>, "secret" | "id">,
+  args: Omit<
+    FunctionArgs<typeof api.server.reportImprovement>,
+    "secret" | "id"
+  >,
 ) => Promise<unknown>;
 
 const MAX_FILES = 300;
@@ -62,23 +65,32 @@ function safePath(p: unknown): p is string {
   if (typeof p !== "string" || !p || p.length > 400) return false;
   if (p.startsWith("/") || /[\0\\]/.test(p)) return false;
   const parts = p.split("/");
-  return parts.every((s) => s && s !== "." && s !== "..") && parts[0] !== ".git";
+  return (
+    parts.every((s) => s && s !== "." && s !== "..") && parts[0] !== ".git"
+  );
 }
 
 // Checks the shape of what the sandbox sent. Null if it isn't something we can use.
 export function parseResult(x: unknown): RunnerResult | null {
   if (!x || typeof x !== "object") return null;
   const o = x as Record<string, unknown>;
-  if (o.outcome === "answered") return { outcome: "answered", summary: str(o.summary, 4000) };
+  if (o.outcome === "answered")
+    return { outcome: "answered", summary: str(o.summary, 4000) };
   if (o.outcome === "failed")
     return { outcome: "failed", error: str(o.error, 500) || "The run failed." };
   if (o.outcome !== "changes") return null;
   if (typeof o.base !== "string" || !/^[0-9a-f]{40}$/.test(o.base)) return null;
-  if (!Array.isArray(o.files) || o.files.length === 0 || o.files.length > MAX_FILES) return null;
+  if (
+    !Array.isArray(o.files) ||
+    o.files.length === 0 ||
+    o.files.length > MAX_FILES
+  )
+    return null;
   const files: Extract<RunnerResult, { outcome: "changes" }>["files"] = [];
   for (const f of o.files as Record<string, unknown>[]) {
     if (!f || !safePath(f.path)) return null;
-    if (f.mode !== "100644" && f.mode !== "100755" && f.mode !== null) return null;
+    if (f.mode !== "100644" && f.mode !== "100755" && f.mode !== null)
+      return null;
     files.push({ path: f.path, mode: f.mode });
   }
   return {
@@ -93,13 +105,20 @@ export function parseResult(x: unknown): RunnerResult | null {
   };
 }
 
-export async function finishRun(run: Run, result: RunnerResult, report: Report) {
+export async function finishRun(
+  run: Run,
+  result: RunnerResult,
+  report: Report,
+) {
   if (result.outcome === "answered") {
     await report({ patch: { status: "answered", summary: result.summary } });
     return;
   }
   if (result.outcome === "failed") {
-    await report({ fail: true, patch: { status: "failed", error: result.error } });
+    await report({
+      fail: true,
+      patch: { status: "failed", error: result.error },
+    });
     return;
   }
 
@@ -132,7 +151,11 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
     ? `\n\n**${UNFINISHED}** The agent ran out of steps before finishing, so this won't merge on its own. Reply @Claude continue in the thread to keep going.`
     : "";
   if (prNumber) {
-    await comment(token, prNumber, `Follow-up from ${requester} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}${note}`);
+    await comment(
+      token,
+      prNumber,
+      `Follow-up from ${requester} ([thread](${threadUrl})):\n\n> ${quoted}\n\n${summary}${details ? `\n\n${details}` : ""}${note}`,
+    );
     await retitle(token, prNumber, !!unfinished);
   } else {
     await report({ step: "Opening a pull request" });
@@ -163,7 +186,9 @@ export async function finishRun(run: Run, result: RunnerResult, report: Report) 
     await mergePr(token, prNumber, branch);
     await report({ patch: { ...common, status: "merged" } });
   } else {
-    await report({ patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) } });
+    await report({
+      patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) },
+    });
   }
 }
 
@@ -173,7 +198,9 @@ async function retitle(token: string, prNumber: number, unfinished: boolean) {
   const marked = pr.title.startsWith(`${UNFINISHED} `);
   if (marked === unfinished) return;
   await updatePr(token, prNumber, {
-    title: unfinished ? `${UNFINISHED} ${pr.title}` : pr.title.slice(UNFINISHED.length + 1),
+    title: unfinished
+      ? `${UNFINISHED} ${pr.title}`
+      : pr.title.slice(UNFINISHED.length + 1),
   });
 }
 
@@ -190,9 +217,12 @@ async function readChanges(
       out.push({ path: f.path, deleted: true });
       continue;
     }
-    const content = await sandbox.readFileToBuffer({ path: `${SANDBOX_ROOT}/${f.path}` });
+    const content = await sandbox.readFileToBuffer({
+      path: `${SANDBOX_ROOT}/${f.path}`,
+    });
     if (!content) throw new Error(`Couldn’t read ${f.path} from the sandbox.`);
-    if (content.length > MAX_FILE_BYTES) throw new Error(`${f.path} is too big to push.`);
+    if (content.length > MAX_FILE_BYTES)
+      throw new Error(`${f.path} is too big to push.`);
     out.push({ path: f.path, mode: f.mode, content });
   }
   return out;
@@ -207,23 +237,35 @@ async function decide(
   checksPassed: boolean,
 ): Promise<{ merge: boolean; why: string }> {
   if (!checksPassed) return { merge: false, why: "typecheck or lint failed" };
-  if (MERGE_POLICY === "review") return { merge: false, why: "every change gets reviewed for now" };
+  if (MERGE_POLICY === "review")
+    return { merge: false, why: "every change gets reviewed for now" };
   const pr = await compareWithMain(token, branch).catch((err) => {
     console.error("improve: compare failed", branch, err);
     return null;
   });
-  if (!pr) return { merge: false, why: "couldn’t compare the branch with main" };
-  if (pr.files.length >= MAX_FILES) return { merge: false, why: "it changes too many files" };
+  if (!pr)
+    return { merge: false, why: "couldn’t compare the branch with main" };
+  if (pr.files.length >= MAX_FILES)
+    return { merge: false, why: "it changes too many files" };
   if (!CONVEX_AUTODEPLOY && pr.files.some((f) => f.startsWith("convex/")))
     return { merge: false, why: "it changes the backend" };
-  const sensitive = pr.files.filter((f) => SENSITIVE_PATHS.some((re) => re.test(f)));
+  const sensitive = pr.files.filter((f) =>
+    SENSITIVE_PATHS.some((re) => re.test(f)),
+  );
   if (sensitive.length)
-    return { merge: false, why: `it touches ${sensitive.slice(0, 3).join(", ")}` };
-  if (MERGE_POLICY === "automerge") return { merge: true, why: "checks passed" };
+    return {
+      merge: false,
+      why: `it touches ${sensitive.slice(0, 3).join(", ")}`,
+    };
+  if (MERGE_POLICY === "automerge")
+    return { merge: true, why: "checks passed" };
   return await classify(request, pr.diff);
 }
 
-async function classify(request: string, diff: string): Promise<{ merge: boolean; why: string }> {
+async function classify(
+  request: string,
+  diff: string,
+): Promise<{ merge: boolean; why: string }> {
   try {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",

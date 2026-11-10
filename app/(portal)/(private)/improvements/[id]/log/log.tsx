@@ -46,10 +46,13 @@ export function RunLog() {
     { initialNumItems: PAGE_SIZE },
   );
 
-  if (run === undefined)
-    return <p className="p-10 text-ink-muted">Loading…</p>;
+  if (run === undefined) return <p className="p-10 text-ink-muted">Loading…</p>;
   if (run === null)
-    return <p className="p-10 text-[18px] text-ink-muted">There’s no run with this id.</p>;
+    return (
+      <p className="p-10 text-[18px] text-ink-muted">
+        There’s no run with this id.
+      </p>
+    );
 
   const live = run.status === "queued" || run.status === "running";
   const events = paged.results;
@@ -57,7 +60,9 @@ export function RunLog() {
   return (
     <main className="mx-auto flex max-w-[64rem] flex-col gap-6 px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-[36px] font-[340]">Run #{run.number} log</h1>
+        <h1 className="font-display text-[36px] font-[340]">
+          Run #{run.number} log
+        </h1>
         <p className="text-[15px] text-ink-muted">
           {[
             run.status,
@@ -70,7 +75,9 @@ export function RunLog() {
             .join(" · ")}
         </p>
         <p className="max-w-[44rem] text-[15px] whitespace-pre-line">
-          {run.request.length > 600 ? `${run.request.slice(0, 600)}…` : run.request}
+          {run.request.length > 600
+            ? `${run.request.slice(0, 600)}…`
+            : run.request}
         </p>
         <nav className="flex flex-wrap gap-x-4 gap-y-1 text-[14px]">
           <Link href={run.threadHref} className="underline underline-offset-2">
@@ -80,22 +87,35 @@ export function RunLog() {
             All runs
           </Link>
           {run.prUrl && (
-            <a href={run.prUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            <a
+              href={run.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
               PR #{run.prNumber}
             </a>
           )}
           {run.previous && (
-            <Link href={`/improvements/${run.previous.id}/log`} className="underline underline-offset-2">
+            <Link
+              href={`/improvements/${run.previous.id}/log`}
+              className="underline underline-offset-2"
+            >
               Previous run #{run.previous.number}
             </Link>
           )}
           {run.next && (
-            <Link href={`/improvements/${run.next.id}/log`} className="underline underline-offset-2">
+            <Link
+              href={`/improvements/${run.next.id}/log`}
+              className="underline underline-offset-2"
+            >
               Next run #{run.next.number}
             </Link>
           )}
         </nav>
-        {run.error && <p className="text-[15px] text-brass-text">{run.error}</p>}
+        {run.error && (
+          <p className="text-[15px] text-brass-text">{run.error}</p>
+        )}
       </header>
 
       {!run.readable ? (
@@ -128,33 +148,51 @@ export function RunLog() {
           Show more
         </button>
       )}
-      {paged.status === "LoadingMore" && <p className="text-ink-muted">Loading…</p>}
+      {paged.status === "LoadingMore" && (
+        <p className="text-ink-muted">Loading…</p>
+      )}
     </main>
   );
 }
 
 function Event({ event: e }: { event: Doc<"improvementLogs"> }) {
-  const mono = e.kind === "tool" || e.kind === "result" || e.kind === "shell" || e.kind === "error";
+  const mono =
+    e.kind === "tool" ||
+    e.kind === "result" ||
+    e.kind === "shell" ||
+    e.kind === "error";
   const body = mono ? (
-    <pre className="font-mono text-[13px] leading-[1.45] break-words whitespace-pre-wrap">{e.text}</pre>
+    <pre className="font-mono text-[13px] leading-[1.45] break-words whitespace-pre-wrap">
+      {e.text}
+    </pre>
   ) : (
-    <p className={`text-[15px] whitespace-pre-line ${e.kind === "step" ? "font-[700]" : ""}`}>{e.text}</p>
+    <p
+      className={`text-[15px] whitespace-pre-line ${e.kind === "step" ? "font-[700]" : ""}`}
+    >
+      {e.text}
+    </p>
   );
-  const fold = (e.kind === "result" || e.kind === "shell") && e.text.length > FOLD_CHARS;
+  const fold =
+    (e.kind === "result" || e.kind === "shell") && e.text.length > FOLD_CHARS;
   return (
     <li
       className={`grid grid-cols-[5.5rem_minmax(0,1fr)] gap-x-3 border-b border-ink/10 py-2 sm:grid-cols-[5.5rem_6rem_minmax(0,1fr)] ${e.kind === "error" ? "text-brass-text" : ""} ${e.agent ? "bg-ink/[0.03]" : ""}`}
     >
-      <span className="text-[13px] text-ink-muted tabular-nums">{timeFmt.format(e.at)}</span>
+      <span className="text-[13px] text-ink-muted tabular-nums">
+        {timeFmt.format(e.at)}
+      </span>
       <span className="text-[13px] text-ink-muted max-sm:col-start-2 max-sm:row-start-1 max-sm:justify-self-end">
         {KIND[e.kind]}
       </span>
       <div className="col-span-2 flex min-w-0 flex-col gap-1 max-sm:pt-1 sm:col-span-1">
-        {e.agent && <span className="text-[13px] text-ink-muted">{e.agent}</span>}
+        {e.agent && (
+          <span className="text-[13px] text-ink-muted">{e.agent}</span>
+        )}
         {fold ? (
           <details>
             <summary className="w-fit cursor-pointer font-mono text-[13px] text-ink-muted select-none hover:text-ink">
-              {e.text.slice(0, 120).split("\n")[0]}… ({e.text.length} characters)
+              {e.text.slice(0, 120).split("\n")[0]}… ({e.text.length}{" "}
+              characters)
             </summary>
             {body}
           </details>

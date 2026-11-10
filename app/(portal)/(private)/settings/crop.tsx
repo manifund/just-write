@@ -42,26 +42,28 @@ export function PhotoCrop({
             return r.blob();
           })
         : Promise.resolve(file);
-    blob.then(async (b) => [b, await createImageBitmap(b)] as const).then(
-      ([b, bitmap]) => {
-        loaded = { bitmap, url: URL.createObjectURL(b) };
-        if (cancelled) return cleanup();
-        const base = VIEW / Math.min(bitmap.width, bitmap.height);
-        setCrop({
-          zoom: 1,
-          x: (VIEW - bitmap.width * base) / 2,
-          y: (VIEW - bitmap.height * base) / 2,
-        });
-        setImage(loaded);
-      },
-      () =>
-        !cancelled &&
-        setError(
-          typeof file === "string"
-            ? "Couldn’t load your current photo. Choose a new one instead."
-            : "Couldn’t read that image.",
-        ),
-    );
+    blob
+      .then(async (b) => [b, await createImageBitmap(b)] as const)
+      .then(
+        ([b, bitmap]) => {
+          loaded = { bitmap, url: URL.createObjectURL(b) };
+          if (cancelled) return cleanup();
+          const base = VIEW / Math.min(bitmap.width, bitmap.height);
+          setCrop({
+            zoom: 1,
+            x: (VIEW - bitmap.width * base) / 2,
+            y: (VIEW - bitmap.height * base) / 2,
+          });
+          setImage(loaded);
+        },
+        () =>
+          !cancelled &&
+          setError(
+            typeof file === "string"
+              ? "Couldn’t load your current photo. Choose a new one instead."
+              : "Couldn’t read that image.",
+          ),
+      );
     function cleanup() {
       if (!loaded) return;
       loaded.bitmap.close();
@@ -99,7 +101,11 @@ export function PhotoCrop({
       setCrop((c) => {
         const z = Math.min(MAX_ZOOM, Math.max(1, zoom));
         const k = z / c.zoom;
-        return clamp({ zoom: z, x: px - (px - c.x) * k, y: py - (py - c.y) * k });
+        return clamp({
+          zoom: z,
+          x: px - (px - c.x) * k,
+          y: py - (py - c.y) * k,
+        });
       }),
     [clamp],
   );
@@ -120,7 +126,11 @@ export function PhotoCrop({
         const k = z / c.zoom;
         const px = e.clientX - rect.left;
         const py = e.clientY - rect.top;
-        return clamp({ zoom: z, x: px - (px - c.x) * k, y: py - (py - c.y) * k });
+        return clamp({
+          zoom: z,
+          x: px - (px - c.x) * k,
+          y: py - (py - c.y) * k,
+        });
       });
     }
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -144,7 +154,17 @@ export function PhotoCrop({
     canvas.width = canvas.height = out;
     canvas
       .getContext("2d")!
-      .drawImage(image.bitmap, -crop.x / s, -crop.y / s, side, side, 0, 0, out, out);
+      .drawImage(
+        image.bitmap,
+        -crop.x / s,
+        -crop.y / s,
+        side,
+        side,
+        0,
+        0,
+        out,
+        out,
+      );
     canvas.toBlob(
       (b) => (b ? onSave(b) : setError("Couldn’t read that image.")),
       "image/jpeg",

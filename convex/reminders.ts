@@ -51,7 +51,10 @@ export const sendCheckInReminders = internalAction({
     const site = "https://justwrite.club";
     const channelUrl = `${site}/chat/${CHECK_IN_SLUG}`;
     const settingsUrl = `${site}/settings`;
-    const people: { name: string; email: string }[] = await ctx.runQuery(internal.reminders.due, {});
+    const people: { name: string; email: string }[] = await ctx.runQuery(
+      internal.reminders.due,
+      {},
+    );
     for (const p of people) {
       const first = p.name.split(" ")[0] || p.name;
       try {

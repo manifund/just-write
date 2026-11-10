@@ -4,7 +4,7 @@ Context:
 
 Leila: https://x.com/leilavclark/status/2115874967128871278
 
-I am shocked at how few engineers are using cloud agents, even at the most AI-native startups. 
+I am shocked at how few engineers are using cloud agents, even at the most AI-native startups.
 
 Why is that?
 
@@ -13,7 +13,7 @@ Venki: https://x.com/__venki__/status/2115901504205004979
 My personal sense is:
 Cloud Agents ("ephemeral", per-PR cloud container) < Local dev < Cloud Agents ("devbox", long-lived, laptop-isomorphic)
 
-Unfortunately - many services err towards selling you the former (Cursor, Claude, Codex, Conductor). 
+Unfortunately - many services err towards selling you the former (Cursor, Claude, Codex, Conductor).
 
 For the "devbox" style Cloud Agents - I'd recommend Claude remote-control or Paseo. I use the latter. (Cursor-over-SSH or Codex-over-SSH work too ofc)
 
@@ -28,9 +28,10 @@ There's just a lot of types of debugging, deployment, testing workflows that are
 - I want to iterate on an app that has a DB. How does this work?
 - Ephemeral: Maybe re-seed the DB each time? Maybe use a novel DB provider w/ forking - but no I need a real DB like Aurora Serverless. I'd rather do PG, so I guess I build some sort of seeding.
 - Devbox: It's just like using a laptop - long-lived DB, gets interesting state over time.
-[Related: a lot of the `npm run dev` local-dev stuff is very nice, doing quick preview deploys instead of exposing localhost is bad - it's just never as fast as just HMR. Devbox + tunnel for localhost + agent docs on how to use the tunnel is really sweet]
+  [Related: a lot of the `npm run dev` local-dev stuff is very nice, doing quick preview deploys instead of exposing localhost is bad - it's just never as fast as just HMR. Devbox + tunnel for localhost + agent docs on how to use the tunnel is really sweet]
 
 A few others I won't detail:
+
 - I want my agent to read my datadog logs to help me debug an issue, how does that work?
 - I want my agent to set up a new Cloudflare subdomain / worker
 - I want my agent to be able to hit internal services on my Tailnet
@@ -40,9 +41,9 @@ A few others I won't detail:
 
 In general, the core problem ephemeral cloud agents run into is SWE involves a lot of tangential poking through platforms + long-lived access. You want a permissions model that mirrors a laptop (ie: all developer-relevant perms), not a Github CI runner (ie: only app-deployment relevant perms).
 [A secondary problem is: local state is more nice than it is harmful. It can be harmful for reproducibility, but far more often it's nice for journals, dev DBs, static files]
-[Another problem is: there's also security concerns about using 3P sandboxes, your infra team might drag their feet, and long-lived boxes are super trivial to self-host - just make an EC2 VM] 
+[Another problem is: there's also security concerns about using 3P sandboxes, your infra team might drag their feet, and long-lived boxes are super trivial to self-host - just make an EC2 VM]
 
-If you have a phenomenal devprod team, one answer is: "they've provisioned a lot of short-lived workload identities, that you can assign to ephemeral containers". 
+If you have a phenomenal devprod team, one answer is: "they've provisioned a lot of short-lived workload identities, that you can assign to ephemeral containers".
 
 But also ugh - different engineers on different teams have different access - and might not even want all their ephemeral boxes to have complete access? How do you let people configure this smoothly?
 With devboxes it's easy - folks often just have N devboxes, with different configurations.

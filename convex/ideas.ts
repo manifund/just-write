@@ -12,9 +12,14 @@ async function votesFor(
     .query("ideaVotes")
     .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
     .collect();
+  const comments = await ctx.db
+    .query("ideaComments")
+    .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
+    .collect();
   return {
     votes: votes.length,
     voted: votes.some((v) => v.memberId === viewerId),
+    comments: comments.length,
   };
 }
 
@@ -129,6 +134,11 @@ export const remove = mutation({
       .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
       .collect();
     for (const vote of votes) await ctx.db.delete(vote._id);
+    const comments = await ctx.db
+      .query("ideaComments")
+      .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
+      .collect();
+    for (const c of comments) await ctx.db.delete(c._id);
     await ctx.db.delete(ideaId);
   },
 });
@@ -148,5 +158,59 @@ export const toggleVote = mutation({
       .unique();
     if (existing) await ctx.db.delete(existing._id);
     else await ctx.db.insert("ideaVotes", { ideaId, memberId: member._id });
+  },
+});
+
+// Comments on one idea, oldest first.
+export const comments = query({
+  args: { ideaId: v.id("ideas") },
+  handler: async (ctx, { ideaId }) => {
+    await requireMember(ctx);
+    const rows = await ctx.db
+      .query("ideaComments")
+      .withIndex("by_idea", (q) => q.eq("ideaId", ideaId))
+      .collect();
+    const out = await Promise.all(
+      rows.map(async (c) => {
+        const author = await ctx.db.get(c.memberId);
+        if (!author) return null;
+        return { ...c, author: publicMember(author) };
+      }),
+    );
+    return out.filter((c) => c !== null);
+  },
+});
+
+export const addComment = mutation({
+  args: { ideaId: v.id("ideas"), body: v.string() },
+  handler: async (ctx, args) => {
+    const { member } = await requireMember(ctx);
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea) throw new ConvexError("That idea was deleted.");
+    const body = args.body.trim().slice(0, 2000);
+    if (!body) throw new ConvexError("Write a comment first.");
+    await ctx.db.insert("ideaComments", {
+      ideaId: idea._id,
+      memberId: member._id,
+      body,
+    });
+  },
+});
+
+// The comment's author, the idea's author, or an admin can delete it.
+export const removeComment = mutation({
+  args: { commentId: v.id("ideaComments") },
+  handler: async (ctx, { commentId }) => {
+    const { member, isAdmin } = await requireMember(ctx);
+    const comment = await ctx.db.get(commentId);
+    if (!comment) return;
+    const idea = await ctx.db.get(comment.ideaId);
+    if (
+      comment.memberId !== member._id &&
+      idea?.memberId !== member._id &&
+      !isAdmin
+    )
+      throw new ConvexError("Not your comment.");
+    await ctx.db.delete(commentId);
   },
 });

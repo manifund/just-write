@@ -27,7 +27,11 @@ const TABS = [
   { key: "review", label: "Needs review", statuses: ["pr"] },
   { key: "working", label: "In progress", statuses: ["queued", "running"] },
   { key: "merged", label: "Merged", statuses: ["merged"] },
-  { key: "closed", label: "Closed", statuses: ["closed", "failed", "superseded"] },
+  {
+    key: "closed",
+    label: "Closed",
+    statuses: ["closed", "failed", "superseded"],
+  },
   { key: "answered", label: "Questions", statuses: ["answered"] },
   { key: "all", label: "All", statuses: null },
 ] as const satisfies readonly {
@@ -38,7 +42,8 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 const inTab = (tab: (typeof TABS)[number], r: Row) =>
-  tab.statuses === null || (tab.statuses as readonly Status[]).includes(r.status);
+  tab.statuses === null ||
+  (tab.statuses as readonly Status[]).includes(r.status);
 
 const urlListeners = new Set<() => void>();
 const notifyUrl = () => urlListeners.forEach((l) => l());
@@ -230,7 +235,9 @@ function List({ rows }: { rows: Row[] }) {
                       </button>
                       <p className="text-[13px] text-ink-muted">
                         #{r.number} · {STATUS[r.status]}
-                        {r.status === "pr" && !r.checksPassed && " · checks failed"}{" "}
+                        {r.status === "pr" &&
+                          !r.checksPassed &&
+                          " · checks failed"}{" "}
                         · {r.requester?.name ?? "Someone"}
                         {now ? ` asked ${timeAgo(r.createdAt, now)}` : ""}
                       </p>
@@ -288,6 +295,10 @@ function StatusMark({ status }: { status: Status }) {
               ? "border-2 border-wash"
               : "bg-wash";
   return (
-    <span aria-hidden="true" title={STATUS[status]} className={`${base} ${cls}`} />
+    <span
+      aria-hidden="true"
+      title={STATUS[status]}
+      className={`${base} ${cls}`}
+    />
   );
 }

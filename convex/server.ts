@@ -204,7 +204,8 @@ export const claimImprovement = mutation({
     // Runs waiting their turn are started by releaseWaiting, which clears waitingOn first.
     if (!r || r.status !== "queued" || r.waitingOn) return null;
     // A chat task's sandbox reads the club's data with this key (convex/chatTasks.ts).
-    if (r.kind === "chat" && !runTokenHash) throw new ConvexError("A chat task needs a run key.");
+    if (r.kind === "chat" && !runTokenHash)
+      throw new ConvexError("A chat task needs a run key.");
     const [root, previous] = await Promise.all([
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
@@ -233,7 +234,10 @@ export const claimImprovement = mutation({
     for (const m of [root, ...replies]) {
       if (!m || (!m.improvementId && !m.text)) continue;
       if (!names.has(m.authorId))
-        names.set(m.authorId, (await ctx.db.get(m.authorId))?.name ?? "Someone");
+        names.set(
+          m.authorId,
+          (await ctx.db.get(m.authorId))?.name ?? "Someone",
+        );
       const author = names.get(m.authorId)!;
       let text = m.text;
       if (m.improvementId) {
@@ -287,9 +291,7 @@ export const claimImprovement = mutation({
     // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
     // reply in the thread picks it up (lib/improve-target.ts).
     const failed =
-      runs[0]?.status === "failed" && runs[0].sandboxId
-        ? runs[0]
-        : null;
+      runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
     return {
       number: r.number,
       kind: r.kind ?? null,
@@ -299,7 +301,8 @@ export const claimImprovement = mutation({
       resumeSessionId: previous?.sessionId ?? null,
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
-      latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
+      latestOpenPr:
+        runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
       failedRun: failed
         ? {
             id: failed._id,
@@ -383,16 +386,22 @@ export const continuePr = mutation({
   },
   handler: async (ctx, { secret, id, previousId }) => {
     checkServerSecret(secret);
-    const [r, prev] = await Promise.all([ctx.db.get(id), ctx.db.get(previousId)]);
-    if (!r || !prev || r.status !== "running" || prev.threadId !== r.threadId) return null;
+    const [r, prev] = await Promise.all([
+      ctx.db.get(id),
+      ctx.db.get(previousId),
+    ]);
+    if (!r || !prev || r.status !== "running" || prev.threadId !== r.threadId)
+      return null;
     const openPr = prev.status === "pr" && !!prev.prNumber;
-    const failed = prev.status === "failed" && !!prev.sandboxId && prev.number < r.number;
+    const failed =
+      prev.status === "failed" && !!prev.sandboxId && prev.number < r.number;
     if (failed) {
       const later = await ctx.db
         .query("improvements")
         .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
         .collect();
-      if (later.some((e) => e.number > prev.number && e.number < r.number)) return null;
+      if (later.some((e) => e.number > prev.number && e.number < r.number))
+        return null;
     }
     if (!openPr && !failed) return null;
     // The request's own effort wins; otherwise keep the one the earlier run used.
@@ -427,7 +436,8 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
   const out = [];
   for (const w of rows) {
     // A chat task sent during a code run gets its own run (and the other way round).
-    if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind) continue;
+    if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind)
+      continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,
@@ -500,9 +510,14 @@ export async function applyReport(
   if (step) {
     if (steps.at(-1)?.label === step && steps.at(-1)?.state === "active") {
       // same line again; nothing to do
-    } else steps = [...finish("done"), { label: step, state: "active" as const }].slice(-40);
+    } else
+      steps = [
+        ...finish("done"),
+        { label: step, state: "active" as const },
+      ].slice(-40);
   }
-  const final = patch.status && patch.status !== "running" && patch.status !== "queued";
+  const final =
+    patch.status && patch.status !== "running" && patch.status !== "queued";
   if (final && !fail) steps = finish("done");
   // Steps go in the run's log too, wherever they come from (runner, route, admin actions).
   if (step && steps !== r.steps)
@@ -511,10 +526,7 @@ export async function applyReport(
   else await ctx.db.patch(id, { ...patch, steps });
 
   // A follow-up that produced new work takes over the earlier run's card.
-  if (
-    r.previousId &&
-    (patch.status === "pr" || patch.status === "merged")
-  ) {
+  if (r.previousId && (patch.status === "pr" || patch.status === "merged")) {
     const prev = await ctx.db.get(r.previousId);
     if (prev?.status === "pr")
       await ctx.db.patch(prev._id, { status: "superseded" });
@@ -539,7 +551,9 @@ async function announceMerge(ctx: MutationCtx, r: Doc<"improvements">) {
   await postAsClaude(ctx, {
     channelId: site._id,
     body: paragraph(
-      txt(`Merged #${r.number}: ${r.title ?? r.request.slice(0, 80)}. Asked by `),
+      txt(
+        `Merged #${r.number}: ${r.title ?? r.request.slice(0, 80)}. Asked by `,
+      ),
       mention(requester),
       txt(" in "),
       txt(`#${channel.name}`, `/chat/${channel.slug}/${r.threadId}`),

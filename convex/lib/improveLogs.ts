@@ -43,7 +43,8 @@ const LOG_RUN_EVENTS = 5000;
 const LOG_RUN_CHARS = 2_000_000;
 const SERVER_HEADROOM_EVENTS = 200;
 const SERVER_HEADROOM_CHARS = 200_000;
-const FULL = "The log reached its size limit, so the rest of this run isn’t recorded.";
+const FULL =
+  "The log reached its size limit, so the rest of this run isn’t recorded.";
 
 export async function appendLogs(
   ctx: MutationCtx,
@@ -76,7 +77,11 @@ export async function appendLogs(
     }
     chars += text.length;
     await insert(
-      { kind: e.kind, text, ...(e.agent ? { agent: e.agent.slice(0, 120) } : {}) },
+      {
+        kind: e.kind,
+        text,
+        ...(e.agent ? { agent: e.agent.slice(0, 120) } : {}),
+      },
       now - Math.min(Math.max(e.ago ?? 0, 0), 10 * 60_000),
     );
   }

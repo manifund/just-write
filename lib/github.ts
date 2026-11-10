@@ -28,11 +28,20 @@ async function ghText(
   });
   const text = await res.text();
   if (!res.ok)
-    throw new Error(`GitHub ${init.method ?? "GET"} ${path}: ${res.status} ${text.slice(0, 400)}`);
+    throw new Error(
+      `GitHub ${init.method ?? "GET"} ${path}: ${res.status} ${text.slice(0, 400)}`,
+    );
   return text;
 }
 
-type PR = { number: number; title: string; html_url: string; state: string; merged: boolean; node_id: string };
+type PR = {
+  number: number;
+  title: string;
+  html_url: string;
+  state: string;
+  merged: boolean;
+  node_id: string;
+};
 
 export async function createPr(
   token: string,
@@ -40,7 +49,12 @@ export async function createPr(
 ) {
   return await gh<PR>(token, `/repos/${REPO}/pulls`, {
     method: "POST",
-    body: { head: args.branch, base: "main", title: args.title, body: args.body },
+    body: {
+      head: args.branch,
+      base: "main",
+      title: args.title,
+      body: args.body,
+    },
   });
 }
 
@@ -129,23 +143,48 @@ export async function branchHead(token: string, branch: string) {
 // (creating the branch if needed; never a force push). Returns the new commit's sha.
 export async function commitFiles(
   token: string,
-  args: { branch: string; parent: string; message: string; files: FileChange[] },
+  args: {
+    branch: string;
+    parent: string;
+    message: string;
+    files: FileChange[];
+  },
 ) {
   const parent = await gh<{ tree: { sha: string } }>(
     token,
     `/repos/${REPO}/git/commits/${args.parent}`,
   );
-  const tree: { path: string; mode: string; type: "blob"; sha: string | null }[] = [];
+  const tree: {
+    path: string;
+    mode: string;
+    type: "blob";
+    sha: string | null;
+  }[] = [];
   // A few blobs at a time, so a big change doesn't trip GitHub's rate limits.
   for (let i = 0; i < args.files.length; i += 8) {
     const batch = await Promise.all(
       args.files.slice(i, i + 8).map(async (f) => {
-        if ("deleted" in f) return { path: f.path, mode: "100644", type: "blob" as const, sha: null };
-        const blob = await gh<{ sha: string }>(token, `/repos/${REPO}/git/blobs`, {
-          method: "POST",
-          body: { content: f.content.toString("base64"), encoding: "base64" },
-        });
-        return { path: f.path, mode: f.mode, type: "blob" as const, sha: blob.sha };
+        if ("deleted" in f)
+          return {
+            path: f.path,
+            mode: "100644",
+            type: "blob" as const,
+            sha: null,
+          };
+        const blob = await gh<{ sha: string }>(
+          token,
+          `/repos/${REPO}/git/blobs`,
+          {
+            method: "POST",
+            body: { content: f.content.toString("base64"), encoding: "base64" },
+          },
+        );
+        return {
+          path: f.path,
+          mode: f.mode,
+          type: "blob" as const,
+          sha: blob.sha,
+        };
       }),
     );
     tree.push(...batch);
@@ -154,15 +193,19 @@ export async function commitFiles(
     method: "POST",
     body: { base_tree: parent.tree.sha, tree },
   });
-  const commit = await gh<{ sha: string }>(token, `/repos/${REPO}/git/commits`, {
-    method: "POST",
-    body: {
-      message: args.message,
-      tree: newTree.sha,
-      parents: [args.parent],
-      author: { name: "Claude", email: "noreply@anthropic.com" },
+  const commit = await gh<{ sha: string }>(
+    token,
+    `/repos/${REPO}/git/commits`,
+    {
+      method: "POST",
+      body: {
+        message: args.message,
+        tree: newTree.sha,
+        parents: [args.parent],
+        author: { name: "Claude", email: "noreply@anthropic.com" },
+      },
     },
-  });
+  );
   if (await branchHead(token, args.branch))
     await gh(token, `/repos/${REPO}/git/refs/heads/${args.branch}`, {
       method: "PATCH",
@@ -181,7 +224,10 @@ export async function commitFiles(
 export async function compareWithMain(token: string, branch: string) {
   const path = `/repos/${REPO}/compare/main...${branch}`;
   const [info, diff] = await Promise.all([
-    gh<{ files?: { filename: string; previous_filename?: string }[] }>(token, path),
+    gh<{ files?: { filename: string; previous_filename?: string }[] }>(
+      token,
+      path,
+    ),
     ghText(token, path, { accept: "application/vnd.github.diff" }),
   ]);
   const files = new Set<string>();
