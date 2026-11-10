@@ -1,10 +1,10 @@
 import { ConvexError, v } from "convex/values";
 import { api } from "./_generated/api";
-import { action, mutation, query } from "./_generated/server";
+import { action, internalMutation, mutation, query } from "./_generated/server";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
-import { canCountFor, fillSlots } from "./lib/program";
+import { canCountFor, DEADLINES, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import { publicMember, requireMember } from "./lib/viewer";
 
@@ -138,6 +138,24 @@ export const setWeek = mutation({
     if (week !== null && !canCountFor(week, essay.submittedAt))
       throw new ConvexError("That essay came in after that week’s deadline.");
     await ctx.db.patch(essayId, { week: week ?? undefined });
+  },
+});
+
+// Admin fix-up, run from the CLI: counts a late essay toward an earlier week by pinning
+// it there and moving its submittedAt back to that week's deadline.
+// bunx convex run essays:grantWeek '{"essayId": "...", "week": 1}'
+export const grantWeek = internalMutation({
+  args: { essayId: v.id("essays"), week: v.number() },
+  handler: async (ctx, { essayId, week }) => {
+    const essay = await ctx.db.get(essayId);
+    if (!essay) throw new ConvexError("No such essay.");
+    const deadline = DEADLINES[week - 1];
+    if (deadline === undefined) throw new ConvexError("No such week.");
+    await ctx.db.patch(essayId, {
+      week,
+      submittedAt: Math.min(essay.submittedAt, deadline),
+    });
+    return { title: essay.title, was: essay.submittedAt };
   },
 });
 
