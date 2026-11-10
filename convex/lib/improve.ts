@@ -16,6 +16,13 @@ export const SANDBOX_ROOT = "/vercel/just-write"; // where Vercel Sandbox clones
 export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
 export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
 
+// "anthropic/claude-opus-5.5" → "Opus 5.5", for the card (improvements.ts#cardOf).
+export function modelLabel(slug: string) {
+  const m = slug.match(/claude-([a-z]+)-([\d.]+)/i);
+  if (!m) return slug.replace(/^.*\//, "");
+  return `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}`;
+}
+
 // Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
 // A follow-up that doesn't set one keeps the effort of the run it continues
 // (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
@@ -54,6 +61,17 @@ export function claudeCommand(text: string): Command | null {
     .toLowerCase();
   const name = rest.startsWith("!") ? rest.slice(1) : "";
   return COMMANDS.includes(name as Command) ? (name as Command) : null;
+}
+
+// "@Claude !restart" (optionally followed by more directions): start the thread's latest code
+// run over with a fresh agent session, on the same PR if it has an open one, instead of
+// resuming the old session (which would carry a wrong turn along). A run still going is
+// stopped first, as with the Stop button. Returns the text after the command ("" if none),
+// or null if the message doesn't start with it.
+export function restartCommand(text: string): string | null {
+  const rest = text.replace(/@\S+/g, "").trim();
+  const m = /^!restart\b[\s:.,-]*/i.exec(rest);
+  return m ? rest.slice(m[0].length).trim() : null;
 }
 
 // One message can ask for several separate changes at once ("in parallel: add X, fix Y").

@@ -24,6 +24,8 @@ import {
   branchFor,
   isChatTask,
   claudeCommand,
+  modelLabel,
+  restartCommand,
   staleAfterMs,
 } from "./lib/improve";
 import { checkInGate, veil } from "./chat";
@@ -109,6 +111,7 @@ const HELP_TEXT = [
   "“effort: high” (low, medium, high, xhigh, max) sets how hard I think.",
   "“in parallel” splits a list of changes into separate runs and PRs.",
   "Replies in a thread reach me without a tag while I’m working and for a day after.",
+  "“!restart” redoes the thread’s last request on the same PR with a fresh session, plus any directions after it.",
   "Commands, on their own: !status, !help, !mute (only tagged messages reach me here), !unmute.",
 ].join(" ");
 
@@ -219,14 +222,34 @@ export async function startFromMessage(
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
     .collect();
-  const kind = args.continues
-    ? undefined
-    : isChatTask(
-          args.text,
-          earlier.map((r) => r.kind),
-        )
-      ? ("chat" as const)
-      : undefined;
+  // "@Claude !restart": start the thread's latest code run over with a fresh agent session.
+  const restartNote =
+    args.untagged || args.continues ? null : restartCommand(args.text);
+  let restartOf: Doc<"improvements"> | null = null;
+  if (restartNote !== null) {
+    restartOf = earlier.find((r) => r.kind !== "chat") ?? null;
+    if (!restartOf)
+      return await reply(
+        "There’s nothing to restart in this thread yet. Ask me for a change first.",
+      );
+    if (restartOf.status === "queued" || restartOf.status === "running") {
+      if (restartOf.requesterId !== args.member._id && !args.isAdmin)
+        return await reply(
+          `Only the person who asked for run #${restartOf.number}, or an admin, can restart it while it’s going.`,
+        );
+      await requestStop(ctx, restartOf, args.member);
+      restartOf = (await ctx.db.get(restartOf._id)) ?? restartOf;
+    }
+  }
+  const kind =
+    args.continues || restartOf
+      ? undefined
+      : isChatTask(
+            args.text,
+            earlier.map((r) => r.kind),
+          )
+        ? ("chat" as const)
+        : undefined;
 
   // Whether this continues one of the thread's open PRs or starts a new one is decided
   // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
@@ -234,11 +257,20 @@ export async function startFromMessage(
   // hands it to the agent mid-run (runner.followUps; code runs only); otherwise it starts
   // when that run ends (releaseWaiting). Chat tasks and code runs share nothing, so neither
   // waits for the other.
-  const busy =
-    earlier.find(
-      (r) =>
-        r.kind === kind && (r.status === "queued" || r.status === "running"),
-    ) ?? null;
+  // A restart waits for the run it stopped to wrap up (its edits get pushed first).
+  const busy = restartOf
+    ? restartOf.status === "running"
+      ? restartOf
+      : (earlier.find(
+          (r) =>
+            r._id !== restartOf._id &&
+            r.kind !== "chat" &&
+            (r.status === "queued" || r.status === "running"),
+        ) ?? null)
+    : (earlier.find(
+        (r) =>
+          r.kind === kind && (r.status === "queued" || r.status === "running"),
+      ) ?? null);
 
   const number = (recent[0]?.number ?? 0) + 1;
   const id = await ctx.db.insert("improvements", {
@@ -260,6 +292,18 @@ export async function startFromMessage(
     ],
     waitingOn: busy?._id,
     untagged: args.untagged ? true : undefined,
+    // Which PR it goes on is settled when it starts (server.claimImprovement), since a
+    // stopped run may only open its PR as it wraps up.
+    ...(restartOf && {
+      previousId: restartOf._id,
+      restart: {
+        run: restartOf.number,
+        request: (restartOf.restart?.request ?? restartOf.request).slice(
+          0,
+          8000,
+        ),
+      },
+    }),
     branch: args.continues?.branch ?? branchFor(number),
     ...(args.continues && {
       previousId: args.continues._id,
@@ -459,34 +503,41 @@ export const stop = mutation({
       throw new ConvexError(
         "Only the person who asked, or an admin, can stop this.",
       );
-    if ((r.status !== "queued" && r.status !== "running") || r.stopRequestedAt)
-      return;
-    const now = Date.now();
-    const stopped = { stoppedBy: viewer.member._id, stopRequestedAt: now };
-    if (r.status === "queued" || r.kind === "chat")
-      return await failRun(ctx, r, `Stopped by ${viewer.member.name}.`, {
-        ...stopped,
-        waitingOn: undefined,
-      });
-    await ctx.db.patch(id, {
-      ...stopped,
-      steps: [
-        ...r.steps.map((s) =>
-          s.state === "active" ? { ...s, state: "done" as const } : s,
-        ),
-        {
-          label: `Stopping, as ${viewer.member.name} asked`,
-          state: "active" as const,
-        },
-      ].slice(-40),
-    });
-    await ctx.scheduler.runAfter(
-      STOP_GRACE_MS,
-      internal.improvements.forceStop,
-      { id },
-    );
+    await requestStop(ctx, r, viewer.member);
   },
 });
+
+// Stops a run for `by` (the Stop button, or "@Claude !restart"). A queued run or a chat task
+// ends right away; a code run's runner sees it on its next poll and wraps up.
+async function requestStop(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  by: Doc<"members">,
+) {
+  if ((r.status !== "queued" && r.status !== "running") || r.stopRequestedAt)
+    return;
+  const stopped = { stoppedBy: by._id, stopRequestedAt: Date.now() };
+  if (r.status === "queued" || r.kind === "chat")
+    return await failRun(ctx, r, `Stopped by ${by.name}.`, {
+      ...stopped,
+      waitingOn: undefined,
+    });
+  await ctx.db.patch(r._id, {
+    ...stopped,
+    steps: [
+      ...r.steps.map((s) =>
+        s.state === "active" ? { ...s, state: "done" as const } : s,
+      ),
+      {
+        label: `Stopping, as ${by.name} asked`,
+        state: "active" as const,
+      },
+    ].slice(-40),
+  });
+  await ctx.scheduler.runAfter(STOP_GRACE_MS, internal.improvements.forceStop, {
+    id: r._id,
+  });
+}
 
 // The runner didn't wrap up after a stop (stuck in a tool call, or never polled): end the run
 // and stop its sandbox, which keeps its edits in the saved snapshot for a follow-up.
@@ -553,10 +604,15 @@ export function cardOf(r: Doc<"improvements">) {
     prUrl: r.prUrl ?? null,
     previewUrl: r.previewUrl ?? null,
     revertPrUrl: r.revertPrUrl ?? null,
+    conflicts: r.status === "pr" && !!r.conflictsWithMain,
     error: r.error ?? null,
     startedAt: r.startedAt ?? null,
     finishedAt: r.finishedAt ?? null,
     activity: r.status === "running" ? (r.activity ?? null) : null,
+    // "Opus 5.5, high effort". Runs from before models were saved show nothing.
+    model: r.model
+      ? `${modelLabel(r.model)}, ${r.effort ?? "default"} effort`
+      : null,
   };
 }
 export type ImprovementCard = ReturnType<typeof cardOf>;

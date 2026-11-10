@@ -7,6 +7,7 @@
 // merge decision looks at what GitHub says the branch changes, not at what the sandbox claims.
 import { Sandbox } from "@vercel/sandbox";
 import type { FunctionArgs, FunctionReturnType } from "convex/server";
+import { after } from "next/server";
 import type { api } from "@/convex/_generated/api";
 import {
   CLASSIFIER_MODEL,
@@ -29,6 +30,7 @@ import {
   updatePr,
   type FileChange,
 } from "@/lib/github";
+import { syncOpenPrsQuietly } from "@/lib/improve-sync";
 import { withTimeLimit } from "@/lib/time-limit";
 
 // What the runner sends back (scripts/improve-runner.ts#RunnerResult).
@@ -227,6 +229,7 @@ export async function finishRun(
   }
   if (merged) {
     await report({ patch: { ...common, status: "merged" } });
+    after(syncOpenPrsQuietly); // other open PRs are now behind main
   } else if (verdict.merge) {
     await report({
       patch: {

@@ -5,7 +5,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
-import { improvementStatus, status } from "./schema";
+import schema, { status } from "./schema";
 import {
   endRun,
   mention,
@@ -17,6 +17,7 @@ import {
   txt,
 } from "./improvements";
 import {
+  AGENT_MODEL,
   BRIEF_IMAGES_MAX,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
@@ -25,6 +26,7 @@ import {
   branchFor,
   hashRunToken,
   parseEffort,
+  restartCommand,
 } from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
@@ -224,11 +226,25 @@ export const claimImprovement = mutation({
     // continuePr may change this once the route knows which run this continues. A part of a
     // split request already has the effort of the run it was split from (splitRun).
     const effort = parseEffort(r.request) ?? r.effort ?? previous?.effort;
+    // A restart ("@Claude !restart") goes on the PR of the run it starts over, if that PR is
+    // still open (a run stopped partway opens its PR as it wraps up), with a fresh session.
+    const restartPr =
+      r.restart &&
+      previous?.prNumber &&
+      (previous.status === "pr" || previous.status === "failed")
+        ? {
+            branch: previous.branch,
+            prNumber: previous.prNumber,
+            prUrl: previous.prUrl,
+          }
+        : null;
     await ctx.db.patch(id, {
       status: "running",
       startedAt: Date.now(),
       runTokenHash,
       effort,
+      model: AGENT_MODEL,
+      ...restartPr,
     });
 
     const replies = await ctx.db
@@ -332,10 +348,14 @@ export const claimImprovement = mutation({
     return {
       number: r.number,
       kind: r.kind ?? null,
-      branch: r.branch,
-      prNumber: r.prNumber ?? null,
-      // If the earlier run's sandbox is still saved, the agent picks up where it left off.
-      resumeSessionId: previous?.sessionId ?? null,
+      branch: restartPr?.branch ?? r.branch,
+      prNumber: restartPr?.prNumber ?? r.prNumber ?? null,
+      // If the earlier run's sandbox is still saved, the agent picks up where it left off
+      // (not after a restart, which is for leaving that session behind).
+      resumeSessionId: r.restart ? null : (previous?.sessionId ?? null),
+      restart: r.restart
+        ? { ...r.restart, note: restartCommand(r.request) ?? "" }
+        : null,
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
       latestOpenPr:
@@ -666,7 +686,11 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
       continue;
     // A part of a split request can't tell which part a follow-up is about, and a request to
     // split needs its own runs, so those wait for this run to end (releaseWaiting).
-    if (r.split || PARALLEL.test(w.request)) continue;
+    // A restart wants a fresh session, so it never joins the one it's restarting.
+    if (r.split || w.restart || PARALLEL.test(w.request)) continue;
+    // A run already tied to another PR's branch (server.fixConflicts) can't be done here,
+    // since this run only pushes to its own branch; it starts on its own when this one ends.
+    if (w.previousId && w.branch !== r.branch) continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,
@@ -679,7 +703,7 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     out.push({ author: author?.name ?? "A member", text: w.request });
   }
   // Untagged replies (convex/untagged.ts). They may be members talking to each
-  // other, and the runner tells the agent so.
+  // other, and the runner tells the agent so. Edits to the request come the same way.
   if (r.untaggedReplies?.length) {
     await ctx.db.patch(id, { untaggedReplies: undefined });
     for (const u of r.untaggedReplies) {
@@ -687,12 +711,33 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
       out.push({
         author: author?.name ?? "A member",
         text: u.text,
-        tagged: false,
+        ...(u.edited ? { edited: true } : { tagged: false }),
       });
     }
   }
   return out;
 }
+
+// What reportImprovement may set on a run: any field of the table except the ones fixed when the
+// run is created or moved onto a PR, and the ones other code owns (`steps` is applyReport's,
+// `waitingOn` releaseWaiting's, `runTokenHash` the claim's). A new field needs no change here.
+const improvementPatch = schema.tables.improvements.validator
+  .omit(
+    "number",
+    "requesterId",
+    "channelId",
+    "threadId",
+    "requestMessageId",
+    "request",
+    "kind",
+    "branch",
+    "previousId",
+    "split",
+    "steps",
+    "waitingOn",
+    "runTokenHash",
+  )
+  .partial();
 
 // Progress and results from the runner, and decisions from admins. `step` starts a new
 // checklist line (finishing the active one); `fail` marks the active line failed.
@@ -702,25 +747,7 @@ export const reportImprovement = mutation({
     id: v.id("improvements"),
     step: v.optional(v.string()),
     fail: v.optional(v.boolean()),
-    patch: v.optional(
-      v.object({
-        status: v.optional(improvementStatus),
-        title: v.optional(v.string()),
-        summary: v.optional(v.string()),
-        files: v.optional(v.array(v.string())),
-        checksPassed: v.optional(v.boolean()),
-        touchesConvex: v.optional(v.boolean()),
-        verdict: v.optional(v.string()),
-        prNumber: v.optional(v.number()),
-        prUrl: v.optional(v.string()),
-        previewUrl: v.optional(v.string()),
-        revertPrUrl: v.optional(v.string()),
-        sandboxId: v.optional(v.string()),
-        sessionId: v.optional(v.string()),
-        error: v.optional(v.string()),
-        decidedBy: v.optional(v.id("members")),
-      }),
-    ),
+    patch: v.optional(improvementPatch),
   },
   handler: async (ctx, { secret, id, step, fail, patch = {} }) => {
     checkServerSecret(secret);

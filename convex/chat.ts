@@ -22,7 +22,7 @@ import { DEADLINES, fillSlots } from "./lib/program";
 import { isReaction } from "./lib/reactions";
 import { ensureClaude, startFromMessage } from "./improvements";
 import { getClaude } from "./lib/claude";
-import { handleUntaggedReply } from "./untagged";
+import { handleUntaggedReply, noteEditedRequest } from "./untagged";
 import {
   cleanBody,
   mentionIds,
@@ -608,6 +608,7 @@ export const edit = mutation({
     const { body, text } = await withImages(ctx, cleanBody(args.body));
     if (!text) throw new ConvexError("Write something first.");
     await ctx.db.patch(m._id, { body, text, editedAt: Date.now() });
+    if (text !== m.text) await noteEditedRequest(ctx, m, text);
   },
 });
 

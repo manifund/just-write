@@ -211,14 +211,25 @@ export default defineSchema({
         of: v.number(),
       }),
     ),
+    // Started by "@Claude !restart" (convex/lib/improve.ts#restartCommand): `run` is the run it
+    // starts over (also `previousId`), `request` the request being redone. Never resumes a session.
+    restart: v.optional(v.object({ run: v.number(), request: v.string() })),
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     // Replies in the thread that didn't mention Claude, sent while this code run was going.
     // The runner takes them with tagged follow-ups (server.takeFollowUps), then they're cleared.
     // Started from a reply that didn't mention Claude, after the classifier judged it a request
     // (convex/untagged.ts). The card says so.
     untagged: v.optional(v.boolean()),
+    // Also the new text of the request message, if its author edits it while the run is going
+    // (`edited`, convex/untagged.ts#noteEditedRequest).
     untaggedReplies: v.optional(
-      v.array(v.object({ authorId: v.id("members"), text: v.string() })),
+      v.array(
+        v.object({
+          authorId: v.id("members"),
+          text: v.string(),
+          edited: v.optional(v.boolean()),
+        }),
+      ),
     ),
     title: v.optional(v.string()),
     summary: v.optional(v.string()),
@@ -232,6 +243,7 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    model: v.optional(v.string()), // the agent's OpenRouter model slug, set when the run starts
     // Agent effort: set in the request ("effort: high"), or kept from the run this continues.
     effort: v.optional(
       v.union(
@@ -278,10 +290,13 @@ export default defineSchema({
       }),
     ),
     postId: v.optional(v.id("messages")), // Claude's post of the draft, if it went out
+    // Main can't be merged into this PR cleanly (lib/improve-sync.ts). Cleared once it can.
+    conflictsWithMain: v.optional(v.boolean()),
   })
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])
-    .index("by_requester", ["requesterId"]),
+    .index("by_requester", ["requesterId"])
+    .index("by_pr", ["prNumber"]),
 
   // The detailed log of each @Claude run, for members (convex/lib/improveLogs.ts).
   improvementLogs: defineTable({

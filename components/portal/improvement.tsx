@@ -62,6 +62,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
               ? "On it."
               : "Looking through the club’s data"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
+          {card.model && ` · ${card.model}`}
         </p>
         {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
@@ -99,6 +100,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
             ▸
           </span>{" "}
           Chat task · {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
+          {card.model && ` · ${card.model}`}
           {card.untagged && " · picked up without a tag"}
         </summary>
         <div className="flex flex-col gap-2 pt-2">
@@ -209,6 +211,7 @@ export function ImprovementCard({
               ? "On it."
               : "Working on it"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
+          {card.model && ` · ${card.model}`}
         </p>
         {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
@@ -241,6 +244,7 @@ export function ImprovementCard({
           {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
           {card.files.length > 0 &&
             ` · ${card.files.length} file${card.files.length === 1 ? "" : "s"}`}
+          {card.model && ` · ${card.model}`}
           {card.untagged && " · picked up without a tag"}
         </summary>
         <div className="flex flex-col gap-2 pt-2">
@@ -435,9 +439,13 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
   let actions: React.ReactNode = null;
   switch (card.status) {
     case "pr":
-      note = card.checksPassed
-        ? "Waiting for an admin to review."
-        : "The typecheck or linter failed, so this needs a closer look.";
+      note = card.conflicts
+        ? isAdmin
+          ? "This conflicts with newer changes to the site. Merge has Claude fix that first."
+          : "This conflicts with newer changes to the site, so it needs a sync before it can merge."
+        : card.checksPassed
+          ? "Waiting for an admin to review."
+          : "The typecheck or linter failed, so this needs a closer look.";
       if (isAdmin)
         actions = (
           <>
