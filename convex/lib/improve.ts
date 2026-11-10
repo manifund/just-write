@@ -16,6 +16,21 @@ export const SANDBOX_ROOT = "/vercel/just-write"; // where Vercel Sandbox clones
 export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
 export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
 
+// Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
+// A follow-up that doesn't set one keeps the effort of the run it continues
+// (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = (typeof EFFORTS)[number];
+
+export function parseEffort(request: string): Effort | undefined {
+  const m = request.match(new RegExp(`\\beffort\\s*[:=]?\\s*(${EFFORTS.join("|")})\\b`, "i"));
+  return m ? (m[1].toLowerCase() as Effort) : undefined;
+}
+
+export function isEffort(value: unknown): value is Effort {
+  return EFFORTS.includes(value as Effort);
+}
+
 // Runs per non-admin member per 24 hours, and for everyone combined.
 export const MEMBER_DAILY_LIMIT = 25;
 export const GLOBAL_DAILY_LIMIT = 200;
@@ -27,32 +42,46 @@ export const CLAUDE_EMAIL = "claude@bot.invalid";
 export const SENSITIVE_PATHS = [
   /^convex\/schema\.ts$/,
   /^convex\/auth/,
-  /^convex\/server\.ts$/,
-  /^convex\/chatTasks\.ts$/,
-  // What keeps chat tasks' results and #check-ins text members-only.
+  /^convex\/(server|runner|chatTasks)\.ts$/,
+  // What keeps chat tasks' data and #check-ins text members-only.
   /^convex\/(improvements|chat|activity)\.ts$/,
   /^convex\/lib\/(markdown|richtext|channels)\.ts$/,
   /^convex\/lib\/viewer\.ts$/,
   /^convex\/lib\/improve\.ts$/,
   /^app\/api\//,
   /^app\/commit\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client|chat-task-sandbox|club-snapshot)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
+  // Instructions every agent run loads, chat tasks included.
+  /^(CLAUDE|AGENTS)\.md$/,
+  /^\.claude\//,
   /^package\.json$/,
   /^bun\.lock$/,
   /^(next\.config\.ts|vercel\.json|convex\.json)$/,
   /(^|\/)\.env/,
 ];
 
+// Sandboxes are saved when they stop and kept this long, so a follow-up in the same
+// thread resumes with the clone, node_modules, and the agent's session already there.
+export const SANDBOX_KEEP_MS = 24 * 60 * 60 * 1000;
+
 // Chat tasks (convex/chatTasks.ts): runs that read the club's data instead of changing
-// code, to answer a question or draft a post the member can send themselves. Claude never
-// posts. A request is one if it says "chat task", or if every earlier run in its thread
-// was one and it doesn't ask for a PR. Their sandboxes are always behind a firewall (see
-// app/api/improve/route.ts); if that stops working, set this to false to turn them off.
+// code, to answer a question or post something for the member who asked. A request is one
+// if it says "chat task", or if every earlier run in its thread was one and it doesn't ask
+// for a PR. Their sandboxes are always behind a firewall (lib/chat-task-sandbox.ts); if
+// that stops working, set CHAT_TASKS_ENABLED to false to turn them off.
 export const CHAT_TASKS_ENABLED = true;
 export const CHAT_DRAFT_MAX_CHARS = 6000;
 export const CHAT_MENTION_LIMIT = 10;
+// Where Claude may post a chat task's result. Never #check-ins: a check-in is a member's
+// own writing, and posting one unlocks everyone else's.
+export const CHAT_POST_CHANNELS = ["general", "published", "meetups", "random", "site"];
+// Posts per member and for the whole club in 24 hours. Past these, Claude leaves a draft on
+// its card for the member to send instead.
+export const CHAT_POSTS_PER_MEMBER = 5;
+export const CHAT_POSTS_PER_DAY = 20;
+
 const CHAT_TASK = /\bchat[- ]task\b/i;
 // "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
 export const NEW_PR = /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
@@ -72,9 +101,12 @@ export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {
   );
 }
 
-// Sandboxes are saved when they stop and kept this long, so a follow-up in the same
-// thread resumes with the clone, node_modules, and the agent's session already there.
-export const SANDBOX_KEEP_MS = 24 * 60 * 60 * 1000;
+// The sandbox holds no site secrets. It gets a random key that only works for its own run
+// while it's going (convex/runner.ts, and finishing through /api/improve); Convex keeps its hash.
+export async function hashRunToken(token: string) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 // One sandbox per branch; follow-ups on the same PR reuse it.
 export function sandboxNameFor(branch: string) {

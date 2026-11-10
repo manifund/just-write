@@ -111,8 +111,12 @@ export const expressInterest = mutation({
     if (!link) throw new ConvexError("Please add a valid website link.");
 
     const existing = await memberByEmail(ctx, email);
-    if (existing) await ctx.db.patch(existing._id, { name, link });
-    else
+    // Anyone can submit this form without signing in, so it only updates rows that are
+    // still "interested". Signed and committed members change their name in /settings.
+    if (existing) {
+      if (existing.status === "interested" && !existing.bot)
+        await ctx.db.patch(existing._id, { name, link });
+    } else
       await ctx.db.insert("members", {
         name,
         email,

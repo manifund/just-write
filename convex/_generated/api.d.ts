@@ -40,6 +40,7 @@ import type * as previewAccess from "../previewAccess.js";
 import type * as push from "../push.js";
 import type * as pushAction from "../pushAction.js";
 import type * as reminders from "../reminders.js";
+import type * as runner from "../runner.js";
 import type * as server from "../server.js";
 import type * as similar from "../similar.js";
 import type * as similarAction from "../similarAction.js";
@@ -83,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   push: typeof push;
   pushAction: typeof pushAction;
   reminders: typeof reminders;
+  runner: typeof runner;
   server: typeof server;
   similar: typeof similar;
   similarAction: typeof similarAction;

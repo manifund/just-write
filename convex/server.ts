@@ -3,7 +3,7 @@
 import type { WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
 import { improvementStatus, status } from "./schema";
 import {
@@ -14,6 +14,7 @@ import {
   releaseWaiting,
   txt,
 } from "./improvements";
+import { hashRunToken, parseEffort } from "./lib/improve";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
@@ -189,29 +190,33 @@ export const importLegacy = mutation({
 
 // Marks a queued run as running and returns everything the runner needs. Null if it
 // was already claimed, so a retried request can't start a second sandbox.
-// A chat task also gets `token` (made by the route with node crypto) as the credential
-// its sandbox reports with, in the same step, so nothing else can set it first.
+// `runTokenHash` is the hash of the key the route hands the sandbox (convex/runner.ts).
 export const claimImprovement = mutation({
-  args: { secret: v.string(), id: v.id("improvements"), token: v.optional(v.string()) },
-  handler: async (ctx, { secret, id, token }) => {
+  args: {
+    secret: v.string(),
+    id: v.id("improvements"),
+    runTokenHash: v.optional(v.string()),
+  },
+  handler: async (ctx, { secret, id, runTokenHash }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     // Runs waiting their turn are started by releaseWaiting, which clears waitingOn first.
     if (!r || r.status !== "queued" || r.waitingOn) return null;
-    if (r.kind === "chat" && (!token || token.length < 32))
-      throw new ConvexError("A chat task needs a run token.");
-    await ctx.db.patch(id, {
-      status: "running",
-      startedAt: Date.now(),
-      ...(r.kind === "chat" ? { runToken: token } : {}),
-    });
-
-    const [requester, channel, root, previous] = await Promise.all([
-      ctx.db.get(r.requesterId),
-      ctx.db.get(r.channelId),
+    // A chat task's sandbox reads the club's data with this key (convex/chatTasks.ts).
+    if (r.kind === "chat" && !runTokenHash) throw new ConvexError("A chat task needs a run key.");
+    const [root, previous] = await Promise.all([
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
     ]);
+    // continuePr may change this once the route knows which run this continues.
+    const effort = parseEffort(r.request) ?? previous?.effort;
+    await ctx.db.patch(id, {
+      status: "running",
+      startedAt: Date.now(),
+      runTokenHash,
+      effort,
+    });
+
     const replies = await ctx.db
       .query("messages")
       .withIndex("by_parent", (q) => q.eq("parentId", r.threadId))
@@ -221,7 +226,8 @@ export const claimImprovement = mutation({
     // In #check-ins the agent only learns who wrote what length, apart from the request
     // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
     // posting, while what Claude writes back is seen by every member, ungated (and, for
-    // code runs, in public PRs and /improvements).
+    // code runs, in public PRs).
+    const channel = await ctx.db.get(r.channelId);
     const inCheckIns = channel?.slug === CHECK_IN_SLUG;
     for (const m of [root, ...replies]) {
       if (!m || (!m.improvementId && !m.text)) continue;
@@ -234,16 +240,19 @@ export const claimImprovement = mutation({
         const earlier = await ctx.db.get(m.improvementId);
         if (!earlier || earlier._id === id) continue;
         if (earlier.kind === "chat" && r.kind !== "chat")
-          // What a chat task found is members-only; keep it out of code (and public PRs).
+          // What a chat task found comes from members-only data; keep it out of public PRs.
           text = `[Run #${earlier.number}, chat task: its reply is only shown in the thread]`;
         else {
           text = `[Run #${earlier.number}, ${earlier.kind === "chat" ? "chat task, " : ""}${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
-          // A chat task's draft, so "make it shorter" has something to work from.
+          // A chat task's draft or post, so "make it shorter" has something to work from.
           if (earlier.draft && !inCheckIns) {
             const to = await ctx.db.get(earlier.draft.channelId);
-            text += `\n\nDraft for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
+            text += `\n\n${earlier.postId ? "Posted" : "Draft"} for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
           }
         }
+      } else if (m.postedFrom && r.kind !== "chat") {
+        // Claude's post of a chat task's result: members-only data, kept out of public PRs.
+        text = "[A post Claude made for a chat task; only shown in chat]";
       } else if (
         inCheckIns &&
         m._id !== r.requestMessageId &&
@@ -261,7 +270,8 @@ export const claimImprovement = mutation({
         .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
         .collect()
     )
-      .filter((e) => e._id !== id && e.number < r.number)
+      // Chat tasks in the thread don't count: they never have a PR or saved work.
+      .filter((e) => e._id !== id && e.number < r.number && e.kind !== "chat")
       .sort((a, b) => b.number - a.number);
     const openPrs = runs
       .filter((e) => e.status === "pr" && e.prNumber)
@@ -272,6 +282,13 @@ export const claimImprovement = mutation({
         title: e.title ?? e.request.slice(0, 100),
         request: e.request.slice(0, 500),
       }));
+    // The run right before this one, if it failed after its sandbox started (out of steps,
+    // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
+    // reply in the thread picks it up (lib/improve-target.ts).
+    const failed =
+      runs[0]?.status === "failed" && runs[0].sandboxId
+        ? runs[0]
+        : null;
     return {
       number: r.number,
       kind: r.kind ?? null,
@@ -282,17 +299,80 @@ export const claimImprovement = mutation({
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
       latestOpenPr: runs[0]?.status === "pr" ? (runs[0].prNumber ?? null) : null,
-      request: r.request,
-      requester: requester?.name ?? "A member",
-      channel: channel?.name ?? "chat",
-      threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+      failedRun: failed
+        ? {
+            id: failed._id,
+            run: failed.number,
+            prNumber: failed.prNumber ?? null,
+            title: failed.title ?? failed.request.slice(0, 100),
+            request: failed.request.slice(0, 500),
+          }
+        : null,
+      // Set by continuePr when this picks up a failed run.
+      resumesFailedRun: null as number | null,
+      effort: effort ?? null,
+      ...(await whoAndWhere(ctx, r)),
       thread,
     };
   },
 });
 
-// Points a just-claimed run at an earlier run's open PR in the same thread, so it builds on
-// that branch. Returns what the runner needs, or null if that PR isn't open anymore.
+// Who asked for a run and where, for the prompt, commit message, and PR.
+async function whoAndWhere(ctx: MutationCtx, r: Doc<"improvements">) {
+  const [requester, channel] = await Promise.all([
+    ctx.db.get(r.requesterId),
+    ctx.db.get(r.channelId),
+  ]);
+  return {
+    request: r.request,
+    requester: requester?.name ?? "A member",
+    channel: channel?.name ?? "chat",
+    threadUrl: `${process.env.SITE_URL ?? "https://justwrite.club"}/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+  };
+}
+
+// The sandbox is done and asks /api/improve to push its changes (or record its answer).
+// Checks the run's key and retires it, so this happens once and the sandbox can't report
+// anything after it. Returns what the route needs to push and open the PR.
+export const startFinish = mutation({
+  args: { secret: v.string(), id: v.id("improvements"), runToken: v.string() },
+  handler: async (ctx, { secret, id, runToken }) => {
+    checkServerSecret(secret);
+    const r = await checkRunToken(ctx, id, runToken);
+    // Chat tasks finish through chatTasks.finish and never push anything.
+    if (r.kind === "chat") throw new ConvexError("This run has ended.");
+    await ctx.db.patch(id, { runTokenHash: undefined });
+    return {
+      number: r.number,
+      branch: r.branch,
+      prNumber: r.prNumber ?? null,
+      sandboxId: r.sandboxId ?? null,
+      ...(await whoAndWhere(ctx, r)),
+    };
+  },
+});
+
+// The run, if `runToken` is the key for it and it's still going.
+export async function checkRunToken(
+  ctx: MutationCtx,
+  id: Id<"improvements">,
+  runToken: string,
+) {
+  const r = await ctx.db.get(id);
+  if (
+    !r ||
+    r.status !== "running" ||
+    !r.runTokenHash ||
+    r.runTokenHash !== (await hashRunToken(runToken))
+  )
+    throw new ConvexError("This run has ended.");
+  return r;
+}
+
+// Points a just-claimed run at an earlier run in the same thread, so it builds on that
+// branch: one with an open PR, or the run right before this one if it failed after its
+// sandbox started (its saved sandbox may still have its uncommitted edits and agent
+// session). Returns what the runner needs, or null if that run can't be continued.
 export const continuePr = mutation({
   args: {
     secret: v.string(),
@@ -302,43 +382,40 @@ export const continuePr = mutation({
   handler: async (ctx, { secret, id, previousId }) => {
     checkServerSecret(secret);
     const [r, prev] = await Promise.all([ctx.db.get(id), ctx.db.get(previousId)]);
-    if (
-      !r ||
-      !prev ||
-      r.status !== "running" ||
-      prev.threadId !== r.threadId ||
-      prev.status !== "pr" ||
-      !prev.prNumber
-    )
-      return null;
+    if (!r || !prev || r.status !== "running" || prev.threadId !== r.threadId) return null;
+    const openPr = prev.status === "pr" && !!prev.prNumber;
+    const failed = prev.status === "failed" && !!prev.sandboxId && prev.number < r.number;
+    if (failed) {
+      const later = await ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .collect();
+      if (later.some((e) => e.number > prev.number && e.number < r.number)) return null;
+    }
+    if (!openPr && !failed) return null;
+    // The request's own effort wins; otherwise keep the one the earlier run used.
+    const effort = parseEffort(r.request) ?? prev.effort;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,
       prNumber: prev.prNumber,
       prUrl: prev.prUrl,
+      effort,
     });
     return {
       branch: prev.branch,
-      prNumber: prev.prNumber,
+      prNumber: prev.prNumber ?? null,
       resumeSessionId: prev.sessionId ?? null,
+      resumesFailedRun: failed ? prev.number : null,
+      effort: effort ?? null,
     };
   },
 });
 
 // Follow-ups sent in the thread while this run is going (rows waiting on it). The runner
-// polls this while the agent works and hands each one to it right after its current tool
-// call. Claimed rows are closed out, so they don't also start as their own run later.
-export const claimFollowUps = mutation({
-  args: { secret: v.string(), id: v.id("improvements") },
-  handler: async (ctx, { secret, id }) => {
-    checkServerSecret(secret);
-    const r = await ctx.db.get(id);
-    if (!r || r.status !== "running") return [];
-    return await takeFollowUps(ctx, r);
-  },
-});
-
-// Code runs only: chat tasks don't take follow-ups mid-run.
+// polls these while the agent works (convex/runner.ts#followUps) and hands each one to it right
+// after its current tool call. Claimed rows are closed out, so they don't also start as their
+// own run later.
 export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
   const id = r._id;
   const rows = await ctx.db
@@ -347,7 +424,7 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     .collect();
   const out = [];
   for (const w of rows) {
-    // A chat task sent during a code run (or the other way round) gets its own run.
+    // A chat task sent during a code run gets its own run (and the other way round).
     if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind) continue;
     await endRun(ctx, w, {
       status: "answered",
@@ -391,28 +468,29 @@ export const reportImprovement = mutation({
       }),
     ),
   },
-  handler: async (ctx, { secret, id, ...report }) => {
+  handler: async (ctx, { secret, id, step, fail, patch = {} }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r) return;
-    await applyReport(ctx, r, report);
+    await applyReport(ctx, r, { step, fail, patch });
   },
 });
 
-// Shared with chatTasks.report, whose patch can only hold a few of these fields.
+// Shared by reportImprovement and the sandbox's runner.report.
 export async function applyReport(
   ctx: MutationCtx,
   r: Doc<"improvements">,
   {
     step,
     fail,
-    patch = {},
+    patch,
   }: {
     step?: string;
     fail?: boolean;
-    patch?: Partial<WithoutSystemFields<Doc<"improvements">>>;
+    patch: Partial<WithoutSystemFields<Doc<"improvements">>>;
   },
 ) {
+  const id = r._id;
   let steps = r.steps;
   const finish = (state: "done" | "failed") =>
     steps.map((s) => (s.state === "active" ? { ...s, state } : s));
@@ -425,7 +503,7 @@ export async function applyReport(
   const final = patch.status && patch.status !== "running" && patch.status !== "queued";
   if (final && !fail) steps = finish("done");
   if (final) await endRun(ctx, r, { ...patch, steps });
-  else await ctx.db.patch(r._id, { ...patch, steps });
+  else await ctx.db.patch(id, { ...patch, steps });
 
   // A follow-up that produced new work takes over the earlier run's card.
   if (

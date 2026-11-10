@@ -23,7 +23,7 @@ import { recordActivity } from "./lib/activity";
 import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
-import { publicMember, requireAdmin } from "./lib/viewer";
+import { publicMember, requireAdmin, requireMember } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -153,9 +153,9 @@ export async function startFromMessage(
   // Whether this continues one of the thread's open PRs or starts a new one is decided
   // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
   // If the thread's latest run of the same kind is still going, this one waits. The runner
-  // hands it to the agent mid-run (server.claimFollowUps; code runs only); otherwise it
-  // starts when that run ends (releaseWaiting). Chat tasks and code runs share nothing, so
-  // neither waits for the other.
+  // hands it to the agent mid-run (runner.followUps; code runs only); otherwise it starts
+  // when that run ends (releaseWaiting). Chat tasks and code runs share nothing, so neither
+  // waits for the other.
   const busy =
     earlier.find(
       (r) => r.kind === kind && (r.status === "queued" || r.status === "running"),
@@ -261,13 +261,12 @@ export async function endRun(
   const first = !r.finishedAt;
   await ctx.db.patch(r._id, {
     ...patch,
+    runTokenHash: undefined, // the sandbox's key stops working
     ...(first ? { finishedAt: Date.now() } : {}),
-    // A chat task's sandbox token stops working when the run does.
-    ...(r.kind === "chat" ? { runToken: undefined } : {}),
   });
   if (!first) return;
   const after = { ...r, ...patch };
-  // A chat task's sandbox has no credentials to stop itself, so stop it from here.
+  // A chat task's runner can't reach /api/improve (its firewall), so stop its sandbox here.
   if (r.kind === "chat" && after.sandboxId)
     await ctx.scheduler.runAfter(5000, internal.chatTasks.stopSandbox, {
       name: after.sandboxId,
@@ -319,22 +318,8 @@ export const reapStale = internalMutation({
   },
 });
 
-// The fields a status card needs. Shared by the card in chat and /improvements, both
-// public. A chat task's steps, reply, and error come from the club's members-only data,
-// so they're left out here; members get them from chatTasks.result.
+// The fields a status card needs. Shared by the card in chat and /improvements.
 export function cardOf(r: Doc<"improvements">) {
-  if (r.kind === "chat")
-    return {
-      ...cardFields(r),
-      steps: [],
-      title: null,
-      summary: null,
-      error: null,
-    };
-  return cardFields(r);
-}
-
-function cardFields(r: Doc<"improvements">) {
   return {
     _id: r._id,
     number: r.number,
@@ -361,24 +346,28 @@ function cardFields(r: Doc<"improvements">) {
 export type ImprovementCard = ReturnType<typeof cardOf>;
 
 // One run's card, subscribed by the message that shows it (components/portal/improvement.tsx).
-// Kept out of the message queries so progress updates re-run only this. No per-user reads,
-// so every subscriber shares one cached result; the same fields are public on /improvements.
+// Kept out of the message queries so progress updates re-run only this. Members only, like
+// the chat it sits in; read-only preview sessions can read it too.
 export const card = query({
   args: { id: v.id("improvements") },
   handler: async (ctx, { id }) => {
+    await requireMember(ctx, { allowReadonly: true });
     const r = await ctx.db.get(id);
     return r ? cardOf(r) : null;
   },
 });
 
-// /improvements: every run, newest first. Public, like the members directory.
+// /improvements: every run, newest first. Members only: requests and errors can mention
+// anything said in chat.
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    // Chat tasks aren't site changes, and what they found is for members only.
-    const rows = (
-      await ctx.db.query("improvements").withIndex("by_number").order("desc").take(200)
-    ).filter((r) => r.kind !== "chat");
+    await requireMember(ctx, { allowReadonly: true });
+    const rows = await ctx.db
+      .query("improvements")
+      .withIndex("by_number")
+      .order("desc")
+      .take(200);
     const channels = new Map(
       (await ctx.db.query("channels").collect()).map((c) => [c._id, c.slug]),
     );

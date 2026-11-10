@@ -16,7 +16,7 @@ export const SETUP = [
   "command -v bun >/dev/null || [ -x ~/.bun/bin/bun ] || curl -fsSL https://bun.sh/install | bash",
   'export PATH="$HOME/.bun/bin:$PATH"',
   `v=$(grep -o '"@anthropic-ai/claude-agent-sdk@[0-9][^"]*"' bun.lock | head -1 | sed 's/.*@//; s/"//')`,
-  '[ -n "$v" ] || { echo "no Agent SDK version in bun.lock" >&2; exit 1; }',
+  '{ [ -n "$v" ] || { echo "no Agent SDK version in bun.lock" >&2; exit 1; }; }',
   `mkdir -p ${AGENT_DIR} && cd ${AGENT_DIR} && echo '{"private":true}' > package.json && bun add "@anthropic-ai/claude-agent-sdk@$v"`,
 ].join(" && ");
 

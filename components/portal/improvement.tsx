@@ -7,7 +7,7 @@ import {
   closeImprovement,
   mergeImprovement,
   revertImprovement,
-} from "@/app/(portal)/improvements/actions";
+} from "@/app/(portal)/(private)/improvements/actions";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ImprovementCard as Card } from "@/convex/improvements";
@@ -37,8 +37,8 @@ export function LiveImprovementCard({
   return <ImprovementCard card={card} isAdmin={isAdmin} />;
 }
 
-// Claude's reply to a chat task (convex/chatTasks.ts). Its steps, reply, and draft are
-// members-only, so they come from chatTasks.result rather than the public card.
+// Claude's reply to a chat task (convex/chatTasks.ts): the checklist and answer, then what
+// it posted, or the draft it left when it couldn't post (chatTasks.result).
 function ChatTaskCard({ card }: { card: Card }) {
   const result = useQuery(api.chatTasks.result, { id: card._id });
   const working = card.status === "queued" || card.status === "running";
@@ -48,7 +48,6 @@ function ChatTaskCard({ card }: { card: Card }) {
     started && (card.finishedAt ?? now)
       ? duration((card.finishedAt ?? now!) - started)
       : null;
-  const steps = result?.steps ?? [];
 
   if (working)
     return (
@@ -61,32 +60,36 @@ function ChatTaskCard({ card }: { card: Card }) {
               : "Looking through the club’s data"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
-        <Steps steps={steps} />
+        <Steps steps={card.steps} />
       </div>
     );
 
   return (
     <div className="flex max-w-[38rem] flex-col gap-2.5 py-1">
-      {result?.summary && (
+      {card.summary && (
         <p className="text-[17px] leading-[1.35] whitespace-pre-line">
-          {result.summary}
+          {card.summary}
         </p>
       )}
       {card.status === "failed" && (
         <p className="text-[15px] text-ink-muted">
-          Something went wrong. {result?.error ?? ""}
+          Something went wrong. {card.error ?? ""}
         </p>
       )}
-      {result?.draft && <ChatDraft draft={result.draft} />}
+      {result && (result.postId || result.postRemoved ? (
+        <ChatPost post={result} />
+      ) : (
+        <ChatDraft draft={result} />
+      ))}
       <details className="group/steps text-[14px] text-ink-muted">
         <summary className="w-fit cursor-pointer list-none select-none hover:text-ink">
           <span className="inline-block transition-transform group-open/steps:rotate-90">
             ▸
           </span>{" "}
-          Chat task · {steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
+          Chat task · {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
         </summary>
         <div className="flex flex-col gap-2 pt-2">
-          <Steps steps={steps} />
+          <Steps steps={card.steps} />
           <p>
             I read the club’s data and don’t change the site in a chat task. For a
             change to the site, mention me with “new PR”.
@@ -97,8 +100,30 @@ function ChatTaskCard({ card }: { card: Card }) {
   );
 }
 
-// A chat task's draft post. Claude never posts it: the button puts it in the viewer's own
-// message box for that channel, to edit and send.
+// What Claude posted for a chat task.
+function ChatPost({
+  post,
+}: {
+  post: { channelSlug: string; channelName: string; postId: string | null };
+}) {
+  if (!post.postId)
+    return <p className="text-[15px] text-ink-muted">The post was removed.</p>;
+  const href = `/chat/${post.channelSlug}/${post.postId}`;
+  return (
+    <div>
+      <Link
+        href={href}
+        onClick={(e) => chatLinkClick(e, href)}
+        className="inline-block border border-ink/20 px-3 py-1 text-[14px] no-underline transition-colors hover:border-ink/50"
+      >
+        Posted in #{post.channelName}
+      </Link>
+    </div>
+  );
+}
+
+// A post Claude couldn't send (its channel doesn't take Claude's posts, or the day's limit
+// was hit). The button puts it in the viewer's own message box there, to edit and send.
 function ChatDraft({
   draft,
 }: {

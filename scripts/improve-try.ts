@@ -1,14 +1,15 @@
 // Smoke test for @Claude improvements: starts a Vercel Sandbox like /api/improve does, uploads
-// your local runner, and runs it as a dry run (no Convex reports, no push, no PR). Streams logs.
+// your local runner, and runs it as a dry run (no Convex reports, no push, no PR). Streams logs,
+// then shows the change the site would have pushed.
 //   bun scripts/improve-try.ts "Add a tooltip to the Send button"
-//   bun scripts/improve-try.ts --chat "How many essays came in this week?"
+//   bun scripts/improve-try.ts --chat "chat task: how many essays came in this week?"
 // --chat runs a chat task behind the same firewall as the real thing (lib/chat-task-sandbox.ts),
-// on a few made-up members and essays instead of the club's data, so it checks the firewall,
-// the Agent SDK install, and the model key the firewall adds.
+// on a few made-up members and essays instead of the club's data. It checks the setup, the
+// firewall, and the model key the firewall adds; nothing is posted.
 // Needs VERCEL_OIDC_TOKEN (vercel env pull) and OPENROUTER_API_KEY in .env.local.
 import { readFileSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
-import { REPO, SANDBOX_ROOT } from "../convex/lib/improve";
+import { REPO, SANDBOX_ROOT, parseEffort } from "../convex/lib/improve";
 import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "../lib/chat-task-sandbox";
 import { CLUB_DIR, CLUB_README } from "../lib/club-snapshot";
 
@@ -16,15 +17,8 @@ const chat = process.argv[2] === "--chat";
 const request =
   process.argv[chat ? 3 : 2] ??
   (chat
-    ? "chat task: how many essays are there, and who wrote the longest?"
+    ? "chat task: how many essays are there, and who wrote the longest? Post it in #published."
     : "Add a tooltip to the chat Send button that says “Enter to send”.");
-const upload = [
-  "scripts/improve-runner.ts",
-  "lib/github.ts",
-  "convex/lib/improve.ts",
-  "package.json",
-  "bun.lock",
-];
 
 // Made-up data in the shape lib/club-snapshot.ts writes.
 const now = new Date().toISOString();
@@ -34,11 +28,11 @@ const sampleClub = {
     nowPt: now,
     askedBy: { name: "Austin", handle: "austin" },
     deadlines: [],
-    channels: [
-      { slug: "general", name: "general", description: "" },
-      { slug: "check-ins", name: "check-ins", description: "" },
-      { slug: "published", name: "published", description: "" },
-    ],
+    channels: ["general", "check-ins", "published", "site"].map((slug) => ({
+      slug,
+      name: slug,
+      description: "",
+    })),
     truncated: false,
   },
   "members.json": [
@@ -54,16 +48,26 @@ const sampleClub = {
   "events.json": [],
   "improvements.json": [],
 };
+const upload = [
+  "scripts/improve-runner.ts",
+  "convex/lib/improve.ts",
+  "package.json",
+  "bun.lock",
+];
 
 const sandbox = await Sandbox.create({
   source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 1 },
-  resources: { vcpus: chat ? 2 : 4 },
+  resources: { vcpus: 4 },
   timeout: 30 * 60 * 1000,
   persistent: false,
 });
 console.log("sandbox", sandbox.name);
 try {
   if (chat) {
+    // As in app/api/improve/route.ts: set up, then the firewall, then the data.
+    await sandbox.writeFiles(
+      upload.map((p) => ({ path: `${SANDBOX_ROOT}/${p}`, content: readFileSync(p) })),
+    );
     const setup = await sandbox.runCommand({ cmd: "bash", args: ["-c", SETUP], cwd: SANDBOX_ROOT });
     if (setup.exitCode !== 0) throw new Error(await setup.stderr());
     const convexHost = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://example.convex.cloud").host;
@@ -86,6 +90,7 @@ try {
           branch: "claude/try",
           prNumber: null,
           resumeSessionId: null,
+          effort: parseEffort(request) ?? null,
           request,
           requester: "Austin",
           channel: "site",
@@ -122,7 +127,7 @@ try {
   });
   console.log("exit", run.exitCode);
   if (!chat) {
-    const show = await sandbox.runCommand("git", ["-C", SANDBOX_ROOT, "show", "HEAD"]);
+    const show = await sandbox.runCommand("git", ["-C", SANDBOX_ROOT, "diff", "--cached", "HEAD"]);
     console.log(await show.stdout());
   }
 } finally {

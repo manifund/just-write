@@ -51,12 +51,20 @@ function subscribeUrl(l: () => void) {
   };
 }
 
-// Server-rendered first, then live.
-export function ImprovementList({ initial }: { initial: Row[] }) {
-  const rows = useQuery(api.improvements.list) ?? initial;
+export function ImprovementList() {
+  const rows = useQuery(api.improvements.list);
+  if (rows === undefined)
+    return (
+      <main className="mx-auto max-w-[56rem] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)] text-[15px] text-ink-muted">
+        Loading…
+      </main>
+    );
+  return <List rows={rows} />;
+}
+
+function List({ rows }: { rows: Row[] }) {
   const viewer = useQuery(api.members.viewer);
   const now = useNow();
-  const signedInMember = !!viewer?.canEnter;
   const isAdmin = !!viewer?.isAdmin;
 
   const [who, setWho] = useState("");
@@ -64,7 +72,6 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   // The status tab lives in the URL (?status=merged) so a filtered view can be shared.
-  // Read in the browser only, so the server-rendered list stays cacheable.
   const tabKey = useSyncExternalStore(
     subscribeUrl,
     () => new URLSearchParams(window.location.search).get("status"),
@@ -119,13 +126,14 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
           “effort: low” (or medium, high, xhigh, max) to the request to set how
           hard it thinks. A reply in the same thread keeps working on that
           thread’s open PR if it’s about the same change, or starts a new one if
-          not. Write “new PR” or “continue #40” to choose yourself.
+          not. Write “new PR” or “continue #40” to choose yourself. A reply that
+          continues a PR keeps its effort unless it sets its own.
         </p>
         <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
           Write “chat task” instead to have Claude read the club’s chat, essays,
-          and calendar to answer a question or draft a post, like a weekly recap.
-          Claude doesn’t post it: you can put the draft in your message box, edit
-          it, and send it. Chat tasks stay in their thread and aren’t listed here.
+          and calendar to answer a question or post something, like a weekly
+          recap in #published. Claude’s post says who asked for it, and they can
+          delete it.
         </p>
       </header>
 
@@ -249,11 +257,9 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
                           : r.request}
                       </blockquote>
                       <ImprovementCard card={r} isAdmin={isAdmin} />
-                      {signedInMember && (
-                        <Link href={r.threadHref} className="w-fit text-[14px]">
-                          Open thread
-                        </Link>
-                      )}
+                      <Link href={r.threadHref} className="w-fit text-[14px]">
+                        Open thread
+                      </Link>
                     </div>
                   )}
                 </li>

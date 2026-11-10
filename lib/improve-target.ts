@@ -2,8 +2,9 @@
 // one. Called by app/api/improve/route.ts before the sandbox starts, since the sandbox
 // (and the agent session saved in it) belongs to a branch.
 //
-// Order: an explicit "new PR" or "#40" in the request wins; otherwise a quick model call
-// reads the thread; if that fails, continue the PR of the run just before this one.
+// Order: an explicit "new PR" or "#40" in the request wins; then, if the run just before
+// this one failed partway (out of steps, timed out), pick that up; otherwise a quick model
+// call reads the thread; if that fails, continue the PR of the run just before this one.
 import { CLASSIFIER_MODEL, NEW_PR } from "@/convex/lib/improve";
 
 export type OpenPr = {
@@ -14,24 +15,35 @@ export type OpenPr = {
   request: string;
 };
 
-export type Target = { pr: OpenPr | null; why: string };
+// The thread's latest run, when it failed after its sandbox started (convex/server.ts).
+export type FailedRun = Omit<OpenPr, "prNumber"> & { prNumber: number | null };
+
+// The earlier run this continues (an open PR or a failed run), or null for a new PR.
+export type Target = { pr: OpenPr | FailedRun | null; why: string };
 
 export async function pickTarget(brief: {
   request: string;
   thread: { author: string; text: string }[];
   openPrs: OpenPr[];
   latestOpenPr: number | null;
+  failedRun: FailedRun | null;
 }): Promise<Target> {
-  const { request, openPrs } = brief;
-  if (openPrs.length === 0) return { pr: null, why: "no open PRs in this thread" };
+  const { request, openPrs, failedRun } = brief;
+  if (openPrs.length === 0 && !failedRun)
+    return { pr: null, why: "no open PRs in this thread" };
   if (NEW_PR.test(request)) return { pr: null, why: "asked for a new PR" };
 
-  // "#40", "PR 40", "run 78": a PR number or a run number of an open PR.
+  // "#40", "PR 40", "run 78": a PR number or a run number of an open PR or the failed run.
+  // The failed run comes first: it may be a follow-up on one of the open PRs, with newer work.
+  const named = failedRun ? [failedRun, ...openPrs] : openPrs;
   for (const m of request.matchAll(/(?:#|\b(?:pr|pull request|run)\s*#?)(\d+)\b/gi)) {
     const n = Number(m[1]);
-    const pr = openPrs.find((p) => p.prNumber === n || p.run === n);
+    const pr = named.find((p) => p.prNumber === n || p.run === n);
     if (pr) return { pr, why: "named in the request" };
   }
+
+  // The last run stopped partway; a reply in the thread is almost always "keep going".
+  if (failedRun) return { pr: failedRun, why: "the last run stopped before finishing" };
 
   const fallback = (why: string): Target => ({
     pr: openPrs.find((p) => p.prNumber === brief.latestOpenPr) ?? null,

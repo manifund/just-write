@@ -1,12 +1,13 @@
 // Chat tasks: @Claude runs that read the club's data instead of changing code, to answer a
-// question or draft a post that a member can then send themselves. Claude never posts.
+// question or post one message for the member who asked.
 //
 // A run is a chat task from the start (improvements.startFromMessage, lib/improve.ts
-// isChatTask). app/api/improve/route.ts gives it a token when it claims the run
-// (server.claimImprovement), reads `snapshot` and `messages` once, and writes them into a
-// sandbox that has neither the server secret nor a GitHub token. The runner there (scripts/improve-runner.ts) reports back through
-// `report`, which only accepts that run's own token. Convex stops the sandbox when the run
-// ends (improvements.endRun → stopSandbox).
+// isChatTask). app/api/improve/route.ts claims it with a run key (server.claimImprovement),
+// reads `snapshot` and `messages` once, and writes them into a firewalled sandbox that has
+// neither the server secret nor a GitHub token. The runner there (scripts/improve-runner.ts)
+// reports steps through convex/runner.ts and its result through `finish`, both of which only
+// accept that run's key while it's going. Convex stops the sandbox when the run ends
+// (improvements.endRun → stopSandbox).
 //
 // The data is what any member can see in the portal: member cards, essays, chat, ideas,
 // the calendar, and the improvements list. Never emails, payments, settings, or anything
@@ -23,12 +24,21 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { CHECK_IN_SLUG } from "./lib/channels";
-import { CHAT_DRAFT_MAX_CHARS, CHAT_MENTION_LIMIT } from "./lib/improve";
+import {
+  CHAT_DRAFT_MAX_CHARS,
+  CHAT_MENTION_LIMIT,
+  CHAT_POSTS_PER_DAY,
+  CHAT_POSTS_PER_MEMBER,
+  CHAT_POST_CHANNELS,
+  hashRunToken,
+} from "./lib/improve";
 import { markdownToDoc } from "./lib/markdown";
 import { DEADLINES, PROGRAM_START, fillSlots } from "./lib/program";
-import { cleanBody } from "./lib/richtext";
+import { cleanBody, type RichNode } from "./lib/richtext";
 import { fmtDay, fmtTime } from "./lib/time";
-import { applyReport } from "./server";
+import { ensureClaude } from "./improvements";
+import { postMessage } from "./lib/messages";
+import { applyReport, checkRunToken } from "./server";
 import { canEnter, checkServerSecret, getViewer, isAdminEmail } from "./lib/viewer";
 
 const pt = (ms: number) => `${fmtDay(ms)}, ${fmtTime(ms)} PT`;
@@ -51,8 +61,8 @@ async function settingUp(ctx: QueryCtx, id: Id<"improvements">, token: string) {
     !r ||
     r.kind !== "chat" ||
     r.status !== "running" ||
-    !r.runToken ||
-    r.runToken !== token ||
+    !r.runTokenHash ||
+    r.runTokenHash !== (await hashRunToken(token)) ||
     r.sandboxId
   )
     throw new ConvexError("That run isn’t a chat task being set up.");
@@ -170,13 +180,15 @@ export const snapshot = query({
     }
 
     // What /improvements shows (code runs only).
+    // Runs asked for in #check-ins are left out too: their request is a check-in.
+    const checkInsId = channels.find((c) => c.slug === CHECK_IN_SLUG)?._id;
     const improvements = [];
     for (const x of await ctx.db
       .query("improvements")
       .withIndex("by_number")
       .order("desc")
       .take(200)) {
-      if (x.kind === "chat") continue;
+      if (x.kind === "chat" || x.channelId === checkInsId) continue;
       improvements.push({
         number: x.number,
         status: x.status,
@@ -267,7 +279,7 @@ export const messages = query({
         text = run
           ? `[Run #${run.number}, ${run.kind === "chat" ? "chat task, " : ""}${run.status}] ${run.title ?? ""} ${run.summary ?? run.error ?? ""}`.trim()
           : "";
-      }
+      } else if (m.postedFrom) kind = "claude-post";
       page.push({
         id: m._id,
         channel: channel.slug,
@@ -303,67 +315,123 @@ export const stopSandbox = internalAction({
   },
 });
 
-// ---------- Called by the runner in the sandbox (run token) ----------
+// ---------- Called by the runner in the sandbox (its run key) ----------
+// Steps and the agent's session id go through convex/runner.ts#report, like code runs.
 
-// The run, if the token is its own and it's still going. Null once it has ended, so a
-// late report is a no-op.
-async function ownRun(ctx: MutationCtx, id: Id<"improvements">, token: string) {
-  const r = await ctx.db.get(id);
-  // The token is cleared when the run ends (endRun); a retried final report is a no-op.
-  if (r?.kind === "chat" && r.finishedAt && !r.runToken) return null;
-  if (!r || r.kind !== "chat" || !r.runToken || r.runToken !== token)
-    throw new ConvexError("Bad run token.");
-  return r.status === "running" ? r : null;
-}
-
-// Progress and the final answer. Unlike server.reportImprovement, the patch can only end
-// the run as answered or failed, with its text and (optionally) one draft. A draft that
-// can't be used is dropped rather than failing the report.
-export const report = mutation({
+// The run's result. The key works once: endRun retires it, so nothing can be reported or
+// posted after this. An `answered` result may carry one post: Claude posts it in its
+// channel (with a line saying who asked) if that channel takes Claude's posts, the day's
+// limits allow, and it only links to pages Claude can vouch for; otherwise it stays on the
+// card as a draft for the member to send. A post that can't be used at all is dropped
+// rather than failing the run.
+export const finish = mutation({
   args: {
     id: v.id("improvements"),
-    token: v.string(),
-    step: v.optional(v.string()),
-    fail: v.optional(v.boolean()),
-    patch: v.optional(
-      v.object({
-        status: v.optional(v.union(v.literal("answered"), v.literal("failed"))),
-        summary: v.optional(v.string()),
-        error: v.optional(v.string()),
-        sessionId: v.optional(v.string()),
-        draft: v.optional(v.object({ channel: v.string(), markdown: v.string() })),
-      }),
-    ),
+    runToken: v.string(),
+    outcome: v.union(v.literal("answered"), v.literal("failed")),
+    summary: v.optional(v.string()),
+    error: v.optional(v.string()),
+    post: v.optional(v.object({ channel: v.string(), markdown: v.string() })),
   },
-  handler: async (ctx, { id, token, step, fail, patch }) => {
-    const r = await ownRun(ctx, id, token);
-    if (!r) return;
-    const { draft: asked, summary, error, ...rest } = patch ?? {};
-    const out: Partial<Doc<"improvements">> = { ...rest };
-    if (summary !== undefined) out.summary = summary.slice(0, 4000);
-    if (error !== undefined) out.error = error.slice(0, 500);
-    if (asked) {
-      const draft = await makeDraft(ctx, r, asked);
-      if (draft) out.draft = draft;
-      else if (out.summary) out.summary += "\n\n(I wrote a draft, but it couldn’t be saved.)";
+  handler: async (ctx, { id, runToken, outcome, summary, error, post }) => {
+    const r = await checkRunToken(ctx, id, runToken);
+    if (r.kind !== "chat") throw new ConvexError("This run has ended.");
+    if (outcome === "failed") {
+      await applyReport(ctx, r, {
+        fail: true,
+        patch: { status: "failed", error: (error ?? "Something went wrong.").slice(0, 500) },
+      });
+      return;
     }
-    await applyReport(ctx, r, { step: step?.slice(0, 120), fail, patch: out });
+    let text = (summary ?? "").slice(0, 4000);
+    const made = post ? await makeDraft(ctx, post) : null;
+    let postId: Id<"messages"> | undefined;
+    if (post && !made) text += "\n\n(I wrote a post, but it couldn’t be used.)";
+    if (made) {
+      const blocked =
+        (await whyNotPost(ctx, r, made.channel)) ?? (await foreignLink(ctx, made.draft.body));
+      if (blocked) text += `\n\n(I didn’t post this: ${blocked}. It’s below for you to send.)`;
+      else
+        postId = await postMessage(ctx, {
+          channelId: made.channel._id,
+          authorId: await ensureClaude(ctx),
+          body: made.draft.body,
+          text: made.text,
+          postedFrom: r._id,
+        });
+    }
+    await applyReport(ctx, r, {
+      patch: {
+        status: "answered",
+        summary: text,
+        ...(made ? { draft: made.draft } : {}),
+        ...(postId ? { postId } : {}),
+      },
+    });
   },
 });
 
-// Converts the agent's markdown into the composer's format. @handle mentions resolve to
-// committed members (never Claude). Null if it's empty, too long, or for #check-ins.
+// Why Claude shouldn't post in this channel now, or null if it can.
+async function whyNotPost(ctx: MutationCtx, r: Doc<"improvements">, channel: Doc<"channels">) {
+  if (!CHAT_POST_CHANNELS.includes(channel.slug))
+    return `I don’t post in #${channel.slug}`;
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const posted = (x: Doc<"improvements">) => !!x.postId && (x.finishedAt ?? 0) > since;
+  const mine = await ctx.db
+    .query("improvements")
+    .withIndex("by_requester", (q) => q.eq("requesterId", r.requesterId))
+    .collect();
+  if (mine.filter(posted).length >= CHAT_POSTS_PER_MEMBER)
+    return `I’ve posted ${CHAT_POSTS_PER_MEMBER} times for you today`;
+  const recent = await ctx.db.query("improvements").withIndex("by_number").order("desc").take(300);
+  if (recent.filter(posted).length >= CHAT_POSTS_PER_DAY)
+    return "I’ve hit today’s limit on posts for the whole club";
+  return null;
+}
+
+// Claude only posts links to this site and to the exact pages members registered as essays
+// or put on their profiles, so text planted in the club's data can't get it to post a
+// phishing link as itself. Anything else stays a draft for the asker to check and send.
+// Returns why, or null.
+async function foreignLink(ctx: MutationCtx, body: string) {
+  const norm = (u: string) => u.trim().replace(/\/+$/, "");
+  const known = new Set<string>();
+  for (const e of await ctx.db.query("essays").collect()) known.add(norm(e.url));
+  for (const m of await ctx.db
+    .query("members")
+    .withIndex("by_status", (q) => q.eq("status", "committed"))
+    .collect())
+    if (m.link) known.add(norm(m.link));
+  const links: string[] = [];
+  const walk = (n: RichNode) => {
+    for (const mark of n.marks ?? [])
+      if (mark.type === "link") links.push(String(mark.attrs?.href ?? ""));
+    n.content?.forEach(walk);
+  };
+  walk(JSON.parse(body) as RichNode);
+  const host = (l: string) => {
+    try {
+      return new URL(l).host;
+    } catch {
+      return null;
+    }
+  };
+  const bad = links.find((l) => host(l) !== "justwrite.club" && !known.has(norm(l)));
+  return bad === undefined ? null : `it links to ${host(bad) ?? "a page"}, which I can’t vouch for`;
+}
+
+// Converts the agent's markdown into chat's format. @handle mentions resolve to committed
+// members (never Claude). Null if it's empty, too long, for #check-ins, or for a channel
+// that doesn't exist.
 async function makeDraft(
   ctx: MutationCtx,
-  r: Doc<"improvements">,
   { channel, markdown }: { channel: string; markdown: string },
 ) {
   if (!markdown.trim() || markdown.length > CHAT_DRAFT_MAX_CHARS) return null;
-  const c =
-    (await ctx.db
-      .query("channels")
-      .withIndex("by_slug", (q) => q.eq("slug", channel.replace(/^#/, "").toLowerCase()))
-      .unique()) ?? (await ctx.db.get(r.channelId));
+  const c = await ctx.db
+    .query("channels")
+    .withIndex("by_slug", (q) => q.eq("slug", channel.replace(/^#/, "").toLowerCase()))
+    .unique();
   // A check-in is the member's own writing, and posting one unlocks everyone else's.
   if (!c || c.slug === CHECK_IN_SLUG) return null;
   const handles = new Map<string, { id: string; label: string }>();
@@ -375,7 +443,7 @@ async function makeDraft(
   try {
     const doc = markdownToDoc(markdown, (h) => handles.get(h) ?? null, CHAT_MENTION_LIMIT);
     const { body, text } = cleanBody(JSON.stringify(doc));
-    return text ? { channelId: c._id, markdown, body } : null;
+    return text ? { channel: c, text, draft: { channelId: c._id, markdown, body } } : null;
   } catch {
     return null;
   }
@@ -383,24 +451,23 @@ async function makeDraft(
 
 // ---------- Members ----------
 
-// What a chat task's card shows: improvements.cardOf leaves its steps, reply, and error
-// out because they're about members-only data. Null for anyone who isn't a member.
+// A chat task's post (or the draft it left), for its card (components/portal/improvement.tsx).
 export const result = query({
   args: { id: v.id("improvements") },
   handler: async (ctx, { id }) => {
     const viewer = await getViewer(ctx);
     if (!viewer?.member || !canEnter(viewer.member, viewer.isAdmin)) return null;
     const r = await ctx.db.get(id);
-    if (!r || r.kind !== "chat") return null;
-    const channel = r.draft ? await ctx.db.get(r.draft.channelId) : null;
+    if (!r || r.kind !== "chat" || !r.draft) return null;
+    const channel = await ctx.db.get(r.draft.channelId);
+    if (!channel) return null;
+    const post = r.postId ? await ctx.db.get(r.postId) : null;
     return {
-      steps: r.steps,
-      summary: r.summary ?? null,
-      error: r.error ?? null,
-      draft:
-        r.draft && channel
-          ? { channelSlug: channel.slug, channelName: channel.name, body: r.draft.body }
-          : null,
+      channelSlug: channel.slug,
+      channelName: channel.name,
+      body: r.draft.body,
+      postId: post?._id ?? null,
+      postRemoved: !!r.postId && !post,
     };
   },
 });

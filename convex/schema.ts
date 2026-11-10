@@ -122,6 +122,7 @@ export default defineSchema({
     eventId: v.optional(v.id("events")), // set on #meetups event announcements
     editedAt: v.optional(v.number()),
     improvementId: v.optional(v.id("improvements")), // Claude's live status card for a run
+    postedFrom: v.optional(v.id("improvements")), // Claude's post with a chat task's result
   })
     .index("by_channel_parent", ["channelId", "parentId"])
     .index("by_channel_parent_author", ["channelId", "parentId", "authorId"])
@@ -199,21 +200,33 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    // Agent effort: set in the request ("effort: high"), or kept from the run this continues.
+    effort: v.optional(
+      v.union(
+        v.literal("low"),
+        v.literal("medium"),
+        v.literal("high"),
+        v.literal("xhigh"),
+        v.literal("max"),
+      ),
+    ),
+    // SHA-256 of the sandbox's key for this run (convex/runner.ts). Cleared when the run ends.
+    runTokenHash: v.optional(v.string()),
     error: v.optional(v.string()),
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
     decidedBy: v.optional(v.id("members")), // admin who merged or closed it
-    // Chat tasks (convex/chatTasks.ts): runs that read the club's data and may draft a
-    // post for the member to send. Unset means a code run. Set when the run is created.
+    // Chat tasks (convex/chatTasks.ts): runs that read the club's data and may post one
+    // message. Unset means a code run. Set when the run is created.
     kind: v.optional(v.literal("chat")),
-    runToken: v.optional(v.string()), // the sandbox's credential, good for this run only
     draft: v.optional(
       v.object({
         channelId: v.id("channels"),
         markdown: v.string(), // what Claude wrote, for follow-ups ("make it shorter")
-        body: v.string(), // Tiptap JSON, for the card and the composer
+        body: v.string(), // Tiptap JSON, as posted (or for the composer, if it wasn't)
       }),
     ),
+    postId: v.optional(v.id("messages")), // Claude's post of the draft, if it went out
   })
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])
