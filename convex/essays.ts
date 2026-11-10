@@ -7,10 +7,12 @@ import { canCountFor, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import { publicMember, requireMember } from "./lib/viewer";
 
-// Fetches an essay URL to suggest a title and estimate its word count.
+// Fetches an essay URL to suggest a title and estimate its word count. Signed-in people
+// only, so it can't be used by anyone on the internet to fetch arbitrary URLs.
 export const preview = action({
   args: { url: v.string() },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    if (!(await ctx.auth.getUserIdentity())) throw new ConvexError("Please sign in.");
     const url = parseWebsite(args.url);
     if (!url) return { url: null, title: null, wordCount: null };
     try {

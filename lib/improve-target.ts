@@ -4,7 +4,7 @@
 //
 // Order: an explicit "new PR" or "#40" in the request wins; otherwise a quick model call
 // reads the thread; if that fails, continue the PR of the run just before this one.
-import { CLASSIFIER_MODEL } from "@/convex/lib/improve";
+import { CLASSIFIER_MODEL, NEW_PR } from "@/convex/lib/improve";
 
 export type OpenPr = {
   id: string;
@@ -15,9 +15,6 @@ export type OpenPr = {
 };
 
 export type Target = { pr: OpenPr | null; why: string };
-
-const NEW_PR =
-  /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
 
 export async function pickTarget(brief: {
   request: string;

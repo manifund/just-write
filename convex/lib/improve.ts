@@ -28,11 +28,12 @@ export const SENSITIVE_PATHS = [
   /^convex\/schema\.ts$/,
   /^convex\/auth/,
   /^convex\/server\.ts$/,
+  /^convex\/chatTasks\.ts$/,
   /^convex\/lib\/viewer\.ts$/,
   /^convex\/lib\/improve\.ts$/,
   /^app\/api\//,
   /^app\/commit\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
   /^package\.json$/,
@@ -40,6 +41,32 @@ export const SENSITIVE_PATHS = [
   /^(next\.config\.ts|vercel\.json|convex\.json)$/,
   /(^|\/)\.env/,
 ];
+
+// Chat tasks (convex/chatTasks.ts): runs that read the club's data instead of changing
+// code, to answer a question or draft a post the member can send themselves. Claude never
+// posts. A request is one if it says "chat task", or if every earlier run in its thread
+// was one and it doesn't ask for a PR. Their sandboxes are always behind a firewall (see
+// app/api/improve/route.ts); if that stops working, set this to false to turn them off.
+export const CHAT_TASKS_ENABLED = true;
+export const CHAT_DRAFT_MAX_CHARS = 6000;
+export const CHAT_MENTION_LIMIT = 10;
+const CHAT_TASK = /\bchat[- ]task\b/i;
+// "new PR", "#40", "PR 40": the member wants code, even in a chat task's thread.
+export const NEW_PR = /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
+const NAMES_PR = /(?:#|\b(?:pr|pull request)\s*#?)\d+\b/i;
+
+// `earlier`: the kinds of the thread's earlier runs. A thread that has only had chat
+// tasks keeps going as one; any code run in it means a request needs the keyword.
+export function isChatTask(request: string, earlier: ("chat" | undefined)[]) {
+  if (!CHAT_TASKS_ENABLED) return false;
+  if (CHAT_TASK.test(request)) return true;
+  return (
+    earlier.length > 0 &&
+    earlier.every((k) => k === "chat") &&
+    !NEW_PR.test(request) &&
+    !NAMES_PR.test(request)
+  );
+}
 
 // Sandboxes are saved when they stop and kept this long, so a follow-up in the same
 // thread resumes with the clone, node_modules, and the agent's session already there.

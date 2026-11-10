@@ -203,6 +203,17 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
     decidedBy: v.optional(v.id("members")), // admin who merged or closed it
+    // Chat tasks (convex/chatTasks.ts): runs that read the club's data and may draft a
+    // post for the member to send. Unset means a code run. Set when the run is created.
+    kind: v.optional(v.literal("chat")),
+    runToken: v.optional(v.string()), // the sandbox's credential, good for this run only
+    draft: v.optional(
+      v.object({
+        channelId: v.id("channels"),
+        markdown: v.string(), // what Claude wrote, for follow-ups ("make it shorter")
+        body: v.string(), // Tiptap JSON, for the card and the composer
+      }),
+    ),
   })
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])

@@ -1,6 +1,7 @@
 // Functions called by trusted Next.js server code (Stripe webhook, email, data import).
 // They're public Convex functions guarded by CONVEX_SERVER_SECRET, which only the server knows.
-import { v } from "convex/values";
+import type { WithoutSystemFields } from "convex/server";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
@@ -13,6 +14,7 @@ import {
   releaseWaiting,
   txt,
 } from "./improvements";
+import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -187,13 +189,22 @@ export const importLegacy = mutation({
 
 // Marks a queued run as running and returns everything the runner needs. Null if it
 // was already claimed, so a retried request can't start a second sandbox.
+// A chat task also gets `token` (made by the route with node crypto) as the credential
+// its sandbox reports with, in the same step, so nothing else can set it first.
 export const claimImprovement = mutation({
-  args: { secret: v.string(), id: v.id("improvements") },
-  handler: async (ctx, { secret, id }) => {
+  args: { secret: v.string(), id: v.id("improvements"), token: v.optional(v.string()) },
+  handler: async (ctx, { secret, id, token }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
-    if (!r || r.status !== "queued") return null;
-    await ctx.db.patch(id, { status: "running", startedAt: Date.now() });
+    // Runs waiting their turn are started by releaseWaiting, which clears waitingOn first.
+    if (!r || r.status !== "queued" || r.waitingOn) return null;
+    if (r.kind === "chat" && (!token || token.length < 32))
+      throw new ConvexError("A chat task needs a run token.");
+    await ctx.db.patch(id, {
+      status: "running",
+      startedAt: Date.now(),
+      ...(r.kind === "chat" ? { runToken: token } : {}),
+    });
 
     const [requester, channel, root, previous] = await Promise.all([
       ctx.db.get(r.requesterId),
@@ -207,18 +218,35 @@ export const claimImprovement = mutation({
       .collect();
     const names = new Map<string, string>();
     const thread = [];
+    // In #check-ins the agent only learns who wrote what length, apart from the asker's
+    // own posts: each member unlocks check-ins by posting, while what Claude writes back
+    // is seen by every member (and, for code runs, in public PRs and /improvements).
+    const inCheckIns = channel?.slug === CHECK_IN_SLUG;
     for (const m of [root, ...replies]) {
       if (!m || (!m.improvementId && !m.text)) continue;
       if (!names.has(m.authorId))
         names.set(m.authorId, (await ctx.db.get(m.authorId))?.name ?? "Someone");
-      // Claude's own cards: include what that run did instead of the empty body.
+      const author = names.get(m.authorId)!;
       let text = m.text;
       if (m.improvementId) {
+        // Claude's own cards: include what that run did instead of the empty body.
         const earlier = await ctx.db.get(m.improvementId);
         if (!earlier || earlier._id === id) continue;
-        text = `[Run #${earlier.number}, ${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
+        if (earlier.kind === "chat" && r.kind !== "chat")
+          // What a chat task found is members-only; keep it out of code (and public PRs).
+          text = `[Run #${earlier.number}, chat task: its reply is only shown in the thread]`;
+        else {
+          text = `[Run #${earlier.number}, ${earlier.kind === "chat" ? "chat task, " : ""}${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
+          // A chat task's draft, so "make it shorter" has something to work from.
+          if (earlier.draft && !inCheckIns) {
+            const to = await ctx.db.get(earlier.draft.channelId);
+            text += `\n\nDraft for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
+          }
+        }
+      } else if (inCheckIns && m.authorId !== r.requesterId) {
+        text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
       }
-      thread.push({ author: names.get(m.authorId)!, text, at: m._creationTime });
+      thread.push({ author, text, at: m._creationTime });
     }
     // PRs still open from earlier runs in this thread (the latest run on each). The route
     // decides which one, if any, this request continues (lib/improve-target.ts).
@@ -241,6 +269,7 @@ export const claimImprovement = mutation({
       }));
     return {
       number: r.number,
+      kind: r.kind ?? null,
       branch: r.branch,
       prNumber: r.prNumber ?? null,
       // If the earlier run's sandbox is still saved, the agent picks up where it left off.
@@ -300,27 +329,34 @@ export const claimFollowUps = mutation({
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r || r.status !== "running") return [];
-    const rows = await ctx.db
-      .query("improvements")
-      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
-      .collect();
-    const out = [];
-    for (const w of rows) {
-      if (w.waitingOn !== id || w.status !== "queued") continue;
-      await endRun(ctx, w, {
-        status: "answered",
-        waitingOn: undefined,
-        summary: `Passed this along to run #${r.number} while it was working.`,
-        steps: w.steps.map((s) =>
-          s.state === "active" ? { ...s, state: "done" as const } : s,
-        ),
-      });
-      const author = await ctx.db.get(w.requesterId);
-      out.push({ author: author?.name ?? "A member", text: w.request });
-    }
-    return out;
+    return await takeFollowUps(ctx, r);
   },
 });
+
+// Shared with chatTasks.claimFollowUps.
+export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
+  const id = r._id;
+  const rows = await ctx.db
+    .query("improvements")
+    .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+    .collect();
+  const out = [];
+  for (const w of rows) {
+    // A chat task sent during a code run (or the other way round) gets its own run.
+    if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind) continue;
+    await endRun(ctx, w, {
+      status: "answered",
+      waitingOn: undefined,
+      summary: `Passed this along to run #${r.number} while it was working.`,
+      steps: w.steps.map((s) =>
+        s.state === "active" ? { ...s, state: "done" as const } : s,
+      ),
+    });
+    const author = await ctx.db.get(w.requesterId);
+    out.push({ author: author?.name ?? "A member", text: w.request });
+  }
+  return out;
+}
 
 // Progress and results from the runner, and decisions from admins. `step` starts a new
 // checklist line (finishing the active one); `fail` marks the active line failed.
@@ -350,41 +386,58 @@ export const reportImprovement = mutation({
       }),
     ),
   },
-  handler: async (ctx, { secret, id, step, fail, patch = {} }) => {
+  handler: async (ctx, { secret, id, ...report }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
     if (!r) return;
-    let steps = r.steps;
-    const finish = (state: "done" | "failed") =>
-      steps.map((s) => (s.state === "active" ? { ...s, state } : s));
-    if (fail) steps = finish("failed");
-    if (step) {
-      if (steps.at(-1)?.label === step && steps.at(-1)?.state === "active") {
-        // same line again; nothing to do
-      } else steps = [...finish("done"), { label: step, state: "active" as const }].slice(-40);
-    }
-    const final = patch.status && patch.status !== "running" && patch.status !== "queued";
-    if (final && !fail) steps = finish("done");
-    if (final) await endRun(ctx, r, { ...patch, steps });
-    else await ctx.db.patch(id, { ...patch, steps });
-
-    // A follow-up that produced new work takes over the earlier run's card.
-    if (
-      r.previousId &&
-      (patch.status === "pr" || patch.status === "merged")
-    ) {
-      const prev = await ctx.db.get(r.previousId);
-      if (prev?.status === "pr")
-        await ctx.db.patch(prev._id, { status: "superseded" });
-    }
-
-    if (final && (r.status === "queued" || r.status === "running"))
-      await releaseWaiting(ctx, { ...r, ...patch });
-
-    if (patch.status === "merged" && r.status !== "merged")
-      await announceMerge(ctx, { ...r, ...patch });
+    await applyReport(ctx, r, report);
   },
 });
+
+// Shared with chatTasks.report, whose patch can only hold a few of these fields.
+export async function applyReport(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  {
+    step,
+    fail,
+    patch = {},
+  }: {
+    step?: string;
+    fail?: boolean;
+    patch?: Partial<WithoutSystemFields<Doc<"improvements">>>;
+  },
+) {
+  let steps = r.steps;
+  const finish = (state: "done" | "failed") =>
+    steps.map((s) => (s.state === "active" ? { ...s, state } : s));
+  if (fail) steps = finish("failed");
+  if (step) {
+    if (steps.at(-1)?.label === step && steps.at(-1)?.state === "active") {
+      // same line again; nothing to do
+    } else steps = [...finish("done"), { label: step, state: "active" as const }].slice(-40);
+  }
+  const final = patch.status && patch.status !== "running" && patch.status !== "queued";
+  if (final && !fail) steps = finish("done");
+  if (final) await endRun(ctx, r, { ...patch, steps });
+  else await ctx.db.patch(r._id, { ...patch, steps });
+
+  // A follow-up that produced new work takes over the earlier run's card.
+  if (
+    r.previousId &&
+    (patch.status === "pr" || patch.status === "merged")
+  ) {
+    const prev = await ctx.db.get(r.previousId);
+    if (prev?.status === "pr")
+      await ctx.db.patch(prev._id, { status: "superseded" });
+  }
+
+  if (final && (r.status === "queued" || r.status === "running"))
+    await releaseWaiting(ctx, { ...r, ...patch });
+
+  if (patch.status === "merged" && r.status !== "merged")
+    await announceMerge(ctx, { ...r, ...patch });
+}
 
 // One line in #site for every change that goes live.
 async function announceMerge(ctx: MutationCtx, r: Doc<"improvements">) {

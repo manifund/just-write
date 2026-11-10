@@ -121,6 +121,12 @@ export function ImprovementList({ initial }: { initial: Row[] }) {
           thread’s open PR if it’s about the same change, or starts a new one if
           not. Write “new PR” or “continue #40” to choose yourself.
         </p>
+        <p className="max-w-[36rem] text-[17px] text-pretty text-ink-muted">
+          Write “chat task” instead to have Claude read the club’s chat, essays,
+          and calendar to answer a question or draft a post, like a weekly recap.
+          Claude doesn’t post it: you can put the draft in your message box, edit
+          it, and send it. Chat tasks stay in their thread and aren’t listed here.
+        </p>
       </header>
 
       <div className="flex flex-col border border-ink/15">

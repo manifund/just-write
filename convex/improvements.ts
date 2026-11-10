@@ -12,7 +12,13 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
+import {
+  CLAUDE_EMAIL,
+  GLOBAL_DAILY_LIMIT,
+  MEMBER_DAILY_LIMIT,
+  branchFor,
+  isChatTask,
+} from "./lib/improve";
 import { recordActivity } from "./lib/activity";
 import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
@@ -130,24 +136,35 @@ export async function startFromMessage(
       );
   }
 
-  // Whether this continues one of the thread's open PRs or starts a new one is decided
-  // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
-  const previous = await ctx.db
+  // A chat task reads the club's data instead of changing code (convex/chatTasks.ts).
+  // Decided here, once, so a run can't change kind later.
+  const earlier = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
-    .first();
-  // If that run is still going, this one waits. The runner hands it to the agent mid-run
-  // (server.claimFollowUps); if the agent has already finished, it starts when the run ends
-  // (releaseWaiting).
+    .collect();
+  const kind = isChatTask(
+    args.text,
+    earlier.map((r) => r.kind),
+  )
+    ? ("chat" as const)
+    : undefined;
+
+  // Whether this continues one of the thread's open PRs or starts a new one is decided
+  // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
+  // If the thread's latest run of the same kind is still going, this one waits. The runner
+  // hands it to the agent mid-run (server.claimFollowUps; code runs only); otherwise it
+  // starts when that run ends (releaseWaiting). Chat tasks and code runs share nothing, so
+  // neither waits for the other.
   const busy =
-    previous && (previous.status === "queued" || previous.status === "running")
-      ? previous
-      : null;
+    earlier.find(
+      (r) => r.kind === kind && (r.status === "queued" || r.status === "running"),
+    ) ?? null;
 
   const number = (recent[0]?.number ?? 0) + 1;
   const id = await ctx.db.insert("improvements", {
     number,
+    kind,
     requesterId: args.member._id,
     channelId: args.channelId,
     threadId,
@@ -191,7 +208,9 @@ export async function releaseWaiting(ctx: MutationCtx, finished: Doc<"improvemen
         { label: "Getting started", state: "active" as const },
       ],
     });
-    await ctx.scheduler.runAfter(60_000, internal.improvements.kick, { id: w._id });
+    // No sandbox to wait for after a chat task: each one gets a throwaway sandbox.
+    const delay = finished.kind === "chat" ? 1000 : 60_000;
+    await ctx.scheduler.runAfter(delay, internal.improvements.kick, { id: w._id });
   }
 }
 
@@ -246,6 +265,11 @@ export async function endRun(
   });
   if (!first) return;
   const after = { ...r, ...patch };
+  // A chat task's sandbox has no credentials to stop itself, so stop it from here.
+  if (r.kind === "chat" && after.sandboxId)
+    await ctx.scheduler.runAfter(5000, internal.chatTasks.stopSandbox, {
+      name: after.sandboxId,
+    });
   const reply = r.replyMessageId && (await ctx.db.get(r.replyMessageId));
   if (reply && (after.summary || after.error))
     await recordActivity(ctx, reply, Date.now());
@@ -275,7 +299,9 @@ export const markFailed = internalMutation({
 export const reapStale = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const cutoff = Date.now() - 45 * 60 * 1000;
+    // Chat tasks' sandboxes stop after 25 minutes; code runs' after 40.
+    const cutoff = (r: Doc<"improvements">) =>
+      Date.now() - (r.kind === "chat" ? 30 : 45) * 60 * 1000;
     const rows = await ctx.db
       .query("improvements")
       .withIndex("by_number")
@@ -285,17 +311,32 @@ export const reapStale = internalMutation({
       if (
         (r.status === "queued" || r.status === "running") &&
         !r.waitingOn && // waiting its turn, not stuck
-        (r.startedAt ?? r._creationTime) < cutoff
+        (r.startedAt ?? r._creationTime) < cutoff(r)
       )
         await failRun(ctx, r, "The sandbox stopped before finishing.");
   },
 });
 
-// The fields a status card needs. Shared by the card in chat and /improvements.
+// The fields a status card needs. Shared by the card in chat and /improvements, both
+// public. A chat task's steps, reply, and error come from the club's members-only data,
+// so they're left out here; members get them from chatTasks.result.
 export function cardOf(r: Doc<"improvements">) {
+  if (r.kind === "chat")
+    return {
+      ...cardFields(r),
+      steps: [],
+      title: null,
+      summary: null,
+      error: null,
+    };
+  return cardFields(r);
+}
+
+function cardFields(r: Doc<"improvements">) {
   return {
     _id: r._id,
     number: r.number,
+    kind: r.kind ?? ("code" as const),
     status: r.status,
     waiting: !!r.waitingOn,
     steps: r.steps,
@@ -332,11 +373,10 @@ export const card = query({
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const rows = await ctx.db
-      .query("improvements")
-      .withIndex("by_number")
-      .order("desc")
-      .take(200);
+    // Chat tasks aren't site changes, and what they found is for members only.
+    const rows = (
+      await ctx.db.query("improvements").withIndex("by_number").order("desc").take(200)
+    ).filter((r) => r.kind !== "chat");
     const channels = new Map(
       (await ctx.db.query("channels").collect()).map((c) => [c._id, c.slug]),
     );
