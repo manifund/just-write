@@ -22,6 +22,7 @@ import {
   MEMBER_DAILY_LIMIT,
   branchFor,
   isChatTask,
+  muteCommand,
   staleAfterMs,
 } from "./lib/improve";
 import { checkInGate, veil } from "./chat";
@@ -31,6 +32,7 @@ import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
 import { publicMember, requireAdmin, requireMember } from "./lib/viewer";
+import { setMuted } from "./untagged";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -112,15 +114,36 @@ export async function startFromMessage(
     // A run that continues this run's PR from the start (server.fixConflicts), skipping
     // the route's choice of target. Like every run on a PR, it merges main in first.
     continues?: Doc<"improvements">;
+    // A reply that didn't mention Claude, judged a request by the classifier (convex/untagged.ts).
+    // If it can't start (limits, not switched on), nothing is posted: nobody asked out loud.
+    untagged?: { reason: string };
   },
 ) {
   const threadId = args.parentId ?? args.messageId;
-  const reply = (text: string) =>
-    postAsClaude(ctx, {
-      channelId: args.channelId,
-      parentId: threadId,
-      body: paragraph(mention(args.member), txt(` ${text}`)),
-    });
+  const reply = async (text: string) =>
+    args.untagged
+      ? null
+      : await postAsClaude(ctx, {
+          channelId: args.channelId,
+          parentId: threadId,
+          body: paragraph(mention(args.member), txt(` ${text}`)),
+        });
+
+  // "@Claude !mute" / "!unmute": whether untagged replies in this thread reach Claude.
+  const command =
+    args.untagged || args.continues ? null : muteCommand(args.text);
+  if (command) {
+    if (command === "unmute") {
+      await setMuted(ctx, threadId, false);
+      return await reply(
+        "Okay. Replies in this thread reach me again without a tag, for a day after my last run here. Write @Claude !mute to stop that.",
+      );
+    }
+    await setMuted(ctx, threadId, true);
+    return await reply(
+      "Okay. In this thread I’ll only read messages that mention @Claude. Write @Claude !unmute to change that back.",
+    );
+  }
 
   if (!process.env.IMPROVE_URL)
     return await reply(
@@ -156,11 +179,11 @@ export async function startFromMessage(
   const kind = args.continues
     ? undefined
     : isChatTask(
-    args.text,
-    earlier.map((r) => r.kind),
-  )
-    ? ("chat" as const)
-    : undefined;
+          args.text,
+          earlier.map((r) => r.kind),
+        )
+      ? ("chat" as const)
+      : undefined;
 
   // Whether this continues one of the thread's open PRs or starts a new one is decided
   // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
@@ -193,6 +216,7 @@ export async function startFromMessage(
       },
     ],
     waitingOn: busy?._id,
+    untagged: args.untagged ? true : undefined,
     branch: args.continues?.branch ?? branchFor(number),
     ...(args.continues && {
       previousId: args.continues._id,
@@ -207,6 +231,13 @@ export async function startFromMessage(
     improvementId: id,
   });
   await ctx.db.patch(id, { replyMessageId });
+  if (args.untagged)
+    await appendLogs(ctx, id, [
+      {
+        kind: "info",
+        text: `Picked up a reply that didn’t mention @Claude. The classifier’s reason: ${args.untagged.reason || "none given"}`,
+      },
+    ]);
   if (!busy)
     await ctx.scheduler.runAfter(0, internal.improvements.kick, { id });
   return replyMessageId;
@@ -371,6 +402,7 @@ export function cardOf(r: Doc<"improvements">) {
     kind: r.kind ?? ("code" as const),
     status: r.status,
     waiting: !!r.waitingOn,
+    untagged: r.untagged ?? false,
     steps: r.steps,
     branch: r.branch,
     title: r.title ?? null,

@@ -57,6 +57,7 @@ type Brief = {
   // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
   effort?: string | null;
   request: string;
+  untagged?: boolean; // the request didn't mention @Claude (convex/untagged.ts)
   requester: string;
   channel: string;
   threadUrl: string;
@@ -438,6 +439,9 @@ function prompt(extra = "") {
     `${brief.requester} asked you, in #${brief.channel}:`,
     `"""\n${brief.request}\n"""`,
     brief.thread.length > 1 ? `The thread so far:\n"""\n${thread}\n"""` : "",
+    brief.untagged
+      ? `This reply didn't mention @Claude. A quick check judged it a request for you, so you were started on it. If it's really ${brief.requester} talking to someone else, change nothing and say in one short sentence that you'll stay out of it (members can write "@Claude !mute" to stop untagged replies reaching you in this thread).`
+      : "",
     brief.resumesFailedRun && RESUMES_WORK
       ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing (it ran out of steps or time). Its edits are still in the working tree and haven't been committed; check them with \`git status\` and \`git diff\`, then finish the job.`
       : "",

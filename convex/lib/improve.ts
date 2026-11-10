@@ -33,6 +33,25 @@ export function isEffort(value: unknown): value is Effort {
   return EFFORTS.includes(value as Effort);
 }
 
+// Replies that don't mention @Claude (convex/untagged.ts). While a code run is going, they're
+// passed to it. After that, for a day after Claude's last run in the thread, a quick model
+// call decides whether a reply asks Claude for something, and if so it starts a run as if
+// tagged. At most UNTAGGED_CHECKS_PER_DAY such calls per thread. `@Claude !mute` in a thread
+// turns both off there; `@Claude !unmute` turns them back on.
+export const UNTAGGED_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const UNTAGGED_CHECKS_PER_DAY = 10;
+export const UNTAGGED_PER_RUN = 20; // replies queued for one running code run
+// Only a message that is just the command ("@Claude !mute"), so a request like "add a
+// !mute command" is still a request.
+export function muteCommand(text: string): "mute" | "unmute" | null {
+  const rest = text
+    .replace(/@\S+/g, "")
+    .trim()
+    .replace(/\.+$/, "")
+    .toLowerCase();
+  return rest === "!mute" ? "mute" : rest === "!unmute" ? "unmute" : null;
+}
+
 // Runs per non-admin member per 24 hours, and for everyone combined.
 export const MEMBER_DAILY_LIMIT = 25;
 export const GLOBAL_DAILY_LIMIT = 200;

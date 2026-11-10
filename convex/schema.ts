@@ -174,6 +174,13 @@ export default defineSchema({
     .index("by_message", ["messageId"]),
 
   // @Claude site improvements: one row per run. Claude's reply in the thread renders from here.
+  // Per-thread @Claude settings (convex/untagged.ts): `@Claude !mute` stops untagged replies
+  // from reaching Claude there, and `checks` holds when the classifier last ran (for its cap).
+  claudeThreads: defineTable({
+    threadId: v.id("messages"),
+    muted: v.optional(v.boolean()),
+    checks: v.optional(v.array(v.number())),
+  }).index("by_thread", ["threadId"]),
   improvements: defineTable({
     number: v.number(), // 1, 2, 3…; the branch is claude/<number> unless it continues an earlier run
     requesterId: v.id("members"),
@@ -198,6 +205,9 @@ export default defineSchema({
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     // Replies in the thread that didn't mention Claude, sent while this code run was going.
     // The runner takes them with tagged follow-ups (server.takeFollowUps), then they're cleared.
+    // Started from a reply that didn't mention Claude, after the classifier judged it a request
+    // (convex/untagged.ts). The card says so.
+    untagged: v.optional(v.boolean()),
     untaggedReplies: v.optional(
       v.array(v.object({ authorId: v.id("members"), text: v.string() })),
     ),

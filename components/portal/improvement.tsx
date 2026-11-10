@@ -62,6 +62,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
               : "Looking through the club’s data"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
+        {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
@@ -94,8 +95,10 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
             ▸
           </span>{" "}
           Chat task · {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
+          {card.untagged && " · picked up without a tag"}
         </summary>
         <div className="flex flex-col gap-2 pt-2">
+          {card.untagged && <UntaggedNote />}
           <Steps steps={card.steps} />
           <p>
             I read the club’s data and don’t change the site in a chat task. For
@@ -203,6 +206,7 @@ export function ImprovementCard({
               : "Working on it"}
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
+        {card.untagged && <UntaggedNote />}
         <Steps steps={card.steps} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
@@ -232,8 +236,10 @@ export function ImprovementCard({
           {card.steps.length} steps{elapsed ? ` · ${elapsed}` : ""}
           {card.files.length > 0 &&
             ` · ${card.files.length} file${card.files.length === 1 ? "" : "s"}`}
+          {card.untagged && " · picked up without a tag"}
         </summary>
         <div className="flex flex-col gap-2 pt-2">
+          {card.untagged && <UntaggedNote />}
           <Steps steps={card.steps} />
           {card.files.length > 0 && (
             <ul className="font-mono text-[13px]">
@@ -247,6 +253,16 @@ export function ImprovementCard({
         </div>
       </details>
     </div>
+  );
+}
+
+// A run started from a reply that didn't mention Claude (convex/untagged.ts).
+function UntaggedNote() {
+  return (
+    <p className="text-[14px] text-ink-muted">
+      This reply didn’t mention me, but it read like a request, so I picked it
+      up. Write “@Claude !mute” to stop that in this thread.
+    </p>
   );
 }
 

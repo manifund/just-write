@@ -45,6 +45,7 @@ import type * as runner from "../runner.js";
 import type * as server from "../server.js";
 import type * as similar from "../similar.js";
 import type * as similarAction from "../similarAction.js";
+import type * as untagged from "../untagged.js";
 
 import type {
   ApiFromModules,
@@ -90,6 +91,7 @@ declare const fullApi: ApiFromModules<{
   server: typeof server;
   similar: typeof similar;
   similarAction: typeof similarAction;
+  untagged: typeof untagged;
 }>;
 
 /**

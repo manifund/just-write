@@ -60,6 +60,8 @@ The main gaps are Stop, replies without re-tagging, memory, images, and routines
 
 **Recommendation:** build step 1 now and step 2 after seeing a week of step 1. Step 1 has no new cost and no risk of surprise runs.
 
+**Status:** both steps, `!mute`/`!unmute`, and the card note are built (`convex/untagged.ts`). The classifier runs at most 10 times per thread per day.
+
 **Size:** step 1 is small (`convex/chat.ts`, `convex/improvements.ts`). Step 2 is medium.
 
 ### 3. Channel notes ("remember for this channel")

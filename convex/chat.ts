@@ -22,6 +22,7 @@ import { DEADLINES, fillSlots } from "./lib/program";
 import { isReaction } from "./lib/reactions";
 import { ensureClaude, startFromMessage } from "./improvements";
 import { getClaude } from "./lib/claude";
+import { handleUntaggedReply } from "./untagged";
 import {
   cleanBody,
   mentionIds,
@@ -583,36 +584,17 @@ export const send = mutation({
         parentId,
         text,
       });
-    else if (parentId && c.slug !== CHECK_IN_SLUG)
-      await passUntaggedReply(ctx, parentId, member._id, text);
+    else if (parentId)
+      await handleUntaggedReply(ctx, {
+        channel: c,
+        threadId: parentId,
+        messageId: id,
+        authorId: member._id,
+        text,
+      });
     return id;
   },
 });
-
-// A reply in a thread where a code run is going reaches the agent even without @Claude, the
-// way a tagged one does (server.takeFollowUps). Never from #check-ins, whose text stays gated.
-// Chat tasks don't take follow-ups, and once a run ends, an untagged reply does nothing.
-const UNTAGGED_PER_RUN = 20;
-async function passUntaggedReply(
-  ctx: MutationCtx,
-  threadId: Id<"messages">,
-  authorId: Id<"members">,
-  text: string,
-) {
-  const run = (
-    await ctx.db
-      .query("improvements")
-      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
-      .order("desc")
-      .take(10)
-  ).find((r) => !r.kind && r.status === "running");
-  if (!run) return;
-  const pending = run.untaggedReplies ?? [];
-  if (pending.length >= UNTAGGED_PER_RUN) return;
-  await ctx.db.patch(run._id, {
-    untaggedReplies: [...pending, { authorId, text: text.slice(0, 4000) }],
-  });
-}
 
 export const edit = mutation({
   args: { messageId: v.id("messages"), body: v.string() },
