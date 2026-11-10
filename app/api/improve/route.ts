@@ -149,9 +149,9 @@ export async function POST(req: Request) {
   // A chat task (convex/chatTasks.ts): read the club's data once, here, then start a
   // throwaway sandbox for it. Bun, the Agent SDK, and the runner go in while the sandbox
   // holds only the public repo; then a firewall cuts it off from everything but the model
-  // API (which gets our key added on the way out, so the sandbox never has it) and Convex;
-  // only then are the data and the run's key written. It finishes through
-  // chatTasks.finish, not through this route, which the firewall blocks.
+  // API (which gets our key added on the way out, so the sandbox never has it), Convex,
+  // and read-only (GET/HEAD) requests to the web, for WebSearch/WebFetch; only then are the data and the run's key written. It finishes through
+  // chatTasks.finish, not through this route, since the firewall blocks POSTs to it.
   async function runChatTask() {
     let files;
     try {
