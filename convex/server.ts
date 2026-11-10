@@ -220,9 +220,13 @@ export const claimImprovement = mutation({
       throw new ConvexError("A chat task needs a run key.");
     const previous = r.previousId ? await ctx.db.get(r.previousId) : null;
     // continuePr may change this once the route knows which run this continues. A part of a
-    // split request already has the effort of the run it was split from (splitRun).
+    // split request already has the effort of the run it was split from (splitRun). Otherwise
+    // keep the effort of the thread's latest earlier run, so replies to chat answers keep it too.
     const effort =
-      readRequest(r.request).effort ?? r.effort ?? previous?.effort;
+      readRequest(r.request).effort ??
+      r.effort ??
+      previous?.effort ??
+      (await threadEffort(ctx, r));
     // A restart ("@Claude !restart") goes on the PR of the run it starts over, if that PR is
     // still open (a run stopped partway opens its PR as it wraps up), with a fresh session.
     const restartPr =
@@ -247,6 +251,23 @@ export const claimImprovement = mutation({
     return await briefFor(ctx, { ...r, ...claimed }, previous);
   },
 });
+
+// The effort of the latest earlier run in this run's thread that had one.
+async function threadEffort(ctx: MutationCtx, r: Doc<"improvements">) {
+  const runs = await ctx.db
+    .query("improvements")
+    .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+    .collect();
+  let latest: Doc<"improvements"> | null = null;
+  for (const e of runs)
+    if (
+      e.effort &&
+      e.number < r.number &&
+      (!latest || e.number > latest.number)
+    )
+      latest = e;
+  return latest?.effort;
+}
 
 // Whether a code run's request doesn't say if it's code or a chat task (readRequest) and
 // isn't tied to earlier work (a restart, a part of a split request, fixConflicts). The route
@@ -653,8 +674,9 @@ export const continuePr = mutation({
         return null;
     }
     if (!openPr && !failed) return null;
-    // The request's own effort wins; otherwise keep the one the earlier run used.
-    const effort = readRequest(r.request).effort ?? prev.effort;
+    // The request's own effort wins; otherwise keep the one the earlier run used, then the
+    // thread's (claimImprovement).
+    const effort = readRequest(r.request).effort ?? prev.effort ?? r.effort;
     await ctx.db.patch(id, {
       branch: prev.branch,
       previousId: prev._id,

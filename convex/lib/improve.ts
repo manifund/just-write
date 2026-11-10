@@ -32,7 +32,8 @@ export function modelLabel(slug: string) {
 // "continue #40", "effort: high", "in parallel") still work anywhere in the message.
 
 // The agent's effort level. A follow-up that doesn't set one keeps the effort of the run it
-// continues (convex/server.ts#continuePr). Without either, the SDK uses the model's default.
+// continues (convex/server.ts#continuePr), or else of the thread's latest earlier run that had
+// one (server.ts#threadEffort). Without any, the SDK uses the model's default.
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
