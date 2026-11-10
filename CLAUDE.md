@@ -199,6 +199,7 @@ Effort:
 - Writing `!effort high` or `effort: high` (low/medium/high/xhigh/max) in a request sets the agent's effort for that run (`readRequest`'s `effort`).
 - The resolved effort is saved on the run (`effort`).
 - A follow-up that continues a run (`server.continuePr`) keeps that run's effort unless it sets its own.
+- Any other run that doesn't set one (a reply to a chat answer, a new PR in the same thread) keeps the effort of the thread's latest earlier run that had one (`server.ts#threadEffort`).
 
 Parallel requests:
 
