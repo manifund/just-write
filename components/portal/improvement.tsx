@@ -6,7 +6,7 @@ import {
   closeImprovement,
   mergeImprovement,
   revertImprovement,
-} from "@/app/(portal)/improvements/actions";
+} from "@/app/(portal)/(private)/improvements/actions";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { ImprovementCard as Card } from "@/convex/improvements";

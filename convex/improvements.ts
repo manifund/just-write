@@ -17,7 +17,7 @@ import { recordActivity } from "./lib/activity";
 import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
-import { publicMember, requireAdmin } from "./lib/viewer";
+import { publicMember, requireAdmin, requireMember } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -319,20 +319,23 @@ export function cardOf(r: Doc<"improvements">) {
 export type ImprovementCard = ReturnType<typeof cardOf>;
 
 // One run's card, subscribed by the message that shows it (components/portal/improvement.tsx).
-// Kept out of the message queries so progress updates re-run only this. No per-user reads,
-// so every subscriber shares one cached result; the same fields are public on /improvements.
+// Kept out of the message queries so progress updates re-run only this. Members only, like
+// the chat it sits in; read-only preview sessions can read it too.
 export const card = query({
   args: { id: v.id("improvements") },
   handler: async (ctx, { id }) => {
+    await requireMember(ctx, { allowReadonly: true });
     const r = await ctx.db.get(id);
     return r ? cardOf(r) : null;
   },
 });
 
-// /improvements: every run, newest first. Public, like the members directory.
+// /improvements: every run, newest first. Members only: requests and errors can mention
+// anything said in chat.
 export const list = query({
   args: {},
   handler: async (ctx) => {
+    await requireMember(ctx, { allowReadonly: true });
     const rows = await ctx.db
       .query("improvements")
       .withIndex("by_number")
