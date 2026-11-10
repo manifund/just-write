@@ -103,9 +103,8 @@ export async function startFromMessage(
     parentId?: Id<"messages">;
     text: string;
     // A run that continues this run's PR from the start (server.fixConflicts), skipping
-    // the route's choice of target.
+    // the route's choice of target. Like every run on a PR, it merges main in first.
     continues?: Doc<"improvements">;
-    mergeMain?: boolean;
   },
 ) {
   const threadId = args.parentId ?? args.messageId;
@@ -193,7 +192,6 @@ export async function startFromMessage(
       prNumber: args.continues.prNumber,
       prUrl: args.continues.prUrl,
     }),
-    mergeMain: args.mergeMain,
   });
   const replyMessageId = await postAsClaude(ctx, {
     channelId: args.channelId,

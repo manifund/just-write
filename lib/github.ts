@@ -140,32 +140,30 @@ export async function branchHead(token: string, branch: string) {
   }
 }
 
-// Whether `sha` is main's head or one of its earlier commits.
+// Whether `sha` is main's head or one of its ancestors.
 export async function isOnMain(token: string, sha: string) {
-  const res = await gh<{ status: string }>(
+  const c = await gh<{ status: string }>(
     token,
     `/repos/${REPO}/compare/${sha}...main`,
   ).catch(() => null);
-  return res?.status === "identical" || res?.status === "ahead";
+  return c?.status === "identical" || c?.status === "ahead";
 }
 
-// Makes one commit on top of `parent` with `files` changed, and points `branch` at it
-// (creating the branch if needed; never a force push). Returns the new commit's sha. With
-// `mergeParent` (a commit on main) it's a merge commit of the two, and `files` are everything
-// the merged tree changes from `parent`.
+// Makes one commit with `files` changed from the first parent's tree, and points `branch`
+// at it (creating the branch if needed; never a force push). A second parent makes it a
+// merge commit (main merged into the branch). Returns the new commit's sha.
 export async function commitFiles(
   token: string,
   args: {
     branch: string;
-    parent: string;
-    mergeParent?: string;
+    parents: [string] | [string, string];
     message: string;
     files: FileChange[];
   },
 ) {
   const parent = await gh<{ tree: { sha: string } }>(
     token,
-    `/repos/${REPO}/git/commits/${args.parent}`,
+    `/repos/${REPO}/git/commits/${args.parents[0]}`,
   );
   const tree: {
     path: string;
@@ -214,9 +212,7 @@ export async function commitFiles(
       body: {
         message: args.message,
         tree: newTree.sha,
-        parents: args.mergeParent
-          ? [args.parent, args.mergeParent]
-          : [args.parent],
+        parents: args.parents,
         author: { name: "Claude", email: "noreply@anthropic.com" },
       },
     },

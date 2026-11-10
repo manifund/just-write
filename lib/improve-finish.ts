@@ -43,7 +43,7 @@ export type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps: open the PR, never merge it
-      mergeParent?: string; // the main commit merged into the branch (conflict fixes)
+      merged?: string; // main's commit, merged into the branch: becomes the commit's second parent
     };
 
 const UNFINISHED = "(unfinished)";
@@ -104,9 +104,9 @@ export function parseResult(x: unknown): RunnerResult | null {
     details: str(o.details, 20_000),
     checksPassed: o.checksPassed === true,
     unfinished: o.unfinished === true,
-    mergeParent:
-      typeof o.mergeParent === "string" && /^[0-9a-f]{40}$/.test(o.mergeParent)
-        ? o.mergeParent
+    merged:
+      typeof o.merged === "string" && /^[0-9a-f]{40}$/.test(o.merged)
+        ? o.merged
         : undefined,
   };
 }
@@ -141,23 +141,22 @@ export async function finishRun(
   if (!parent) throw new Error(`${branch} is gone from GitHub.`);
   if (parent !== result.base)
     throw new Error(`${branch} changed on GitHub while I was working.`);
-  // A conflict fix merges main in. The sandbox's word isn't enough that the commit is main's.
-  const { mergeParent } = result;
-  if (mergeParent && !(await isOnMain(token, mergeParent)))
-    throw new Error("The commit merged into the branch isn’t on main.");
+  // A merge of main only counts if the commit really is on main (the sandbox says which).
+  if (result.merged && !(await isOnMain(token, result.merged)))
+    throw new Error("The commit I merged isn’t on main.");
   await commitFiles(token, {
     branch,
-    parent,
-    mergeParent,
-    message: `${title}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
+    parents: result.merged ? [parent, result.merged] : [parent],
+    message: `${title}${result.merged ? "\n\nMerges main." : ""}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
     files: changes,
   });
 
-  // After merging main in, the sandbox's list includes main's changes; GitHub's comparison
-  // has only what the PR changes.
-  const files = mergeParent
-    ? ((await compareWithMain(token, branch).catch(() => null))?.files ??
-      result.files.map((f) => f.path))
+  // After a merge the pushed files include main's changes, so list what the PR itself changes.
+  const files = result.merged
+    ? await compareWithMain(token, branch).then(
+        (c) => c.files,
+        () => result.files.map((f) => f.path),
+      )
     : result.files.map((f) => f.path);
   const touchesConvex = files.some((f) => f.startsWith("convex/"));
   const quoted = request.replace(/\n/g, "\n> ");

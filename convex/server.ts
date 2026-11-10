@@ -315,8 +315,6 @@ export const claimImprovement = mutation({
       // Set by continuePr when this picks up a failed run.
       resumesFailedRun: null as number | null,
       effort: effort ?? null,
-      // Merge main into the branch before the agent starts (server.fixConflicts).
-      mergeMain: !!r.mergeMain && !!r.prNumber,
       ...(await whoAndWhere(ctx, r)),
       thread,
     };
@@ -425,9 +423,9 @@ export const continuePr = mutation({
 });
 
 // An admin's Merge failed because the PR conflicts with main (app/(portal)/(private)/
-// improvements/actions.ts). Starts a follow-up on the same PR, in its thread, that merges main
-// into the branch and has the agent resolve the conflicts. Once it's done, its card has the
-// Merge button.
+// improvements/actions.ts). Starts a follow-up on the same PR, in its thread: like every run
+// on a PR, it merges main into the branch first and the agent resolves the conflicts. Once
+// it's done, its card has the Merge button.
 export const fixConflicts = mutation({
   args: {
     secret: v.string(),
@@ -447,7 +445,6 @@ export const fixConflicts = mutation({
     if (
       inThread.some(
         (e) =>
-          e.mergeMain &&
           e.previousId === r._id &&
           (e.status === "queued" || e.status === "running"),
       )
@@ -474,7 +471,6 @@ export const fixConflicts = mutation({
       parentId: r.threadId,
       text: `Merge main into PR #${r.prNumber} and resolve the merge conflicts, keeping what both sides changed.`,
       continues: r,
-      mergeMain: true,
     });
     return { started: true };
   },
