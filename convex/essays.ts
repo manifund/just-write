@@ -14,7 +14,8 @@ export const preview = action({
   args: { url: v.string() },
   handler: async (ctx, args) => {
     const viewer = await ctx.runQuery(api.members.viewer, {});
-    if (!viewer?.canEnter) throw new ConvexError("Only committed members can do that.");
+    if (!viewer?.canEnter)
+      throw new ConvexError("Only committed members can do that.");
     const url = parseWebsite(args.url);
     if (!url) return { url: null, title: null, wordCount: null };
     try {

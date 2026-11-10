@@ -18,12 +18,12 @@ Print-on-demand shipping is priced per order, not per ounce. Lulu's Mail rate st
 
 When the organizer mails copies by hand, weight tiers decide the cost. The weights below come from Mixam's calculator for 80 lb text with a 100 lb cover; heavier paper weighs more, and the mailed weights add an assumed 1 oz for the envelope.
 
-| Format | Copy weight (confirmed, Mixam calculator) | Cheapest workable USPS class (inference) | Postage per copy (confirmed prices, effective 2026-10-04) |
-|---|---|---|---|
-| 6 x 9, 100 pp | about 7.9 oz | First-Class large envelope | $4.02 at 9 oz |
-| 6 x 9, 152 pp | about 11.7 oz | First-Class large envelope, if it stays at or under 13 oz (marginal) | $5.24 at 13 oz |
-| 8.5 x 11, 100 pp | about 13.7 oz | Ground Advantage, under 1 lb | $7.33-$8.95 commercial; $10.05-$13.65 retail |
-| 8.5 x 11, 152 pp | about 20.2 oz | Ground Advantage, 2 lb | $8.39-$13.42 commercial |
+| Format           | Copy weight (confirmed, Mixam calculator) | Cheapest workable USPS class (inference)                             | Postage per copy (confirmed prices, effective 2026-10-04) |
+| ---------------- | ----------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
+| 6 x 9, 100 pp    | about 7.9 oz                              | First-Class large envelope                                           | $4.02 at 9 oz                                             |
+| 6 x 9, 152 pp    | about 11.7 oz                             | First-Class large envelope, if it stays at or under 13 oz (marginal) | $5.24 at 13 oz                                            |
+| 8.5 x 11, 100 pp | about 13.7 oz                             | Ground Advantage, under 1 lb                                         | $7.33-$8.95 commercial; $10.05-$13.65 retail              |
+| 8.5 x 11, 152 pp | about 20.2 oz                             | Ground Advantage, 2 lb                                               | $8.39-$13.42 commercial                                   |
 
 Sources: [Mixam](https://mixam.com/magazines), [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm).
 
@@ -33,20 +33,20 @@ The **13 oz ceiling on First-Class large envelopes** is the constraint. A flexib
 
 The table puts every priced route on the same basis: one copy per member, about 100 copies, cheapest standard shipping. Print prices and shipping rates are confirmed readings from 2026-11-10; the delivered figures and most of the timings are computed from them.
 
-| Route | Spec priced | Delivered per copy, 100 pp / 150 pp | File to member's door | Ordering |
-|---|---|---|---|---|
-| RPI Print API, one order per member | 8.5 x 11, 100 lb gloss or dull, full bleed | $21.19 / $25.69 (computed: catalog price + $6.99 shipping) | about 6-10 calendar days (estimate: 4 business days production + 2-5 days transit) | self-serve API, sandbox |
-| RPI Print API, one order per member | 6 x 9, 70 lb uncoated, no bleed | $17.43 / $19.43 (computed) | same | same |
-| Lulu Print API | 6 x 9, Premium Color, 80# coated | $22.32 / $29.27 (computed: + $5.69 Mail + $0.75 fee) | 11-14 business days by Mail (Lulu's estimate) | self-serve API, sandbox |
-| Lulu Print API | 6 x 9, Standard Color, 80# coated | $13.48 / $16.01 (computed) | same | same |
-| Lulu Print API, "Magazine" product | US Letter, Premium Color, 70# coated | $30.39 / $41.13 (calculator subtotal) | same | same |
-| MagCloud "Ship to Group" | 8.25 x 10.75, 80# text, 25% discount at 100+ copies | about $24 / about $31 or more (estimate; shipping was priced for a 60-page copy) | about 13 calendar days on Standard (one calculator session) | web order to an address group; no API found |
-| Peecho | A4, 115 gsm silk | $29.84 / $39.35 (calculator) | 6-9 working days (4-6 production + 2-3 shipping) | API by "early access" or contact |
-| Mixam, single copies by courier | Letter, 80 lb satin, PUR | not priced / about $33-34 (152 pp: $16.50 + $16.88-$17.50 shipping) | 5 business days to Chicago, 8 to San Francisco, by ground | web; API after account approval |
-| DocuCopies, print and mail to a list | 6 x 9, 80# gloss text | about $23-28 / about $29-34 (estimate; postage is set after checkout) | about 6-13 days (estimate); tracking not guaranteed | web form plus CSV upload |
-| Printivity to organizer, then hand-mail | 6 x 9, 80 lb matte text, matte-laminated cover | about $16-21 / about $20-24 (estimate; rush fees not captured) | about 5-9 days (estimate) | web; quote is reproducible from its URL |
-| 48 Hour Books to organizer, then hand-mail | 5.5 x 8.5, standard paper | not priced / about $24-28 (estimate) | not estimated; 2 business days production, ships from Ohio | web; $100 deposit |
-| Mixam bulk to organizer, then hand-mail | 6 x 9, 80 lb satin, PUR, laminated cover | about $11.50-12.50 / about $14-15 (estimate) | about 12-16 days; 9-12 with air freight (estimate) | web; API after account approval |
+| Route                                      | Spec priced                                         | Delivered per copy, 100 pp / 150 pp                                              | File to member's door                                                              | Ordering                                    |
+| ------------------------------------------ | --------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
+| RPI Print API, one order per member        | 8.5 x 11, 100 lb gloss or dull, full bleed          | $21.19 / $25.69 (computed: catalog price + $6.99 shipping)                       | about 6-10 calendar days (estimate: 4 business days production + 2-5 days transit) | self-serve API, sandbox                     |
+| RPI Print API, one order per member        | 6 x 9, 70 lb uncoated, no bleed                     | $17.43 / $19.43 (computed)                                                       | same                                                                               | same                                        |
+| Lulu Print API                             | 6 x 9, Premium Color, 80# coated                    | $22.32 / $29.27 (computed: + $5.69 Mail + $0.75 fee)                             | 11-14 business days by Mail (Lulu's estimate)                                      | self-serve API, sandbox                     |
+| Lulu Print API                             | 6 x 9, Standard Color, 80# coated                   | $13.48 / $16.01 (computed)                                                       | same                                                                               | same                                        |
+| Lulu Print API, "Magazine" product         | US Letter, Premium Color, 70# coated                | $30.39 / $41.13 (calculator subtotal)                                            | same                                                                               | same                                        |
+| MagCloud "Ship to Group"                   | 8.25 x 10.75, 80# text, 25% discount at 100+ copies | about $24 / about $31 or more (estimate; shipping was priced for a 60-page copy) | about 13 calendar days on Standard (one calculator session)                        | web order to an address group; no API found |
+| Peecho                                     | A4, 115 gsm silk                                    | $29.84 / $39.35 (calculator)                                                     | 6-9 working days (4-6 production + 2-3 shipping)                                   | API by "early access" or contact            |
+| Mixam, single copies by courier            | Letter, 80 lb satin, PUR                            | not priced / about $33-34 (152 pp: $16.50 + $16.88-$17.50 shipping)              | 5 business days to Chicago, 8 to San Francisco, by ground                          | web; API after account approval             |
+| DocuCopies, print and mail to a list       | 6 x 9, 80# gloss text                               | about $23-28 / about $29-34 (estimate; postage is set after checkout)            | about 6-13 days (estimate); tracking not guaranteed                                | web form plus CSV upload                    |
+| Printivity to organizer, then hand-mail    | 6 x 9, 80 lb matte text, matte-laminated cover      | about $16-21 / about $20-24 (estimate; rush fees not captured)                   | about 5-9 days (estimate)                                                          | web; quote is reproducible from its URL     |
+| 48 Hour Books to organizer, then hand-mail | 5.5 x 8.5, standard paper                           | not priced / about $24-28 (estimate)                                             | not estimated; 2 business days production, ships from Ohio                         | web; $100 deposit                           |
+| Mixam bulk to organizer, then hand-mail    | 6 x 9, 80 lb satin, PUR, laminated cover            | about $11.50-12.50 / about $14-15 (estimate)                                     | about 12-16 days; 9-12 with air freight (estimate)                                 | web; API after account approval             |
 
 Sources: [RPI catalog](https://products.api.rpiprint.com/catalog/v1/products.md), [RPI rates](https://open.api.rpiprint.com/shipping/rates), [RPI shipping docs](https://docs.api.rpiprint.com/documentation/shipping), [Lulu calculator](https://developers.lulu.com/price-calculator), [MagCloud calculator](https://www.magcloud.com/formats/pricingcalculator), [Peecho](https://www.peecho.com/products/magazines), [Mixam](https://mixam.com/magazines), [DocuCopies](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/), [Printivity](https://www.printivity.com/books/perfect-bound-books), [48 Hour Books](https://www.48hrbooks.com/book-printing/pricing-calculator), [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm).
 
@@ -94,14 +94,14 @@ Every provider checked wants the same basic package: a PDF of single pages (not 
 
 The details differ by printer in ways that affect layout code. The table is the researchers' summary; the Peecho, Mixam and Blurb rows rest on search snippets.
 
-| Provider | PDF standard asked for | Color | Interior | Cover | Marks |
-|---|---|---|---|---|---|
-| Lulu | none stated | sRGB preferred; CMYK kept if already CMYK | single pages, bleed on all four sides | separate one-piece spread | none |
-| Blurb (RPI's consumer brand) | PDF/X-3:2002 in guides from about 2010 | sRGB or CMYK | single pages, no bleed on the inside edge | separate file | none |
-| Peecho | PDF/X-4 recommended | RGB | single pages, no bleed added | same PDF as the content | none |
-| Mixam | PDF/X-4 | CMYK (GRACoL 2006) preferred; RGB converted on upload | pages or spreads | separate spread with spine | none |
-| PrintingCenterUSA | plain PDF | CMYK (GRACoL 2013); RGB converted | single pages | cover pages in the same PDF | none |
-| Smartpress | plain PDF | not confirmed | single pages | separate file | crop marks wanted |
+| Provider                     | PDF standard asked for                 | Color                                                 | Interior                                  | Cover                       | Marks             |
+| ---------------------------- | -------------------------------------- | ----------------------------------------------------- | ----------------------------------------- | --------------------------- | ----------------- |
+| Lulu                         | none stated                            | sRGB preferred; CMYK kept if already CMYK             | single pages, bleed on all four sides     | separate one-piece spread   | none              |
+| Blurb (RPI's consumer brand) | PDF/X-3:2002 in guides from about 2010 | sRGB or CMYK                                          | single pages, no bleed on the inside edge | separate file               | none              |
+| Peecho                       | PDF/X-4 recommended                    | RGB                                                   | single pages, no bleed added              | same PDF as the content     | none              |
+| Mixam                        | PDF/X-4                                | CMYK (GRACoL 2006) preferred; RGB converted on upload | pages or spreads                          | separate spread with spine  | none              |
+| PrintingCenterUSA            | plain PDF                              | CMYK (GRACoL 2013); RGB converted                     | single pages                              | cover pages in the same PDF | none              |
+| Smartpress                   | plain PDF                              | not confirmed                                         | single pages                              | separate file               | crop marks wanted |
 
 Sources: [Lulu](https://help.api.lulu.com/en/support/solutions/articles/64000254609-pdf-creation-settings), [Blurb](https://www.blurb.com/pdf-to-book), [Blurb Affinity guide](https://support.blurb.com/hc/en-us/articles/360044955872-Affinity-Publisher-PDF-files), [Peecho](https://support.peecho.com/hc/en-us/articles/19746186078876-Magazines-File-set-up-guideline), [Mixam](https://mixam.com/support/filesetup), [PrintingCenterUSA](https://www.printingcenterusa.com/help/file-preparation), [Smartpress](https://smartpress.com/support/file-preparation/how-to-setup-your-file).
 
@@ -137,20 +137,20 @@ What carries over is mostly design, not print specification. Asterisk, and Works
 
 ## A test order and a few phone calls settle the remaining unknowns
 
-| Open question | How to resolve it | Why it matters |
-|---|---|---|
-| RPI's print quality: press, glue, color, whether body text prints in black ink only | Paid test orders by Rush of a sample issue in each candidate spec (8.5 x 11 and 8 x 10 on dull; 6 x 9 uncoated). RPI gives no free samples | Decides the primary route and the trim size |
-| RPI's real turnaround in November and December | Timestamps from the same test orders | Published times are not guaranteed, and Lulu warns of late-year delays |
-| Raising RPI's default limit of 50 orders per 24 hours | Email RPI print API support (Mon-Fri, 8-5 Pacific) | Otherwise half of each issue queues for a day |
-| RPI's file specification for API orders: bleed convention, color, file size limits | Generate templates for the chosen SKU and run files through the sandbox | Not read by the researchers; Blurb's consumer rules may differ |
-| Printivity's rush surcharge, overnight shipping cost, order cutoff and production location | Take a single-copy order to the last checkout step, or phone | The 1-3 day proof depends on them |
-| Whether a local shop can perfect-bind one copy same-day | Phone calls. The Bay Area names are unverified leads, and the organizer's location was assumed | Could replace the shipped proof |
-| Cost and transit time for overseas copies | Weigh a real copy and price it at USPS; run Lulu's calculator for each destination country | Not priced for any provider |
-| Mixam: API approval time, print-on-demand pricing, per-address mailing cost | Create an account and read the logged-in cart, or ask support | Could turn the cheapest printer into a direct-mail route |
-| DocuCopies: which USPS class it uses for books, and whether rush can be combined with list mailing | Ask before ordering; postage is quoted after checkout | Sets its all-in price and timing |
-| MagCloud Ship to Group: maximum group size, bulk address import, shipping for 100-150 pages | Check inside an account | Needed only if it becomes the fallback |
-| Midjourney terms for art in a sold magazine | Read the live terms; the official page blocked automated reading | The plan required depends on the publisher's revenue |
-| Sales tax and writers' reprint permissions for sold copies | Not researched; needs an accountant's or lawyer's view | Applies once copies are sold |
+| Open question                                                                                      | How to resolve it                                                                                                                          | Why it matters                                                         |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| RPI's print quality: press, glue, color, whether body text prints in black ink only                | Paid test orders by Rush of a sample issue in each candidate spec (8.5 x 11 and 8 x 10 on dull; 6 x 9 uncoated). RPI gives no free samples | Decides the primary route and the trim size                            |
+| RPI's real turnaround in November and December                                                     | Timestamps from the same test orders                                                                                                       | Published times are not guaranteed, and Lulu warns of late-year delays |
+| Raising RPI's default limit of 50 orders per 24 hours                                              | Email RPI print API support (Mon-Fri, 8-5 Pacific)                                                                                         | Otherwise half of each issue queues for a day                          |
+| RPI's file specification for API orders: bleed convention, color, file size limits                 | Generate templates for the chosen SKU and run files through the sandbox                                                                    | Not read by the researchers; Blurb's consumer rules may differ         |
+| Printivity's rush surcharge, overnight shipping cost, order cutoff and production location         | Take a single-copy order to the last checkout step, or phone                                                                               | The 1-3 day proof depends on them                                      |
+| Whether a local shop can perfect-bind one copy same-day                                            | Phone calls. The Bay Area names are unverified leads, and the organizer's location was assumed                                             | Could replace the shipped proof                                        |
+| Cost and transit time for overseas copies                                                          | Weigh a real copy and price it at USPS; run Lulu's calculator for each destination country                                                 | Not priced for any provider                                            |
+| Mixam: API approval time, print-on-demand pricing, per-address mailing cost                        | Create an account and read the logged-in cart, or ask support                                                                              | Could turn the cheapest printer into a direct-mail route               |
+| DocuCopies: which USPS class it uses for books, and whether rush can be combined with list mailing | Ask before ordering; postage is quoted after checkout                                                                                      | Sets its all-in price and timing                                       |
+| MagCloud Ship to Group: maximum group size, bulk address import, shipping for 100-150 pages        | Check inside an account                                                                                                                    | Needed only if it becomes the fallback                                 |
+| Midjourney terms for art in a sold magazine                                                        | Read the live terms; the official page blocked automated reading                                                                           | The plan required depends on the publisher's revenue                   |
+| Sales tax and writers' reprint permissions for sold copies                                         | Not researched; needs an accountant's or lawyer's view                                                                                     | Applies once copies are sold                                           |
 
 Sources for the constraints behind these questions: [RPI orders docs](https://docs.api.rpiprint.com/documentation/orders.md), [RPI support FAQ](https://docs.api.rpiprint.com/support-main.md), [Printivity](https://www.printivity.com/books/perfect-bound-books), [Mixam shipping](https://mixam.com/support/shipping), [DocuCopies mailing](https://www.docucopies.com/mailing-services/), [MagCloud](https://www.magcloud.com/help/faq/item/1032).
 

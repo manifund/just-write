@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Calendar · Just Write",
-  description: "Writing circles, sessions, and essay deadlines for Just Write, Nov 2026.",
+  description:
+    "Writing circles, sessions, and essay deadlines for Just Write, Nov 2026.",
   alternates: { canonical: "/calendar" },
 };
 

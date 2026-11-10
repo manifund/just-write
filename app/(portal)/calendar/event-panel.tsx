@@ -29,9 +29,17 @@ const monthLong = new Intl.DateTimeFormat("en-US", {
 });
 
 export const errorText = (err: unknown) =>
-  err instanceof ConvexError ? String(err.data) : "Something went wrong. Try again.";
+  err instanceof ConvexError
+    ? String(err.data)
+    : "Something went wrong. Try again.";
 
-function CloseButton({ onClose, className = "" }: { onClose: () => void; className?: string }) {
+function CloseButton({
+  onClose,
+  className = "",
+}: {
+  onClose: () => void;
+  className?: string;
+}) {
   return (
     <button
       type="button"
@@ -45,7 +53,13 @@ function CloseButton({ onClose, className = "" }: { onClose: () => void; classNa
 }
 
 // Header for the editor and subscribe panels.
-export function PanelHeader({ label, onClose }: { label: string; onClose: () => void }) {
+export function PanelHeader({
+  label,
+  onClose,
+}: {
+  label: string;
+  onClose: () => void;
+}) {
   return (
     <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink/10 bg-cream py-1.5 pr-1.5 pl-6">
       <span className="font-display text-[19px] font-[430]">{label}</span>
@@ -85,7 +99,9 @@ export function EventPanel({
             {e.title}
           </h2>
           {e.canceled && (
-            <p className="text-[16px] font-bold text-brass-text">This session is canceled.</p>
+            <p className="text-[16px] font-bold text-brass-text">
+              This session is canceled.
+            </p>
           )}
           {e.description && (
             <p className="max-w-[34rem] text-[17px] leading-[1.55] whitespace-pre-line text-pretty">
@@ -108,7 +124,12 @@ export function EventPanel({
             </Row>
             {e.link && (
               <Row label="Call">
-                <a href={e.link} target="_blank" rel="noopener noreferrer" className="block truncate">
+                <a
+                  href={e.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block truncate"
+                >
                   {e.link.replace(/^https?:\/\//, "")}
                 </a>
               </Row>
@@ -136,7 +157,13 @@ export function EventPanel({
 }
 
 // The panel's top: the session's date, set large, in the same style as its chip on the grid.
-function DateLeaf({ event: e, onClose }: { event: CalendarEvent; onClose: () => void }) {
+function DateLeaf({
+  event: e,
+  onClose,
+}: {
+  event: CalendarEvent;
+  onClose: () => void;
+}) {
   const p = ptParts(e.start);
   const tone =
     e.kind === "deadline"
@@ -145,12 +172,22 @@ function DateLeaf({ event: e, onClose }: { event: CalendarEvent; onClose: () => 
         ? "bg-cream-deep text-ink"
         : "bg-ink text-cream";
   return (
-    <header className={`relative px-7 pt-5 pb-7 ${tone} ${e.canceled ? "opacity-70" : ""}`}>
+    <header
+      className={`relative px-7 pt-5 pb-7 ${tone} ${e.canceled ? "opacity-70" : ""}`}
+    >
       {e.kind === "deadline" && (
-        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brass" />
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1 bg-brass"
+        />
       )}
-      <CloseButton onClose={onClose} className="absolute top-1.5 right-1.5 z-10" />
-      <p className="pr-12 text-[16px] opacity-80">{monthLong.format(e.start)}</p>
+      <CloseButton
+        onClose={onClose}
+        className="absolute top-1.5 right-1.5 z-10"
+      />
+      <p className="pr-12 text-[16px] opacity-80">
+        {monthLong.format(e.start)}
+      </p>
       <div className="mt-3 flex items-end gap-5">
         <span className="font-display text-[clamp(92px,11vw,120px)] leading-[0.74] font-[280] tracking-[-0.04em] tabular-nums">
           {p.day}
@@ -160,7 +197,10 @@ function DateLeaf({ event: e, onClose }: { event: CalendarEvent; onClose: () => 
             {weekday.format(e.start)}
           </span>
           <span className="text-[16px] leading-none tabular-nums opacity-80">
-            {e.kind === "deadline" ? fmtTime(e.end) : fmtTimeRange(e.start, e.end)} PT
+            {e.kind === "deadline"
+              ? fmtTime(e.end)
+              : fmtTimeRange(e.start, e.end)}{" "}
+            PT
           </span>
         </span>
       </div>
@@ -189,11 +229,18 @@ function Where({ event: e }: { event: CalendarEvent }) {
       </a>
     );
   if (isOnline(e)) return <>Online</>;
-  if (e.hasLocation) return <span className="text-ink-muted">Members only</span>;
+  if (e.hasLocation)
+    return <span className="text-ink-muted">Members only</span>;
   return <span className="text-ink-muted">TBD</span>;
 }
 
-function Person({ member, size = 26 }: { member: PublicMember; size?: number }) {
+function Person({
+  member,
+  size = 26,
+}: {
+  member: PublicMember;
+  size?: number;
+}) {
   const inner = (
     <>
       <Avatar member={member} size={size} />
@@ -202,7 +249,10 @@ function Person({ member, size = 26 }: { member: PublicMember; size?: number }) 
   );
   const cls = "flex min-w-0 items-center gap-2.5";
   return member.handle ? (
-    <Link href={`/members/${member.handle}`} className={`${cls} no-underline hover:underline`}>
+    <Link
+      href={`/members/${member.handle}`}
+      className={`${cls} no-underline hover:underline`}
+    >
       {inner}
     </Link>
   ) : (
@@ -219,15 +269,19 @@ function Rsvp({
   isMember: boolean;
   signedIn: boolean;
 }) {
-  const rsvp = useMutation(api.events.rsvp).withOptimisticUpdate((store, args) => {
-    const list = store.getQuery(api.events.list, {});
-    if (list)
-      store.setQuery(
-        api.events.list,
-        {},
-        list.map((x) => (x._id === args.eventId ? { ...x, myRsvp: args.response } : x)),
-      );
-  });
+  const rsvp = useMutation(api.events.rsvp).withOptimisticUpdate(
+    (store, args) => {
+      const list = store.getQuery(api.events.list, {});
+      if (list)
+        store.setQuery(
+          api.events.list,
+          {},
+          list.map((x) =>
+            x._id === args.eventId ? { ...x, myRsvp: args.response } : x,
+          ),
+        );
+    },
+  );
   const [error, setError] = useState<string | null>(null);
 
   if (!isMember)
@@ -237,7 +291,11 @@ function Rsvp({
           "Only committed members can RSVP."
         ) : (
           <>
-            <Link href={`/sign-in?next=${encodeURIComponent(`/calendar/${e.slug}`)}`}>Sign in</Link>{" "}
+            <Link
+              href={`/sign-in?next=${encodeURIComponent(`/calendar/${e.slug}`)}`}
+            >
+              Sign in
+            </Link>{" "}
             to RSVP.
           </>
         )}
@@ -274,7 +332,10 @@ function Rsvp({
         })}
       </div>
       {(error || e.myRsvp === "yes" || e.myRsvp === "maybe") && (
-        <p className={`text-[14px] ${error ? "text-brass-text" : "text-ink-muted"}`} aria-live="polite">
+        <p
+          className={`text-[14px] ${error ? "text-brass-text" : "text-ink-muted"}`}
+          aria-live="polite"
+        >
           {error ?? "We’ll email you a reminder the day before."}
         </p>
       )}
@@ -288,13 +349,22 @@ function Guests({ event: e }: { event: CalendarEvent }) {
     return <p className="text-[16px] text-ink-muted">No RSVPs yet.</p>;
   return (
     <div className="flex flex-col gap-6">
-      {([["yes", yes], ["maybe", maybe]] as const).map(
+      {(
+        [
+          ["yes", yes],
+          ["maybe", maybe],
+        ] as const
+      ).map(
         ([r, people]) =>
           people.length > 0 && (
             <section key={r} className="flex flex-col gap-3">
               <h3 className="flex items-baseline gap-2">
-                <span className="font-display text-[20px] font-[430]">{LABELS[r]}</span>
-                <span className="text-[15px] text-ink-muted tabular-nums">{people.length}</span>
+                <span className="font-display text-[20px] font-[430]">
+                  {LABELS[r]}
+                </span>
+                <span className="text-[15px] text-ink-muted tabular-nums">
+                  {people.length}
+                </span>
               </h3>
               <ul className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[15px]">
                 {people.map((m) => (
@@ -316,7 +386,13 @@ function Guests({ event: e }: { event: CalendarEvent }) {
 }
 
 // Host tools, folded away so guests and hosts see the same panel by default.
-function Manage({ event: e, onEdit }: { event: CalendarEvent; onEdit: () => void }) {
+function Manage({
+  event: e,
+  onEdit,
+}: {
+  event: CalendarEvent;
+  onEdit: () => void;
+}) {
   const cancel = useMutation(api.events.cancel);
   const transfer = useMutation(api.events.transfer);
   const members = useQuery(api.members.directory);
@@ -338,14 +414,21 @@ function Manage({ event: e, onEdit }: { event: CalendarEvent; onEdit: () => void
   return (
     <details className="group border-t border-ink/12 pt-4">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-[16px] text-ink-muted hover:text-ink [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="transition-transform group-open:rotate-90">
+        <span
+          aria-hidden="true"
+          className="transition-transform group-open:rotate-90"
+        >
           ›
         </span>
         Manage
       </summary>
       <div className="flex flex-col gap-5 pt-4">
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onEdit} className="cursor-pointer bg-ink px-4 py-2 text-[15px] text-cream hover:bg-ink-muted">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="cursor-pointer bg-ink px-4 py-2 text-[15px] text-cream hover:bg-ink-muted"
+          >
             Edit
           </button>
           {confirming ? (
@@ -357,18 +440,28 @@ function Manage({ event: e, onEdit }: { event: CalendarEvent; onEdit: () => void
               >
                 Cancel session
               </button>
-              <button type="button" onClick={() => setConfirming(false)} className="cursor-pointer px-3 py-2 text-[15px] underline">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="cursor-pointer px-3 py-2 text-[15px] underline"
+              >
                 Keep it
               </button>
             </>
           ) : (
-            <button type="button" onClick={() => setConfirming(true)} className={quiet}>
+            <button
+              type="button"
+              onClick={() => setConfirming(true)}
+              className={quiet}
+            >
               Cancel session…
             </button>
           )}
         </div>
         {confirming && (
-          <p className="-mt-2 text-[14px] text-ink-muted">Everyone who RSVPed yes or maybe gets an email.</p>
+          <p className="-mt-2 text-[14px] text-ink-muted">
+            Everyone who RSVPed yes or maybe gets an email.
+          </p>
         )}
 
         {e.canTransfer && e.kind !== "deadline" && (
@@ -377,9 +470,9 @@ function Manage({ event: e, onEdit }: { event: CalendarEvent; onEdit: () => void
             onSubmit={(ev) => {
               ev.preventDefault();
               if (to)
-                void run(() => transfer({ eventId: e._id, toId: to as Id<"members"> })).then(() =>
-                  setTo(""),
-                );
+                void run(() =>
+                  transfer({ eventId: e._id, toId: to as Id<"members"> }),
+                ).then(() => setTo(""));
             }}
           >
             <label htmlFor="transfer" className="text-[15px] text-ink-muted">
@@ -399,7 +492,11 @@ function Manage({ event: e, onEdit }: { event: CalendarEvent; onEdit: () => void
                   </option>
                 ))}
               </select>
-              <button type="submit" disabled={!to} className={`${quiet} disabled:cursor-default disabled:opacity-40`}>
+              <button
+                type="submit"
+                disabled={!to}
+                className={`${quiet} disabled:cursor-default disabled:opacity-40`}
+              >
                 Transfer
               </button>
             </div>

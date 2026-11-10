@@ -22,13 +22,18 @@ export const SETUP = [
   `mkdir -p ${AGENT_DIR} && cd ${AGENT_DIR} && echo '{"private":true}' > package.json && bun add "@anthropic-ai/claude-agent-sdk@$v"`,
 ].join(" && ");
 
-export function chatTaskPolicy(openRouterKey: string, convexHost: string): NetworkPolicy {
+export function chatTaskPolicy(
+  openRouterKey: string,
+  convexHost: string,
+): NetworkPolicy {
   return {
     allow: {
       "openrouter.ai": [
         {
           match: { method: ["POST"], path: { startsWith: "/api/v1/messages" } },
-          transform: [{ headers: { authorization: `Bearer ${openRouterKey}` } }],
+          transform: [
+            { headers: { authorization: `Bearer ${openRouterKey}` } },
+          ],
         },
         { response: { statusCode: 403 } },
       ],

@@ -5,9 +5,11 @@ Research date: 2026-11-10. Notes on method: pages were read through a fetch tool
 ## 1. Offprint (getoffprint.com)
 
 ### Takeaway
+
 Offprint is a one-person product (Daniel Belfort, launched 19 Aug 2026) that prints a personalized, full-color, perfect-bound 8.5×11 magazine of at least 96 pages on coated stock with a gloss cover, for $39/month shipping included, arriving about 10 business days after the reader approves it. The printer, print API, and typesetting pipeline are not disclosed anywhere I could find.
 
 ### Cited Findings
+
 - Product: a monthly printed magazine of things the subscriber saved. "Text us anything read-worthy," approve the magazine with one reply, "Once a month, a magazine of your own saves lands in your mailbox." Accepts open-web articles, subscriber-only pieces the user already has access to, X posts, PDFs, and the user's photos (turned into collage pages). — [getoffprint.com](https://getoffprint.com/)
 - Specs stated on the site: trim 8.5×11 in; at least 96 pages (short months are padded with ruled notes pages); "thick edition" up to 320 pages; coated stock; gloss cover with the subscriber's name printed on it; full color throughout. — [getoffprint.com](https://getoffprint.com/)
 - Binding: the homepage does not state it, but the Lenny Rachitsky "Creator Edition" page describes the product as 108 pages, 8.5 by 11 inches, perfect-bound, "your name on the cover." — [getoffprint.com/lenny](https://getoffprint.com/lenny)
@@ -24,6 +26,7 @@ Offprint is a one-person product (Daniel Belfort, launched 19 Aug 2026) that pri
 - Reported scale: "15,000+ articles" sent to Offprint, plus a Sublime integration (search snippet only, attributed to a November 2026 post by Belfort). — [x.com/danielbelfort](https://x.com/danielbelfort)
 
 ### Inferences
+
 - Each copy is unique (name on cover, different contents), so this must be one-off digital print-on-demand through a printer or print API that accepts a per-order PDF. The long country list, uniform 8.5×11 format, and 10-business-day delivery are consistent with a distributed print-on-demand network that prints near the recipient, but which one is not confirmed.
 - The spec (8.5×11, coated text, gloss cover, perfect bound, full color) matches the standard "magazine" product offered by mainstream print-on-demand vendors. It is the cheapest good-looking option, not a custom spec.
 - Pricing structure is informative: page count is priced in 96-page steps, which suggests the per-page print cost is the main variable cost.
@@ -31,6 +34,7 @@ Offprint is a one-person product (Daniel Belfort, launched 19 Aug 2026) that pri
 - "Formatting is checked before every magazine prints" implies automated layout with a human (or founder) review step. Web-to-print conversion is evidently not fully hands-off even here.
 
 ### Gaps
+
 - Printer or print API: not named on the site, in the terms, or in any press I found. Founder X replies might name it, but X could not be read.
 - Typesetting tools (for example HTML-to-PDF vs InDesign scripting vs Typst/LaTeX): no public write-up found. No Hacker News or Product Hunt thread with technical details surfaced.
 - Paper weights, cover weight, cover lamination type: not stated.
@@ -39,9 +43,11 @@ Offprint is a one-person product (Daniel Belfort, launched 19 Aug 2026) that pri
 ## 2. Asterisk Magazine
 
 ### Takeaway
+
 Asterisk is a professionally designed, offset-printed quarterly: designed by Sarah Gephart of MGMT. design, printed by Hemlock (Vancouver-area offset printer) on Neenah Classic Crest (a premium uncoated sheet), with 6–8 commissioned illustrators per issue. Print issues are $19 each and $80/year in the US. Trim size, page count, binding, and print run are not published.
 
 ### Cited Findings
+
 - Masthead: Editor in Chief Clara Collier; Managing Editor Angela Chen; Publisher Nadia Asparouhova; Design: Sarah Gephart / MGMT; Web: Daniel G. Siegel. Published by Obelus, Inc., a 501(c)(3), funded by "donors, subscriptions, and a grant from Coefficient Giving." — [asteriskmag.com/about](https://asteriskmag.com/about)
 - Frequency and retail: "Four issues per year, delivered to your door"; also "sold at bookstores and newsstands across the United States." — [asteriskmag.com/about](https://asteriskmag.com/about)
 - Prices (current store): print subscription 1 year US $80; international $100; single print issues $19.00 (Issues 01–16); PDF issues $10.00. — [store.asteriskmag.com](https://store.asteriskmag.com/)
@@ -53,12 +59,14 @@ Asterisk is a professionally designed, offset-printed quarterly: designed by Sar
 - Hemlock (the printer) describes its perfect-binding practice: EVA glue "can become brittle over time" and "may not bond as effectively to coated papers or heavier stocks"; PUR is more flexible; covers are hinge-scored so they bend without cracking; double hinge scoring gives a lay-flat perfect binding. — [Hemlock blog, Mar 2026](https://www.hemlock.com/blog/2026/03/12/perfect-binding-production-decisions-that-shape-a-book/)
 
 ### Inferences
+
 - Asterisk's look comes mostly from design decisions that do not depend on offset printing: a premium uncoated white sheet, a small consistent type system (one grotesk, one serif family), commissioned illustration per piece, one changing accent color and a new cover mark per issue, and end marks that repeat the mark.
 - Classic Crest is an uncoated text-and-cover paper line, so the interior is almost certainly uncoated. That choice favors reading and illustration over photo saturation.
 - A $19 cover price with offset printing and bookstore distribution implies a run in the thousands; this is not a model for a 100-copy weekly, but the design system is transferable.
 - The retainer relationship and budget bands show the quality is bought with sustained professional design time, not only print specs.
 
 ### Gaps
+
 - Trim size, page count, binding type, cover stock and finish, spot-color use: not published on the site, store, MGMT page, or AIGA entry. A physical copy's colophon is the reliable source.
 - Print run and fulfillment provider: not found. (The store is Shopify-style with a recurring-subscription portal, but the mailer is not named.)
 - The AIGA entry is from the 2023 competition; paper and printer may have changed since.
@@ -67,9 +75,11 @@ Asterisk is a professionally designed, offset-printed quarterly: designed by Sar
 ## 3. Midjourney Magazine
 
 ### Takeaway
+
 Midjourney Magazine is a 116-page, 8.5×11 monthly art magazine sold at $4/month, a price that almost certainly does not cover cost. Paper, binding, and printer are not published; a Lithuanian printer (KOPA, Kaunas) shows a "Midjourney" magazine job in its portfolio, which is suggestive but not confirmed as the official run.
 
 ### Cited Findings
+
 - Official specs: page count "116"; size "8.5” x 11”"; subscription "$4 / mo"; back issues "$8 + Shipping" (issues 1–42 shown, all marked sold out); "Limit of 4 magazines per customer." — [mag.midjourney.com/midjourneymag](https://mag.midjourney.com/midjourneymag)
 - Contents: "Each issue features artwork curated from that month's 10,000 most highly rated images, plus interviews with Midjourney community members." — [mag.midjourney.com/midjourneymag](https://mag.midjourney.com/midjourneymag)
 - Shipping cadence: "The magazines are shipped once a month, towards the end of each month." A first issue ships the month after subscribing (an April payment ships near the end of May). Delivery takes roughly one to six-plus weeks depending on location. — [mag.midjourney.com/support](https://mag.midjourney.com/support)
@@ -81,11 +91,13 @@ Midjourney Magazine is a 116-page, 8.5×11 monthly art magazine sold at $4/month
 - Resale: individual issues are listed on eBay as collectibles. — [eBay listing](https://www.ebay.de/itm/357180856771)
 
 ### Inferences
+
 - $4/month including shipping for 116 full-color letter-size pages is below plausible unit cost at any quantity; it is a marketing product subsidized by the company. Its price is not a benchmark for the club.
 - If the KOPA specs are right, the recipe is: offset printing in a large run, 130 gsm gloss-coated text (about 88 lb text), 250 gsm gloss-coated cover (about 92 lb cover), thread-sewn softcover, matt varnish. Thread-sewn binding and heavy coated paper are what make an image-led magazine open flat and feel substantial. This is an offset-run spec and would be costly at 100 copies.
 - The useful editorial lesson from the criticism: a magazine of AI images with only prompt captions reads as "soulless"; in an essay magazine the art supports writing by named people, which avoids that problem, but generic-looking AI art is a known risk to perceived quality.
 
 ### Gaps
+
 - Paper, binding, and printer are not stated on any official Midjourney page. The KOPA link is circumstantial.
 - No subscriber threads about print quality surfaced in search (Reddit was not reachable through search results).
 - The magazine page showed inconsistent issue information (an "Issue 28" delivery note alongside back issues numbered to 42), so the current issue number and whether new subscriptions are still fulfilled monthly are unclear. Check the live page.
@@ -94,9 +106,11 @@ Midjourney Magazine is a 116-page, 8.5×11 monthly art magazine sold at $4/month
 ## 4. Comparable references (Works in Progress, Offscreen, Kernel, and others)
 
 ### Takeaway
+
 The well-regarded tech-adjacent journals are all offset-printed by established book and magazine printers with a hired design studio; published specs are thin, but the pattern is a restrained type system, good paper chosen for readability, and commissioned art. Named printers found: Hemlock (Asterisk), Park|Graphius (Works in Progress). No colophon data was found for Logic, Palladium, Delayed Gratification, or The Browser.
 
 ### Cited Findings
+
 - Works in Progress (published by Stripe) launched print in 2025: $100/year US, £75/year UK, six full-color issues a year sent bimonthly, first issue shipping November 2025; later extended to Canada, Australia, and the EU. — [WiP announcement, 17 Sep 2025](https://www.worksinprogress.news/p/works-in-progress-is-now-in-print); [WiP expansion post](https://www.worksinprogress.news/p/you-can-now-subscribe-to-works-in)
 - WiP process: the team "trialled nearly a dozen typefaces" and "reviewed seventy different magazines"; paper was chosen for "the right balance between being floppy and readable on the one hand and opaque and durable on the other"; uses "marginalia and other decorative elements." — [WiP announcement](https://www.worksinprogress.news/p/works-in-progress-is-now-in-print)
 - WiP printer and paper: Park|Graphius (UK). "A Magno Gloss cover gives the publication a quality feel," with an aqueous coat for durability; "The text pages are printed on Magno Satin stock for a smooth finish." — [Park|Graphius case study](https://parkgraphius.co.uk/case-studies/works-in-progress-business-magazine-printing/)
@@ -108,11 +122,13 @@ The well-regarded tech-adjacent journals are all offset-printed by established b
 - A UK trade magazine's December cover used soft-touch lamination, silver foil, white foil, and spot gloss on a digital run of only about 100 copies (search snippet only), showing these embellishments exist at this quantity. — [Digital Printer magazine](https://www.digitalprintermag.co.uk/?p=26102)
 
 ### Inferences
+
 - None of these comparables prints 100 copies weekly. Their transferable lessons are editorial and typographic: one or two typefaces used consistently, generous margins with small ornaments, a recurring issue device (Asterisk's changing asterisk, WiP's marginalia), commissioned art per piece, and paper picked by handling real samples.
 - Two paper philosophies are visible: Asterisk uses premium uncoated (book-like, best for reading), Works in Progress uses satin/silk coated text with a gloss cover (better for full-color art). For essays with a full-page artwork each, a silk or matte coated text is the common compromise.
 - Kernel is the closest organizational analogue (community volunteers designing and illustrating each piece, grant-funded), and it took about six months per issue. A weekly cadence means a fixed template and automated layout rather than bespoke design per piece.
 
 ### Gaps
+
 - Trim size, page count, binding, paper weights, and print runs for Works in Progress: not in the announcement, printer case study, or studio page.
 - Logic, Palladium, Delayed Gratification, The Browser's print experiments, Stripe Press, Dense Discovery: no colophon or printer information surfaced in the searches run. Not researched further for lack of sources, not because they lack print editions.
 - No first-hand accounts found from indie magazines printed digitally in runs of 100–500 naming their printer and unit cost.
@@ -120,11 +136,13 @@ The well-regarded tech-adjacent journals are all offset-printed by established b
 ## 5. Format guidance for an 80–150 page, ~100-copy digital run
 
 ### Takeaway
+
 At 80–150 pages the practical binding is perfect binding, preferably with PUR glue; saddle stitch tops out around 64–80 pages and sewn bindings are rare and costly at 100 copies. Perceived quality at this scale comes mainly from paper choice (70–80 lb or heavier text, matte/silk or good uncoated), a laminated cover one grade heavier than the text, a press with good solids (HP Indigo-class rather than inkjet), and layouts that tolerate 1/16–1/8 inch trim and color drift.
 
 ### Cited Findings
 
 Binding
+
 - Saddle stitch is standard for magazines under roughly 64 to 80 pages; perfect binding is recommended for 80+ pages. Saddle-stitch page counts must be multiples of 4. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/); [Publishing Xpress literary magazine guide](https://www.publishingxpress.com/blog/how-to-plan-a-literary-magazine-issue-for-print/)
 - Other printers put the ranges at saddle stitch 8–64 pages and perfect binding 28–300+ pages. — [4over4 binding guide](https://www.4over4.com/guide/complete-guide-to-binding-types-for-books-and-booklets)
 - Interior stock above 80 lb text in a saddle-stitched book can crack at the spine. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/)
@@ -136,10 +154,12 @@ Binding
 - Mixam says PUR becomes available only above a certain page count or paper density, and offers a layflat option as an alternative to perfect binding (search snippet only; the page returned HTTP 403). — [Mixam binding support](https://mixam.com/support/binding)
 
 Trim size
+
 - Digest (5.5×8.5 in) suits text-heavy quarterlies; full size (8.5×11 in) suits issues with larger art or photography. Common US magazine trims are 8.5×11 and 8.375×10.875. Most literary issues run 32–96 pages, with quarterlies clustering at 48–64. — [Publishing Xpress literary magazine guide](https://www.publishingxpress.com/blog/how-to-plan-a-literary-magazine-issue-for-print/)
 - Both Offprint and Midjourney Magazine use 8.5×11. — [getoffprint.com](https://getoffprint.com/); [mag.midjourney.com/midjourneymag](https://mag.midjourney.com/midjourneymag)
 
 Paper
+
 - Text weights: 50 lb uncoated has noticeable show-through; 60 lb uncoated suits text-heavy literary magazines; 70 lb gloss is mid-range with better opacity; 80 lb gloss is "the industry standard for consumer magazines in 2026"; 100 lb gloss gives a premium feel for art magazines but adds cost and bulk. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/)
 - Finish: gloss makes colors pop but glares; matte or silk is easier to read under direct light and feels more premium; uncoated is softer and warmer and suits literary titles, but coated stock is needed for sharp, saturated photography. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/)
 - Metric ranges: "Most magazine interiors use paper between 115 and 170 GSM"; "covers typically range from 218 to 270 GSM." — [Ex Why Zed paper guide](https://exwhyzed.com/magazine-printing-paper/)
@@ -147,15 +167,18 @@ Paper
 - Perfect-bound interiors typically use 70–80 lb text; thicker editions can use 80–100 lb. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/)
 
 Cover finishes
+
 - Aqueous coating adds scratch resistance at small per-unit cost; lamination is the premium choice for durability or a tactile effect; soft-touch matte lamination is recommended for premium pieces. — [Publishing Xpress paper guide](https://www.publishingxpress.com/blog/how-to-choose-paper-stock-for-magazine-printing/); [Walsworth, digital finishing](https://www.walsworth.com/blog/digital-finishing-innovations)
 - Digital foil needs no metal die, so it works for short runs; it is applied by printing toner over soft-touch lamination, with foil bonding only to toner areas. Spot UV reads best over a matte or soft-touch base. Scodix-type presses do raised spot varnish and die-less foil (search snippets only). — [Aura Print, digital foil](https://aura-print.com/usa/what-is-metallic-foil-printing); [Paperlust finishes guide](https://printshop.paperlust.co/blog?p=3565)
 - Heavy ink coverage at the spine crease makes lamination adhesion problems more likely (search snippet only). — [IngramSpark file problems](https://help.ingramspark.com/hc/en-us/articles/6443532453901-File-Problems-that-Cause-Printing-Problems-of-a-Book)
 
 Press type
+
 - HP Indigo (liquid electro-ink; the source groups it with toner) vs production inkjet, per a book printer that runs both: Indigo has "higher print quality than inkjet"; "The Electro ink sits on top of the paper, and can often give you brighter colours with increased contrast"; inkjet "ink is water-based, and ink absorbs into the fibres, which tends to lower the brightness and contrast"; for black-only text "there will be minimal differences"; Indigo costs more and suits runs of about 1,000 or fewer. — [Friesens, inkjet vs toner](https://www.friesens.com/blog/digital-inkjet-vs-toner-whats-the-difference/)
 - Vendors claim Indigo gives smoother tones and sharper images than dry-toner machines (vendor claims, search snippet only). — [Johnsons, HP Indigo](https://johnsonscards.co.uk/digital-for-short-runs/)
 
 Print-on-demand quality problems and workarounds
+
 - Stated trim tolerances: IngramSpark 1/16 in (about 2 mm); Amazon KDP 1/8 in (3.2 mm); Lulu 1/8 in (3.2 mm). — [AuthorImprints, Mar 2024](https://www.authorimprints.com/pod-print-quality-problem-examples/)
 - Color can differ from the file and from copy to copy within one order (one order of ten books arrived in three different cover colors). Lightning Source allows ±0.1 color density variation (search snippet only). — [AuthorImprints](https://www.authorimprints.com/pod-print-quality-problem-examples/); [Lightning Source variations guide](https://help.lightningsource.com/hc/en-us/articles/5293923433229-Guide-for-Acceptable-Variations-in-Production)
 - Most common complaint: cover elements misaligned, such as an off-center spine; cover color bleeding onto a contrasting spine. — [AuthorImprints](https://www.authorimprints.com/pod-print-quality-problem-examples/)
@@ -163,10 +186,12 @@ Print-on-demand quality problems and workarounds
 - Workarounds: keep content well inside minimum margins (IngramSpark asks at least 0.25 in from trim on covers and 0.5 in on interior pages, search snippet only); avoid borders near edges; use a spine color that matches the front or back cover; avoid large solid-color interior pages if they print inconsistently; order a printed proof first; order spare copies. — [AuthorImprints](https://www.authorimprints.com/pod-print-quality-problem-examples/); [IngramSpark variances](https://help.ingramspark.com/hc/en-us/articles/6443509108365-Print-and-Binding-Variances-That-are-Allowed-in-the-Manufacturing-of-a-Book)
 
 Turnaround
+
 - Offprint: 10 business days from approval to mailbox for one-off copies. — [getoffprint.com](https://getoffprint.com/)
 - UK short-run digital printer: perfect-bound jobs delivered in 5 days. A US printer quotes 6–8 weeks from final files to delivery for a quarterly's full cycle. — [Ex Why Zed](https://exwhyzed.com/magazine-printing-paper/); [Publishing Xpress literary guide](https://www.publishingxpress.com/blog/how-to-plan-a-literary-magazine-issue-for-print/)
 
 ### Inferences
+
 - Recommended baseline for 80–150 pages at 100 copies: perfect bound with PUR glue; 80 lb (about 115–120 gsm) matte or silk coated text if art is full color on most spreads, or 70 lb premium uncoated if text dominates and art is line or limited-color; 100 lb cover or 12 pt board with matte or soft-touch lamination; printed on an HP Indigo-class press. This is an inference assembled from the sources above, not a single source's recommendation.
 - Trim: 8.5×11 is the cheapest and most available, and is what Offprint and Midjourney use, but it reads as a commodity magazine. A smaller journal trim (for example 6×9 or 7×10) reads as more book-like and gives a thicker spine for the same word count, but it is not covered by the sources above and should be checked against each printer's standard sizes.
 - At 80 pages on 80 lb text the spine is only a few millimeters, so spine text needs to be small or omitted; trim variance of 1/16–1/8 in is large relative to that spine. A wraparound cover image or a spine in the same color as the covers hides the drift.
@@ -176,6 +201,7 @@ Turnaround
 - A weekly cadence with 5–10 business days of print and ship time means issues will arrive one to two weeks after the essays are published. Offprint's 10-business-day figure is a realistic reference for per-recipient mailing.
 
 ### Gaps
+
 - No independent, measured comparison of HP Indigo vs dry toner vs inkjet for banding and solid uniformity; only printer and vendor statements.
 - Exact minimum page counts for PUR at specific online printers (Mixam and similar) were not retrievable.
 - No sourced guidance on 6×9 or 7×10 trims for essay journals; no sourced numbers for gutter margins or minimum spine width for spine text.
@@ -185,19 +211,22 @@ Turnaround
 ## 6. Rights and practical notes (reprinting web essays, AI art in a sold magazine)
 
 ### Takeaway
+
 Paid Midjourney plans allow commercial use of generated images, but the images are public by default, Midjourney keeps a broad license to them, and purely AI-generated images are generally not copyrightable in the US. For essays, the clean route is written permission from each member; Offprint's "single private copy" position does not cover a magazine distributed to many people.
 
 ### Cited Findings
+
 - Midjourney terms as quoted by a legal explainer (last updated February 2026): "You own all Assets You create with the Services to the fullest extent possible under current law." Paid subscribers on Basic, Standard, Pro, and Mega can sell their images commercially. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/)
 - Revenue rule: a company (or its employee) with more than $1,000,000 USD a year in revenue must be on a Pro or Mega plan to own its assets. Sources differ on whether this gates ownership or all commercial use. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/); [ConductAtlas ToS tracker](https://conductatlas.com/platform/midjourney/midjourney-terms-of-service/revenue-based-asset-ownership-threshold/)
 - Non-paying users get only a Creative Commons Noncommercial 4.0 Attribution license; Midjourney owns those images. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/)
 - Users grant Midjourney a "perpetual, worldwide, non-exclusive, sublicensable no-charge, royalty-free, irrevocable copyright license" to prompts and outputs. Images are public by default; Stealth Mode is limited to Pro and Mega. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/)
-- US copyright: in the 2023 *Zarya of the Dawn* decision the Copyright Office said "Midjourney users lack sufficient control over generated images to be treated as the 'author' for copyright purposes." Human-authored arrangement, text, and modifications can still be protected. Contract terms bind Midjourney users only, so stopping third parties from copying AI images is hard. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/)
+- US copyright: in the 2023 _Zarya of the Dawn_ decision the Copyright Office said "Midjourney users lack sufficient control over generated images to be treated as the 'author' for copyright purposes." Human-authored arrangement, text, and modifications can still be protected. Contract terms bind Midjourney users only, so stopping third parties from copying AI images is hard. — [Terms.law Midjourney guide](https://terms.law/ai-output-rights/midjourney/)
 - Offprint's content position, for contrast: users may send "only content that you have lawful access to and that you have the rights or permissions needed"; "Each magazine is a single private copy, printed once, mailed only to the reader who requested it"; takedown requests are honored. — [Offprint terms](https://getoffprint.com/terms)
 - Offprint's Creator Edition model has the writer select their own posts, and the Lenny edition includes guest-authored posts with bylines and states the curator makes no money from sales. — [getoffprint.com/lenny](https://getoffprint.com/lenny)
 - Kernel compensated contributors from subscription revenue and treated that as the main reason for charging. — [Reboot, Kernel launch](https://joinreboot.org/p/kernel-launch)
 
 ### Inferences
+
 - For a club magazine distributed to about 100 people (and possibly sold), each writer should give explicit permission for a non-exclusive print reprint of the essay or excerpt, with the writer keeping copyright. This is ordinary publishing practice and simple to collect with a checkbox; it is my inference, not a quoted legal source.
 - Essays first published on a platform (Substack, personal site) normally remain the author's to license, but pieces first published in another outlet may be under that outlet's terms; ask writers to confirm they hold reprint rights.
 - Midjourney images made on any paid plan can be printed in a sold magazine if the organization is under the $1M revenue threshold; if the publishing entity is a larger organization, confirm whether a Pro or Mega plan is required. Since the images are not copyrightable on their own, others could reuse them; this matters little for a club magazine.
@@ -205,6 +234,7 @@ Paid Midjourney plans allow commercial use of generated images, but the images a
 - Avoid prompts that name living artists or reproduce recognizable characters or logos; those raise separate rights issues regardless of Midjourney's terms.
 
 ### Gaps
+
 - Midjourney's official Terms of Service page returned HTTP 403, so the quotes above come from a secondary legal site (updated February 2026) and a terms-tracking site. Verify against the live terms before selling copies.
 - No research was done on other image generators' terms, on non-US copyright rules for AI images, or on sales tax and shipping compliance for selling a magazine.
 - Nothing here is legal advice; no source specific to anthology or club-magazine reprint permissions was consulted.

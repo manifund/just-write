@@ -8,7 +8,7 @@ Written Nov 5 in response to Austin in #site. The question: when should a notifi
 - **Facebook / Instagram**: Two separate states. Opening the list marks items **seen**, which clears the badge. Each item stays highlighted until you click it or view the post somewhere else, which marks it **read**. Facebook also has "Mark all as read" and "Mark as unread" on each item.
 - **Slack (Activity tab)**: Each mention and thread reply is unread until you see the message. Seeing it can happen in Activity, or by scrolling to it in the channel or thread, so reading in either place clears the other. There's an "Unread" filter, "Mark all as read", and "Mark unread" on any message. The badge counts mentions and DMs, not every thread reply.
 - **Discord (Inbox → Mentions)**: Each channel has a read marker, and a mention clears once you've viewed that channel past it. The inbox is basically a list of jump links that you clear with ✓. Channels show a "new messages" line where you left off.
-- **GitHub / Linear (Inbox)**: One notification per issue or thread, unread until you open it from the inbox *or* view the issue directly. Inbox Zero is built on "Done", which archives a notification, and snooze. Unread items look bold or have a dot.
+- **GitHub / Linear (Inbox)**: One notification per issue or thread, unread until you open it from the inbox _or_ view the issue directly. Inbox Zero is built on "Done", which archives a notification, and snooze. Unread items look bold or have a dot.
 
 ## Patterns that work
 
@@ -20,7 +20,7 @@ Written Nov 5 in response to Austin in #site. The question: when should a notifi
 
 ## Recommendation for Just Write
 
-- **Unread item** = a mention or reply the member hasn't seen in Activity *and* hasn't seen in its channel or thread.
+- **Unread item** = a mention or reply the member hasn't seen in Activity _and_ hasn't seen in its channel or thread.
 - **Seen in Activity**: opening /activity marks every item shown as seen, so the sidebar count clears. Items stay tinted for that visit, as in #42.
 - **Seen in chat**: opening a channel already sets `reads.lastReadAt`, which covers top-level mentions. Replies need a per-thread marker: a small `threadReads` table (`memberId`, `threadId`, `lastReadAt`) set when the thread pane is open. An item is read if `createdAt <=` the channel marker (top-level messages) or the thread marker (replies).
 - **Unread in chat**: optionally, show a dot on threads in the channel view that have replies you haven't read, using the same marker.

@@ -11,10 +11,16 @@ type IcsEvent = {
 };
 
 const stamp = (ms: number) =>
-  new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  new Date(ms)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 
 const escape = (s: string) =>
-  s.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/([,;])/g, "\\$1");
+  s
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/([,;])/g, "\\$1");
 
 // Lines longer than 75 octets are folded onto continuation lines starting with a space.
 function fold(line: string) {

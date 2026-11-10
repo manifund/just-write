@@ -76,11 +76,12 @@ function ChatTaskCard({ card }: { card: Card }) {
           Something went wrong. {card.error ?? ""}
         </p>
       )}
-      {result && (result.postId || result.postRemoved ? (
-        <ChatPost post={result} />
-      ) : (
-        <ChatDraft draft={result} />
-      ))}
+      {result &&
+        (result.postId || result.postRemoved ? (
+          <ChatPost post={result} />
+        ) : (
+          <ChatDraft draft={result} />
+        ))}
       <details className="group/steps text-[14px] text-ink-muted">
         <summary className="w-fit cursor-pointer list-none select-none hover:text-ink">
           <span className="inline-block transition-transform group-open/steps:rotate-90">
@@ -91,8 +92,8 @@ function ChatTaskCard({ card }: { card: Card }) {
         <div className="flex flex-col gap-2 pt-2">
           <Steps steps={card.steps} />
           <p>
-            I read the club’s data and don’t change the site in a chat task. For a
-            change to the site, mention me with “new PR”.
+            I read the club’s data and don’t change the site in a chat task. For
+            a change to the site, mention me with “new PR”.
           </p>
         </div>
       </details>
@@ -152,7 +153,9 @@ function ChatDraft({
           }}
           className="bg-ink px-3.5 py-1 text-[14px] text-cream no-underline transition-colors hover:bg-ink-muted"
         >
-          {added ? `Go to #${draft.channelName}` : `Use this draft in #${draft.channelName}`}
+          {added
+            ? `Go to #${draft.channelName}`
+            : `Use this draft in #${draft.channelName}`}
         </Link>
         <span className="text-[14px] text-ink-muted">
           {added
@@ -263,7 +266,9 @@ function Steps({ steps }: { steps: Card["steps"] }) {
 function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const run = (action: (id: string) => Promise<{ ok: boolean; error?: string }>) =>
+  const run = (
+    action: (id: string) => Promise<{ ok: boolean; error?: string }>,
+  ) =>
     start(async () => {
       setError(null);
       const r = await action(card._id);
@@ -274,7 +279,9 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
     <>
       {card.status === "pr" && card.previewUrl && (
         // Signs the member into the preview read-only (app/improvements/[id]/preview).
-        <ExternalLink href={`/improvements/${card._id}/preview`}>Preview</ExternalLink>
+        <ExternalLink href={`/improvements/${card._id}/preview`}>
+          Preview
+        </ExternalLink>
       )}
       {card.prUrl && (
         <ExternalLink href={card.prUrl}>PR #{card.prNumber}</ExternalLink>
@@ -292,7 +299,11 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
       if (isAdmin)
         actions = (
           <>
-            <Button primary disabled={pending} onClick={() => run(mergeImprovement)}>
+            <Button
+              primary
+              disabled={pending}
+              onClick={() => run(mergeImprovement)}
+            >
               Merge
             </Button>
             <Button disabled={pending} onClick={() => run(closeImprovement)}>
@@ -340,8 +351,8 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
       )}
       {card.status === "pr" && card.touchesConvex && card.previewUrl && (
         <p className="text-[14px] text-ink-muted">
-          Some of this change only works once it’s merged, so the preview may not
-          show all of it.
+          Some of this change only works once it’s merged, so the preview may
+          not show all of it.
         </p>
       )}
       {error && (

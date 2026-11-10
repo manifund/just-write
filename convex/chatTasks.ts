@@ -39,7 +39,12 @@ import { fmtDay, fmtTime } from "./lib/time";
 import { ensureClaude } from "./improvements";
 import { postMessage } from "./lib/messages";
 import { applyReport, checkRunToken } from "./server";
-import { canEnter, checkServerSecret, getViewer, isAdminEmail } from "./lib/viewer";
+import {
+  canEnter,
+  checkServerSecret,
+  getViewer,
+  isAdminEmail,
+} from "./lib/viewer";
 
 const pt = (ms: number) => `${fmtDay(ms)}, ${fmtTime(ms)} PT`;
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -67,14 +72,18 @@ async function settingUp(ctx: QueryCtx, id: Id<"improvements">, token: string) {
   )
     throw new ConvexError("That run isn’t a chat task being set up.");
   const requester = await requesterOf(ctx, r);
-  if (!requester) throw new ConvexError("The person who asked can’t use the portal.");
+  if (!requester)
+    throw new ConvexError("The person who asked can’t use the portal.");
   return { r, requester };
 }
 
 // Names by member id, read once each. Includes admins and Claude, who post but may not be
 // committed; never anything but the name and handle.
 function memberNames(ctx: QueryCtx) {
-  const cache = new Map<Id<"members">, { name: string; handle: string | null } | null>();
+  const cache = new Map<
+    Id<"members">,
+    { name: string; handle: string | null } | null
+  >();
   return async (id: Id<"members">) => {
     if (!cache.has(id)) {
       const m = await ctx.db.get(id);
@@ -112,7 +121,8 @@ export const snapshot = query({
       const author = await names(memberId);
       if (!author) continue;
       const weekOf = new Map<string, number>();
-      for (const s of fillSlots(list)) for (const eid of s.essayIds) weekOf.set(eid, s.week);
+      for (const s of fillSlots(list))
+        for (const eid of s.essayIds) weekOf.set(eid, s.week);
       for (const e of list) {
         if (e.review === "rejected") continue;
         essays.push({
@@ -148,8 +158,15 @@ export const snapshot = query({
     }
 
     const events = [];
-    for (const e of await ctx.db.query("events").withIndex("by_start").collect()) {
-      const rsvps = { yes: [] as string[], maybe: [] as string[], no: [] as string[] };
+    for (const e of await ctx.db
+      .query("events")
+      .withIndex("by_start")
+      .collect()) {
+      const rsvps = {
+        yes: [] as string[],
+        maybe: [] as string[],
+        no: [] as string[],
+      };
       for (const x of await ctx.db
         .query("rsvps")
         .withIndex("by_event", (q) => q.eq("eventId", e._id))
@@ -207,7 +224,11 @@ export const snapshot = query({
         nowPt: pt(now),
         askedBy: { name: requester.name, handle: requester.handle ?? null },
         programStart: iso(PROGRAM_START),
-        deadlines: DEADLINES.map((d, i) => ({ week: i + 1, at: iso(d), pt: pt(d) })),
+        deadlines: DEADLINES.map((d, i) => ({
+          week: i + 1,
+          at: iso(d),
+          pt: pt(d),
+        })),
         channels: channels.map((c) => ({
           slug: c.slug,
           name: c.name,
@@ -243,7 +264,10 @@ export const messages = query({
   handler: async (ctx, { secret, id, token, paginationOpts }) => {
     checkServerSecret(secret);
     await settingUp(ctx, id, token);
-    const result = await ctx.db.query("messages").order("desc").paginate(paginationOpts);
+    const result = await ctx.db
+      .query("messages")
+      .order("desc")
+      .paginate(paginationOpts);
     const channels = new Map(
       (await ctx.db.query("channels").collect()).map((c) => [c._id, c]),
     );
@@ -270,7 +294,8 @@ export const messages = query({
       if (m.essayId) {
         kind = "essay";
         const e = await ctx.db.get(m.essayId);
-        if (e) essay = { title: e.title, url: e.url, words: e.wordCount ?? null };
+        if (e)
+          essay = { title: e.title, url: e.url, words: e.wordCount ?? null };
       } else if (m.eventId) kind = "event";
       else if (m.improvementId) {
         // Claude's reply card: the message is empty; the run has the text.
@@ -310,8 +335,13 @@ export const stopSandbox = internalAction({
     await fetch(process.env.IMPROVE_URL, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret: process.env.CONVEX_SERVER_SECRET, stop: name }),
-    }).catch((err) => console.error("chat task: couldn't stop sandbox", name, err));
+      body: JSON.stringify({
+        secret: process.env.CONVEX_SERVER_SECRET,
+        stop: name,
+      }),
+    }).catch((err) =>
+      console.error("chat task: couldn't stop sandbox", name, err),
+    );
   },
 });
 
@@ -339,7 +369,10 @@ export const finish = mutation({
     if (outcome === "failed") {
       await applyReport(ctx, r, {
         fail: true,
-        patch: { status: "failed", error: (error ?? "Something went wrong.").slice(0, 500) },
+        patch: {
+          status: "failed",
+          error: (error ?? "Something went wrong.").slice(0, 500),
+        },
       });
       return;
     }
@@ -349,8 +382,10 @@ export const finish = mutation({
     if (post && !made) text += "\n\n(I wrote a post, but it couldn’t be used.)";
     if (made) {
       const blocked =
-        (await whyNotPost(ctx, r, made.channel)) ?? (await foreignLink(ctx, made.draft.body));
-      if (blocked) text += `\n\n(I didn’t post this: ${blocked}. It’s below for you to send.)`;
+        (await whyNotPost(ctx, r, made.channel)) ??
+        (await foreignLink(ctx, made.draft.body));
+      if (blocked)
+        text += `\n\n(I didn’t post this: ${blocked}. It’s below for you to send.)`;
       else
         postId = await postMessage(ctx, {
           channelId: made.channel._id,
@@ -372,18 +407,27 @@ export const finish = mutation({
 });
 
 // Why Claude shouldn't post in this channel now, or null if it can.
-async function whyNotPost(ctx: MutationCtx, r: Doc<"improvements">, channel: Doc<"channels">) {
+async function whyNotPost(
+  ctx: MutationCtx,
+  r: Doc<"improvements">,
+  channel: Doc<"channels">,
+) {
   if (!CHAT_POST_CHANNELS.includes(channel.slug))
     return `I don’t post in #${channel.slug}`;
   const since = Date.now() - 24 * 60 * 60 * 1000;
-  const posted = (x: Doc<"improvements">) => !!x.postId && (x.finishedAt ?? 0) > since;
+  const posted = (x: Doc<"improvements">) =>
+    !!x.postId && (x.finishedAt ?? 0) > since;
   const mine = await ctx.db
     .query("improvements")
     .withIndex("by_requester", (q) => q.eq("requesterId", r.requesterId))
     .collect();
   if (mine.filter(posted).length >= CHAT_POSTS_PER_MEMBER)
     return `I’ve posted ${CHAT_POSTS_PER_MEMBER} times for you today`;
-  const recent = await ctx.db.query("improvements").withIndex("by_number").order("desc").take(300);
+  const recent = await ctx.db
+    .query("improvements")
+    .withIndex("by_number")
+    .order("desc")
+    .take(300);
   if (recent.filter(posted).length >= CHAT_POSTS_PER_DAY)
     return "I’ve hit today’s limit on posts for the whole club";
   return null;
@@ -396,7 +440,8 @@ async function whyNotPost(ctx: MutationCtx, r: Doc<"improvements">, channel: Doc
 async function foreignLink(ctx: MutationCtx, body: string) {
   const norm = (u: string) => u.trim().replace(/\/+$/, "");
   const known = new Set<string>();
-  for (const e of await ctx.db.query("essays").collect()) known.add(norm(e.url));
+  for (const e of await ctx.db.query("essays").collect())
+    known.add(norm(e.url));
   for (const m of await ctx.db
     .query("members")
     .withIndex("by_status", (q) => q.eq("status", "committed"))
@@ -416,8 +461,12 @@ async function foreignLink(ctx: MutationCtx, body: string) {
       return null;
     }
   };
-  const bad = links.find((l) => host(l) !== "justwrite.club" && !known.has(norm(l)));
-  return bad === undefined ? null : `it links to ${host(bad) ?? "a page"}, which I can’t vouch for`;
+  const bad = links.find(
+    (l) => host(l) !== "justwrite.club" && !known.has(norm(l)),
+  );
+  return bad === undefined
+    ? null
+    : `it links to ${host(bad) ?? "a page"}, which I can’t vouch for`;
 }
 
 // Converts the agent's markdown into chat's format. @handle mentions resolve to committed
@@ -430,7 +479,9 @@ async function makeDraft(
   if (!markdown.trim() || markdown.length > CHAT_DRAFT_MAX_CHARS) return null;
   const c = await ctx.db
     .query("channels")
-    .withIndex("by_slug", (q) => q.eq("slug", channel.replace(/^#/, "").toLowerCase()))
+    .withIndex("by_slug", (q) =>
+      q.eq("slug", channel.replace(/^#/, "").toLowerCase()),
+    )
     .unique();
   // A check-in is the member's own writing, and posting one unlocks everyone else's.
   if (!c || c.slug === CHECK_IN_SLUG) return null;
@@ -441,9 +492,15 @@ async function makeDraft(
     .collect())
     if (m.handle && !m.bot) handles.set(m.handle, { id: m._id, label: m.name });
   try {
-    const doc = markdownToDoc(markdown, (h) => handles.get(h) ?? null, CHAT_MENTION_LIMIT);
+    const doc = markdownToDoc(
+      markdown,
+      (h) => handles.get(h) ?? null,
+      CHAT_MENTION_LIMIT,
+    );
     const { body, text } = cleanBody(JSON.stringify(doc));
-    return text ? { channel: c, text, draft: { channelId: c._id, markdown, body } } : null;
+    return text
+      ? { channel: c, text, draft: { channelId: c._id, markdown, body } }
+      : null;
   } catch {
     return null;
   }
@@ -456,7 +513,8 @@ export const result = query({
   args: { id: v.id("improvements") },
   handler: async (ctx, { id }) => {
     const viewer = await getViewer(ctx);
-    if (!viewer?.member || !canEnter(viewer.member, viewer.isAdmin)) return null;
+    if (!viewer?.member || !canEnter(viewer.member, viewer.isAdmin))
+      return null;
     const r = await ctx.db.get(id);
     if (!r || r.kind !== "chat" || !r.draft) return null;
     const channel = await ctx.db.get(r.draft.channelId);

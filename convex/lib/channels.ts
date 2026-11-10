@@ -15,7 +15,8 @@ export const DEFAULT_CHANNELS = [
   {
     slug: "meetups",
     name: "meetups",
-    description: "Writing circles and other sessions. New ones are posted here.",
+    description:
+      "Writing circles and other sessions. New ones are posted here.",
   },
   { slug: "random", name: "random", description: "Anything else." },
   {

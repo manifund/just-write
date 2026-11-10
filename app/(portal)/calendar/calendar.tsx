@@ -54,7 +54,10 @@ const PROGRAM_END = "2026-12-05";
 const GRID_MIN = "2026-10-18";
 const GRID_MAX = "2026-12-19";
 
-const shortMonth = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+const shortMonth = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  timeZone: "UTC",
+});
 
 // "Austin", "Austin and Sam", "Austin, Sam, and Lee", "Austin, Sam, and 2 others".
 export function firstNames(people: { name: string }[]) {
@@ -95,11 +98,14 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
     setClosing(false);
     setPanelState(p);
     const path = p?.kind === "event" ? `/calendar/${p.key}` : "/calendar";
-    if (window.location.pathname !== path) window.history.replaceState(null, "", path);
+    if (window.location.pathname !== path)
+      window.history.replaceState(null, "", path);
   }, []);
   // Plays the exit animation, then removes the panel.
   const close = useCallback(() => {
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     setClosing(true);
     clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => setPanel(null), reduce ? 0 : 140);
@@ -109,7 +115,8 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
   useEffect(() => {
     const url = new URL(window.location.href);
     const key =
-      url.pathname.match(/^\/calendar\/([^/]+)/)?.[1] ?? url.searchParams.get("event");
+      url.pathname.match(/^\/calendar\/([^/]+)/)?.[1] ??
+      url.searchParams.get("event");
     if (!key) return;
     // The URL is only readable after hydration, so this can't be initial state.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -129,7 +136,8 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
   const summary = useMemo(() => {
     const sessions = events.filter((e) => e.kind !== "deadline" && !e.canceled);
     if (!sessions.length) return "";
-    const hosts = new Set(sessions.flatMap((e) => e.hosts.map((h) => h._id))).size;
+    const hosts = new Set(sessions.flatMap((e) => e.hosts.map((h) => h._id)))
+      .size;
     return `${sessions.length} ${sessions.length === 1 ? "session" : "sessions"}, hosted by ${hosts} ${hosts === 1 ? "member" : "members"}. `;
   }, [events]);
 
@@ -140,7 +148,8 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
       : undefined;
 
   // Keep the tab title in step with the open session (the URL changes without a navigation).
-  const openTitle = panelEvent && panel?.kind === "event" ? panelEvent.title : null;
+  const openTitle =
+    panelEvent && panel?.kind === "event" ? panelEvent.title : null;
   useEffect(() => {
     document.title = `${openTitle ?? "Calendar"} · Just Write`;
   }, [openTitle]);
@@ -182,7 +191,9 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
           </div>
         </header>
 
-        {view === "month" && now && <ComingUp events={events} now={now} onOpen={open} />}
+        {view === "month" && now && (
+          <ComingUp events={events} now={now} onOpen={open} />
+        )}
 
         {view === "month" && <Legend />}
 
@@ -201,16 +212,20 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
         )}
 
         {/* Only once we know who's looking, so members don't see it flash. */}
-        {!isLoading && (!isAuthenticated || viewer !== undefined) && !viewer?.canEnter && (
-          <p className="text-[16px] text-ink-muted">
-            {viewer
-              ? "Only committed members can RSVP and see addresses."
-              : <>
+        {!isLoading &&
+          (!isAuthenticated || viewer !== undefined) &&
+          !viewer?.canEnter && (
+            <p className="text-[16px] text-ink-muted">
+              {viewer ? (
+                "Only committed members can RSVP and see addresses."
+              ) : (
+                <>
                   <Link href="/sign-in?next=/calendar">Sign in</Link> to RSVP
                   and see addresses.
-                </>}
-          </p>
-        )}
+                </>
+              )}
+            </p>
+          )}
       </main>
 
       {panel && (
@@ -220,7 +235,9 @@ export function Calendar({ initial }: { initial: CalendarEvent[] }) {
           ) : panel.kind === "new" ? (
             <EventEditor
               day={panel.day}
-              onDone={(key) => (key ? setPanel({ kind: "event", key }) : close())}
+              onDone={(key) =>
+                key ? setPanel({ kind: "event", key }) : close()
+              }
             />
           ) : !panelEvent ? (
             <>
@@ -258,7 +275,11 @@ function ViewToggle({
   onChange: (v: "month" | "list") => void;
 }) {
   return (
-    <div role="group" aria-label="View" className="flex border border-ink/25 p-0.5">
+    <div
+      role="group"
+      aria-label="View"
+      className="flex border border-ink/25 p-0.5"
+    >
       {(["month", "list"] as const).map((v) => (
         <button
           key={v}
@@ -280,15 +301,24 @@ function Legend() {
   return (
     <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink-muted">
       <li className="flex items-center gap-2">
-        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(false, false)}`} />
+        <span
+          aria-hidden="true"
+          className={`h-3.5 w-5 ${chipLook(false, false)}`}
+        />
         In person
       </li>
       <li className="flex items-center gap-2">
-        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(true, false)}`} />
+        <span
+          aria-hidden="true"
+          className={`h-3.5 w-5 ${chipLook(true, false)}`}
+        />
         Online
       </li>
       <li className="flex items-center gap-2">
-        <span aria-hidden="true" className={`h-3.5 w-5 ${chipLook(false, true)}`} />
+        <span
+          aria-hidden="true"
+          className={`h-3.5 w-5 ${chipLook(false, true)}`}
+        />
         You’re going
       </li>
       <li className="flex items-center gap-2">
@@ -326,7 +356,10 @@ function ComingUp({
   const today = ptDayKey(now);
   return (
     <section aria-labelledby="coming-up" className="flex flex-col gap-3">
-      <h2 id="coming-up" className="text-[13px] tracking-[0.14em] text-brass-text uppercase">
+      <h2
+        id="coming-up"
+        className="text-[13px] tracking-[0.14em] text-brass-text uppercase"
+      >
         Coming up
       </h2>
       <ul className="grid gap-3 md:grid-cols-3">
@@ -348,7 +381,11 @@ function ComingUp({
               >
                 <span className="flex w-11 shrink-0 flex-col items-center">
                   <span className="text-[13px] text-ink-muted">
-                    {day === today ? <span className="text-brass-text">Today</span> : WEEKDAYS[p.weekday]}
+                    {day === today ? (
+                      <span className="text-brass-text">Today</span>
+                    ) : (
+                      WEEKDAYS[p.weekday]
+                    )}
                   </span>
                   <span className="font-display text-[34px] leading-none font-[330] tabular-nums">
                     {p.day}
@@ -359,14 +396,23 @@ function ComingUp({
                     {e.title}
                   </span>
                   <span className="text-[14px] text-ink-muted tabular-nums">
-                    {live ? <span className="text-brass-text">Happening now</span> : fmtTimeRange(e.start, e.end)}
+                    {live ? (
+                      <span className="text-brass-text">Happening now</span>
+                    ) : (
+                      fmtTimeRange(e.start, e.end)
+                    )}
                     {" · "}
                     {e.location ?? (isOnline(e) ? "Online" : "In person")}
                   </span>
                   <span className="mt-auto flex items-center gap-2 pt-1 text-[14px]">
                     <span className="flex -space-x-1.5">
                       {e.hosts.slice(0, 3).map((h) => (
-                        <Avatar key={h._id} member={h} size={22} className="ring-2 ring-paper" />
+                        <Avatar
+                          key={h._id}
+                          member={h}
+                          size={22}
+                          className="ring-2 ring-paper"
+                        />
                       ))}
                     </span>
                     <span className="min-w-0 truncate">
@@ -378,11 +424,18 @@ function ComingUp({
                     <span className="flex items-center gap-2 text-[14px] text-ink-muted">
                       <span className="flex -space-x-1.5">
                         {going.slice(0, 5).map((m) => (
-                          <Avatar key={m._id} member={m} size={18} className="ring-2 ring-paper" />
+                          <Avatar
+                            key={m._id}
+                            member={m}
+                            size={18}
+                            className="ring-2 ring-paper"
+                          />
                         ))}
                       </span>
                       {going.length} going
-                      {e.myRsvp === "yes" && <span className="text-brass-text">· including you</span>}
+                      {e.myRsvp === "yes" && (
+                        <span className="text-brass-text">· including you</span>
+                      )}
                     </span>
                   )}
                 </span>
@@ -480,7 +533,9 @@ function MonthGrid({
                   {/* On small screens the numeral selects the day; the day's sessions list below. */}
                   <button
                     type="button"
-                    onClick={() => setSelected(c.key === selected ? null : c.key)}
+                    onClick={() =>
+                      setSelected(c.key === selected ? null : c.key)
+                    }
                     aria-label={`${fmtLongDay(ptToUtc(...(c.key.split("-").map(Number) as [number, number, number]), 12))}${list.length ? `, ${list.length} on the calendar` : ""}`}
                     className={`flex size-8 shrink-0 cursor-pointer items-center justify-center font-display text-[17px] tabular-nums md:pointer-events-none md:size-9 md:text-[20px] ${
                       isToday
@@ -495,7 +550,9 @@ function MonthGrid({
                     {c.day}
                   </button>
                   {c.label && (
-                    <span className="mr-auto self-center text-[13px] text-ink-muted">{c.label}</span>
+                    <span className="mr-auto self-center text-[13px] text-ink-muted">
+                      {c.label}
+                    </span>
                   )}
                   {onNew && !past && c.active && (
                     <button
@@ -527,7 +584,10 @@ function MonthGrid({
                   ))}
                 </ul>
                 {/* Small screens: one mark per session */}
-                <div className="flex flex-wrap gap-1 px-1 md:hidden" aria-hidden="true">
+                <div
+                  className="flex flex-wrap gap-1 px-1 md:hidden"
+                  aria-hidden="true"
+                >
                   {deadline && <span className="h-[3px] w-3 bg-brass" />}
                   {sessions.map((e) => (
                     <span
@@ -545,7 +605,16 @@ function MonthGrid({
       {selected && (
         <div className="flex flex-col gap-3 md:hidden">
           <h2 className="font-display text-[22px] font-[420]">
-            {fmtLongDay(ptToUtc(...(selected.split("-").map(Number) as [number, number, number]), 12))}
+            {fmtLongDay(
+              ptToUtc(
+                ...(selected.split("-").map(Number) as [
+                  number,
+                  number,
+                  number,
+                ]),
+                12,
+              ),
+            )}
           </h2>
           {selectedEvents.length ? (
             <ul className="flex flex-col gap-2">
@@ -611,12 +680,18 @@ function Chip({
             </span>
             <span className="sr-only">
               {counts}
-              {mine ? (e.myRsvp === "yes" ? ", including you" : ", you might go") : ""}
+              {mine
+                ? e.myRsvp === "yes"
+                  ? ", including you"
+                  : ", you might go"
+                : ""}
             </span>
           </span>
         ) : null}
       </span>
-      <span className={`line-clamp-2 min-w-0 font-bold break-words ${e.canceled ? "line-through" : ""}`}>
+      <span
+        className={`line-clamp-2 min-w-0 font-bold break-words ${e.canceled ? "line-through" : ""}`}
+      >
         {e.title}
       </span>
       {e.hosts.length > 0 && (
@@ -635,7 +710,12 @@ function Chip({
 
 function PersonIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 12 12" className="size-[11px]" fill="currentColor">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 12 12"
+      className="size-[11px]"
+      fill="currentColor"
+    >
       <circle cx="6" cy="3.5" r="2.25" />
       <path d="M1.5 11c0-2.5 2-4.25 4.5-4.25S10.5 8.5 10.5 11z" />
     </svg>
@@ -673,7 +753,9 @@ function Agenda({
           onClick={() => setShowPast((s) => !s)}
           className="cursor-pointer self-start text-[15px] text-ink-muted underline"
         >
-          {showPast ? "Hide past sessions" : `Show past sessions (${past.length})`}
+          {showPast
+            ? "Hide past sessions"
+            : `Show past sessions (${past.length})`}
         </button>
       )}
       {days.length === 0 && (
@@ -738,10 +820,12 @@ function AgendaRow({
       <button
         type="button"
         data-opens-panel
-      onClick={() => onOpen(e)}
+        onClick={() => onOpen(e)}
         className="flex w-full cursor-pointer items-baseline gap-3 border-l-[3px] border-brass bg-brass/[0.07] px-4 py-2.5 text-left hover:bg-brass/[0.12]"
       >
-        <span className="font-display text-[19px] font-[450] text-brass-text">{e.title}</span>
+        <span className="font-display text-[19px] font-[450] text-brass-text">
+          {e.title}
+        </span>
         <span className="text-[15px] text-ink-muted">9pm PT</span>
       </button>
     );
@@ -757,22 +841,38 @@ function AgendaRow({
       }`}
     >
       <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-        <span className={`font-display text-[21px] leading-tight font-[430] ${e.canceled ? "line-through" : ""}`}>
+        <span
+          className={`font-display text-[21px] leading-tight font-[430] ${e.canceled ? "line-through" : ""}`}
+        >
           {e.title}
         </span>
         <span className="text-[15px] text-ink-muted tabular-nums">
           {fmtTimeRange(e.start, e.end)} PT
         </span>
-        {e.canceled && <span className="text-[15px] font-bold text-brass-text">Canceled</span>}
+        {e.canceled && (
+          <span className="text-[15px] font-bold text-brass-text">
+            Canceled
+          </span>
+        )}
       </span>
       <span className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[15px] text-ink-muted">
         <span>
-          {e.location ?? (isOnline(e) ? "Online" : e.hasLocation ? "Address for members" : "Location TBD")}
+          {e.location ??
+            (isOnline(e)
+              ? "Online"
+              : e.hasLocation
+                ? "Address for members"
+                : "Location TBD")}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="flex -space-x-1.5">
             {e.hosts.slice(0, 3).map((h) => (
-              <Avatar key={h._id} member={h} size={22} className="ring-2 ring-cream" />
+              <Avatar
+                key={h._id}
+                member={h}
+                size={22}
+                className="ring-2 ring-cream"
+              />
             ))}
           </span>
           {e.hosts.map((h) => h.name.split(" ")[0]).join(", ")}
@@ -782,7 +882,9 @@ function AgendaRow({
             {going} going{maybe ? `, ${maybe} maybe` : ""}
           </span>
         )}
-        {e.myRsvp === "yes" && <span className="text-brass-text">You’re going</span>}
+        {e.myRsvp === "yes" && (
+          <span className="text-brass-text">You’re going</span>
+        )}
       </span>
     </button>
   );
@@ -805,7 +907,8 @@ function SidePanel({
     // A click anywhere outside the panel closes it, except on things that open another panel.
     const onDown = (ev: PointerEvent) => {
       const t = ev.target as Element | null;
-      if (!t || ref.current?.contains(t) || t.closest("[data-opens-panel]")) return;
+      if (!t || ref.current?.contains(t) || t.closest("[data-opens-panel]"))
+        return;
       onClose();
     };
     window.addEventListener("keydown", onKey);

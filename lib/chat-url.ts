@@ -17,11 +17,7 @@
 // and Next.js's own state catches up when it can.
 
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  useLayoutEffect,
-  useSyncExternalStore,
-  type MouseEvent,
-} from "react";
+import { useLayoutEffect, useSyncExternalStore, type MouseEvent } from "react";
 
 // A URL we wrote, valid while the router still shows the URL it was written over
 // (`base`). Once the router moves on (a real navigation), the router's URL wins again.
@@ -65,7 +61,8 @@ function write(
   const state = current?.__NA
     ? {
         __NA: current.__NA,
-        __PRIVATE_NEXTJS_INTERNALS_TREE: current.__PRIVATE_NEXTJS_INTERNALS_TREE,
+        __PRIVATE_NEXTJS_INTERNALS_TREE:
+          current.__PRIVATE_NEXTJS_INTERNALS_TREE,
         ...extra,
       }
     : null;

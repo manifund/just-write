@@ -77,7 +77,9 @@ if (!resendKey) throw new Error("Needs RESEND_API_KEY");
 const audience = pickAudience(headers.to);
 const members = await loadMembers(audience);
 
-console.log(`From: ${from}\nReply-To: ${replyTo}\nSubject: ${subject}\n\n${body}\n`);
+console.log(
+  `From: ${from}\nReply-To: ${replyTo}\nSubject: ${subject}\n\n${body}\n`,
+);
 console.log(`${members.length} ${AUDIENCES[audience].label}:`);
 for (const m of members) console.log(`  ${m.email}  (${m.name})`);
 console.log();
@@ -117,7 +119,10 @@ console.log(
 if (failed) process.exit(1);
 
 function pickAudience(to: string | undefined): Audience {
-  const first = (to ?? "committed").trim().toLowerCase().split(/[\s,]+/)[0];
+  const first = (to ?? "committed")
+    .trim()
+    .toLowerCase()
+    .split(/[\s,]+/)[0];
   if (first in AUDIENCES) return first as Audience;
   throw new Error(
     `Unknown "To:" audience "${to}". Use one of: ${Object.keys(AUDIENCES).join(", ")}`,
@@ -234,7 +239,7 @@ function renderHtml(body: string) {
   const blocks = body.split(/\n\s*\n/).map((block) => {
     const lines = block.split("\n");
     const out: string[] = [];
-    for (let i = 0; i < lines.length; ) {
+    for (let i = 0; i < lines.length;) {
       const isList = numbered.test(lines[i]);
       let j = i;
       while (j < lines.length && numbered.test(lines[j]) === isList) j++;

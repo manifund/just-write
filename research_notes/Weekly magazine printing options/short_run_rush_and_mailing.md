@@ -5,11 +5,13 @@ Notes on method: quotes marked "live quote" were taken from each printer's publi
 ## 1. Online short-run printers: price for 100 copies at ~100 and ~150 pages, turnaround, binding limits
 
 ### Takeaway
+
 For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 per copy at Mixam (3 business days to ship, then 5+ days ground to California) to about $11-17 at Printivity and 48 Hour Books (1-2 day production options) and $15-22 at DocuCopies (the only one quoted that also mails each copy to a list). At 100-150 pages saddle stitch is not an option at most printers (limits found: 48 pages at Smartpress, 96 at Mixam), so this is a perfect-bound job.
 
 ### Cited Findings
 
 **Mixam (mixam.com) — live quotes**
+
 - Spec quoted: 100 copies, portrait, full color, 80 lb satin (coated) text interior, Perfect (PUR) binding, 4-page cover on 100 lb satin cover, color inside and out, gloss lamination (the selected finish at quote time; matte, matte anti-scuff, soft-touch, UV, and spot UV are also offered). Prices exclude shipping. — [Mixam magazine calculator](https://mixam.com/magazines)
   - 6 x 9 in, 100 inside pages + cover: $588.00 ($5.88/copy). Total order weight 49.4 lb (about 7.9 oz per copy).
   - 6 x 9 in, 152 inside pages + cover: $734.00 ($7.34/copy). 73.0 lb (about 11.7 oz per copy).
@@ -24,6 +26,7 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 - Mixam's US address is 1 N Wacker Dr, Chicago, IL (appointment only). — [Mixam shipping page](https://mixam.com/support/shipping)
 
 **Printivity (printivity.com) — live quotes**
+
 - Spec quoted: 100 perfect-bound books, 6 x 9 in, full color, full bleed, 80 lb matte text ("Classic Matte Paper"), 100 lb matte cover ("Premium Matte Cardstock"), matte lamination. 100 pages: $1,084.07 ($10.84/copy). 152 pages: $1,385.54 ($13.86/copy). — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books)
 - 100 copies, 152 pages, 8.5 x 11 in, 60 lb uncoated text, 90 lb gloss cover, no coating: $1,664.12 ($16.64/copy). — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books)
 - The quote page showed "Rush delivery available: Want it Wednesday, November 11th? Order within: 1 hrs 47 mins" (next-day delivery when ordered Tue Nov 10 morning Pacific). The rush surcharge is set later in checkout and was not captured. — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books)
@@ -33,6 +36,7 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 - The quote is fully encoded in the page URL (quantity, pages, paper, size, coating), so a saved link reproduces the same spec each week. — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books)
 
 **48 Hour Books (48hrbooks.com) — live quote**
+
 - Spec quoted: perfect bound, 5.5 x 8.5 in, 152 color pages, standard paper and cover options, quantity 100 (the site adds 25 free books): $1,725.00 total, $17.25/book, or $13.80 per book counting the 25 free copies. Shipping extra. — [48 Hour Books pricing calculator](https://www.48hrbooks.com/book-printing/pricing-calculator)
 - Production options shown with that quote: Standard 2 business days (+$0), Rush 1 day (+$395), Super Rush "ships same day" (+$790). — [48 Hour Books pricing calculator](https://www.48hrbooks.com/book-printing/pricing-calculator)
 - "Standard" for perfect bound or saddle stitched books means shipping 2 business days after artwork approval; Rush needs proof approval by 3pm ET and Super Rush by noon ET, and both are "only available on a limited basis" by phone. — [48 Hour Books FAQ](https://www.48hrbooks.com/faq)
@@ -41,6 +45,7 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 - Address: 1909 Summit Commerce Park, Twinsburg, OH; the site footer also lists "48 Hour Books West". — [48 Hour Books pricing calculator](https://www.48hrbooks.com/book-printing/pricing-calculator)
 
 **DocuCopies (docucopies.com) — live quotes**
+
 - Spec quoted: 100 perfect-bound books, full color, double sided, print to edge (bleed), 32/80# gloss text interior, 100# gloss cover printed both sides. Prices shown are after a 10% coupon the site applied automatically, with free UPS Ground shipping. — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
   - 6 x 9, 100 pages: $15.28/book ($1,528.20; list $1,698.00).
   - 6 x 9, 152 pages: $21.39/book ($2,138.58; list $2,376.19).
@@ -53,30 +58,38 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 - Interior papers: 20/50# bond up to 32/80# smooth or gloss and 100# gloss text; covers 65#-100# smooth or gloss, 12pt. Cover lamination is an option on the form. — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
 
 **PrintingCenterUSA (printingcenterusa.com)**
+
 - Perfect bound: minimum 28 pages, up to 800 pages / 2 in thick; minimum 10 copies; "standard turnaround time is 3 to 4 days from proof approval", with faster dates selectable in the pricing tool. Uses HP Indigo digital presses. — [PrintingCenterUSA perfect bound](https://www.printingcenterusa.com/printing/perfect-bound-book-printing)
 - Magazines: delivery "3 to 4 business days from proof approval"; overnight and expedited production available. Recommended stock 80# text inside, 80# cover. — [PrintingCenterUSA magazines](https://www.printingcenterusa.com/printing/magazine-printing)
 - Address listed: 117 9th Street North, Great Falls, MT. — [PrintingCenterUSA mailing services](https://www.printingcenterusa.com/services/mailing-services)
 
 **Best Value Copy (bestvaluecopy.com)**
+
 - "Most orders are produced within 24 to 48 hours at no additional charge"; bindery jobs "may take up to 48 hours". Printing is "high-speed inkjet". Free ground shipping over $125 in the lower 48. Ships Monday-Friday. — [Best Value Copy pricing chart](https://www.bestvaluecopy.com/pricing-chart); [FAQ](https://www.bestvaluecopy.com/faqs)
 - The booklet configurator lists perfect binding along with comb, coil, wire, velo, tape, and saddle stitch, and papers up to 100# gloss text and 100# gloss/silk cover. — [Best Value Copy booklets](https://www.bestvaluecopy.com/booklets.html)
 
 **Smartpress (smartpress.com)**
+
 - Perfect bound: recommended minimum 46 pages, up to 2 in thick; PUR glue needs "at least 24 hours" to cure. Saddle stitch: 8-48 pages with 80# or 100# text (36 for 9 x 12 or larger). The FAQ recommends ordering a hard proof to check crossovers. Corporate office in Chanhassen, MN. — [Smartpress booklet FAQ](https://smartpress.com/support/product-faq/booklet-printing-faq)
 
 **Bookmobile (Minneapolis)**
+
 - "Our paperback turn is two weeks" with clean files and quick proof approval, for black-ink interiors, 25-3,000 copies; turnaround excludes shipping from Minneapolis (UPS Ground up to five business days). The post is dated June 2018. — [Bookmobile fast paperback printing](https://www.bookmobile.com/book-production/fast-paperback-printing)
 
 **Newspaper Club (UK, newsprint)**
+
 - "Generally, international orders sent by air will arrive 2-8 working days after ordering"; 55gsm digital tabloids have the fastest turnaround. The site has a US ($) storefront. — [Newspaper Club delivery](https://www.newspaperclub.com/choose/orders-and-delivery/delivery/)
 
 **Edition One Books (Berkeley)**
+
 - On 2026-11-10, editiononebooks.com returned a Squarespace "Website Expired — This account has expired" page. — [editiononebooks.com](https://www.editiononebooks.com/)
 
 **Conquest Graphics**
+
 - The site's product list includes Booklets, Magazines, Catalogs, Mail Lists, Commingled Postcards, and Every Door Direct Mail; a banner gave a customer-service phone number for time-sensitive projects. — [Conquest Graphics](https://www.conquestgraphics.com/)
 
 ### Inferences
+
 - At 80-150 pages, plan on perfect binding. Only Mixam's saddle stitch reaches 96 pages; Smartpress stops at 48.
 - Mixam is by far the cheapest per copy (about $6-10) but ships from far from California: a Tue order ships Fri and arrives by ground the following Fri (10 days), or the following Tue with 2nd Day Air at roughly $5/copy extra for the heaviest spec. It does not meet "full run at members' doors within a week" unless Mixam mails directly and quickly (unconfirmed, see section 2).
 - Printivity, 48 Hour Books, and DocuCopies cost roughly 2-3x Mixam per copy but have 1-2 day production. All three fit within $20-30 all-in only if postage and packing stay near $5-8.
@@ -85,6 +98,7 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 - Edition One Books should be treated as unavailable until confirmed by phone, since its website has lapsed.
 
 ### Gaps
+
 - No live quotes for PrintingCenterUSA, Smartpress, Conquest Graphics, Best Value Copy, Bookmobile, or Publishers' Graphics: Smartpress and Bookmobile pages blocked automated reading, and the others were not reached in the time available. PrintingCenterUSA and Smartpress calculators should be run by hand for the 6 x 9 / 152 pp spec.
 - Publishers' Graphics: no current turnaround or pricing found; the only detail was a 2016 Publishers Weekly mention of its PGDirect print-on-demand platform (from a search summary, not read directly).
 - Printivity's production location and press type were not confirmed from its site in this session.
@@ -95,9 +109,11 @@ For 100 perfect-bound, full-color copies, live quotes ranged from about $6-10 pe
 ## 2. Mailing services, per-piece cost, minimums, APIs and reorder flows
 
 ### Takeaway
+
 DocuCopies was the only printer found with a self-serve, no-stated-minimum option to print perfect-bound books and mail each one to a list (padded envelope, CSV/Excel upload); it added about $3.27 per book before postage in a live quote. Mixam supports CSV mailing lists and split shipping and has a public ordering API, but per-address cost was not visible without an account; PrintingCenterUSA mails magazines but publishes no prices.
 
 ### Cited Findings
+
 - DocuCopies: "To add mailing to your perfect binding job, click Bulk Mailing and choose 'Mail in Padded Envelopes.' Upload your mailing list (Excel or CSV)... We will print and bind each book, insert them individually in protective envelopes and mail them out typically in 3-5 business days. The exact USPS service used will depend on each book's weight. Please note that this service may not include tracking information." — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
 - DocuCopies live quote, 100 copies, 6 x 9, 152 pages, 80# gloss text, 100# gloss cover: $21.39/book without mailing and $24.66/book with "Mail in Padded Envelopes" selected ($2,466.19 total after coupon), i.e. about $3.27/book for the mailing service, with "+ POSTAGE: TBD — Postage will be calculated after you checkout. You're not automatically charged." — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
 - DocuCopies book mailing: "We will calculate your postage when the order is submitted and email you for approval." Mail is handed to the post office in Wisconsin or California; tracking is limited. — [DocuCopies mailing services](https://www.docucopies.com/mailing-services/)
@@ -112,12 +128,14 @@ DocuCopies was the only printer found with a self-serve, no-stated-minimum optio
 - Printivity's /services/mailing-services URL returned an empty page (navigation only); no mailing service is described on its booklet or perfect-bound pages. — [Printivity](https://www.printivity.com/services/mailing-services)
 
 ### Inferences
+
 - DocuCopies print-and-mail for a 6 x 9, 152-page issue would be about $24.66 plus postage per copy. If it uses Media Mail ($4.39) or a First-Class flat (about $5.24) the all-in is about $29-30; if it uses Ground Advantage (about $7-9) it exceeds $30. A 100-page issue would be about $18.55 plus postage, comfortably inside budget. Which USPS class it would pick for an 8-13 oz book needs to be asked before ordering.
 - DocuCopies' stated "3-5 business days" to mail out plus USPS transit of 1-8 days gives roughly 6-13 days file to doorstep at standard speed; whether rush production can be combined with book mailing is unconfirmed.
 - If Mixam charges parcel rates per address (its single-copy ground quote was $17.50), mailing 100 individual copies through Mixam would cost more than the printing. UPS Mail Innovations might be cheaper for list mailings, but that price is only visible in a logged-in cart.
 - A weekly, same-PDF job suits Mixam's API or Printivity's URL-encoded quote for reordering; DocuCopies would be a saved quote plus a re-uploaded list each week.
 
 ### Gaps
+
 - Mixam's per-address fee beyond 5 addresses and the cost of shipping 100 single copies via a mailing list were not obtainable without logging in.
 - Whether 48 Hour Books, Printivity, Smartpress, Best Value Copy, or Conquest Graphics will mail individual copies to a list was not confirmed. Conquest Graphics lists mail products, but no detail on magazine mailing or minimums was read.
 - PrintingCenterUSA mailing price, minimum quantity, and added time need a quote request (which requires contact details, so it was not submitted).
@@ -126,9 +144,11 @@ DocuCopies was the only printer found with a self-serve, no-stated-minimum optio
 ## 3. Print quality reputation
 
 ### Takeaway
+
 Hard evidence on quality is thin. What the calculators and sites disclose: Mixam runs short digital jobs on HP Indigo but routed these 100+ page jobs to a Canon inkjet press; PrintingCenterUSA says it uses HP Indigo; Best Value Copy says it uses high-speed inkjet. Community opinion found was mostly about Mixam (decent quality, rising prices).
 
 ### Cited Findings
+
 - Mixam quoted the 100-copy, 100-152 page PUR jobs as "Printed on a Canon iX", while smaller jobs showed "Indigo 7600" and "Indigo 12000". — [Mixam magazine calculator](https://mixam.com/magazines)
 - Mixam shows a Trustpilot score of 4.4 from 5,955 reviews; recent reviews on its own page include a magazine publisher on an 8th issue who was frustrated that proofing "got sent back several times for edits" but said the final quality was "exactly what I was hoping for", and a brochure customer whose order was mis-trimmed. — [Mixam](https://mixam.com/direct-mail)
 - PrintingCenterUSA: "we combine efficient HP Indigo digital technology with responsibly sourced recycled paper". — [PrintingCenterUSA perfect bound](https://www.printingcenterusa.com/printing/perfect-bound-book-printing)
@@ -138,20 +158,24 @@ Hard evidence on quality is thin. What the calculators and sites disclose: Mixam
 - From search-result summaries only (threads not read in full): zine and photo forum users describe Mixam as reliable for short runs; an r/zines thread complains its prices rose sharply over a few months; a UK photography forum poster says the US site is more expensive and its quality "at best acceptable". — [Talk Photography thread](https://www.talkphotography.co.uk/threads/alternatives-to-mixam-for-zine-printing.733759/); [r/zines mirror](https://libreddit.winscloud.net/r/zines/comments/1nvcsaa/printing)
 
 ### Inferences
+
 - For a text-heavy essay magazine, toner or inkjet on 80 lb coated or uncoated text will be acceptable from any of these; the differences that matter are cover lamination, binding quality (PUR at Mixam and Smartpress), and color consistency if there is photography.
 - Because the press depends on the job, the only reliable quality check is a printed proof or a first small order of the actual issue from the shortlisted printer.
 - Mixam's automated file check can bounce files more than once; for a weekly schedule, a fixed, pre-validated template matters.
 
 ### Gaps
+
 - No independent, current reviews were found comparing Printivity, Smartpress, DocuCopies, 48 Hour Books, and PrintingCenterUSA for magazines. Reddit and magCulture-style sources were not reachable in this session.
 - Press types for Printivity, Smartpress, and DocuCopies were not confirmed.
 
 ## 4. Proof copies in 1-3 days
 
 ### Takeaway
+
 Online, Printivity and DocuCopies both showed next-day delivery options for perfect-bound work on the day checked, and 48 Hour Books sells same-day and next-day production for a flat fee; Mixam cannot do it (a single copy ordered Tuesday arrives the following Monday at the earliest). Local Bay Area and retail-chain options could not be verified and need phone calls.
 
 ### Cited Findings
+
 - Printivity, single copy, 6 x 9, 152 pages, 80 lb matte text, 100 lb matte cover, matte lamination: $52.60 before shipping and rush. The page showed "Rush delivery available: Want it Wednesday, November 11th? Order within: 1 hrs 47 mins" on Tue Nov 10. — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books)
 - Printivity Rush Critical: same-day, overnight, and next-day printing by phone or email quote, with a digital proof first and a shipment "guaranteed to arrive by your deadline". — [Printivity Rush Critical](https://www.printivity.com/rush-critical)
 - DocuCopies: with a perfect-bound quote loaded the page showed "Order in the next 1 hr 49 mins to receive as early as Tomorrow Nov 11th". Same-day printing applies to orders submitted before 12pm Central, and it has a California facility. — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/); [rush printing](https://www.docucopies.com/rush-printing-services/)
@@ -163,12 +187,14 @@ Online, Printivity and DocuCopies both showed next-day delivery options for perf
 - Edition One Books' website was expired on 2026-11-10. — [editiononebooks.com](https://www.editiononebooks.com/)
 
 ### Inferences
+
 - The cheapest reliable 1-3 day proof found is a single copy from Printivity with rush delivery (about $53 plus rush and shipping). DocuCopies can match the speed but a single perfect-bound copy costs about $270 because of setup; its hard-copy-proof add-on is tied to a full order.
 - A proof is most useful from the same printer that will run the issue. If the run goes to Mixam for price, a proof from another printer checks layout and typos but not Mixam's color or binding.
 - Because the organizer's location is unconfirmed, an online next-day proof is the safer plan; a local shop is a backup if one confirms same-day perfect binding by phone.
 - For the first issue, the proof and the run cannot both fit in one week with any printer unless the proof is next-day and the run uses 1-2 day production.
 
 ### Gaps
+
 - FedEx Office, Staples, and UPS Store: no current official information was found on same-day booklets or perfect binding, page limits, or prices (searches returned only third-party pages and a 2009 Kinko's price). These need a store call or their online configurators.
 - No Bay Area shop was confirmed to do same-day or next-day perfect binding, and no local prices were obtained. The MetaFilter thread could not be opened, and its date is unknown.
 - Printivity's rush fee and overnight shipping cost for one copy were not captured.
@@ -177,9 +203,11 @@ Online, Printivity and DocuCopies both showed next-day delivery options for perf
 ## 5. Postage and fulfillment for ~100 individual copies
 
 ### Takeaway
+
 A 6 x 9 copy under 13 oz can go as a First-Class large envelope for $3.72-$5.24 retail (1-5 days, no tracking); anything heavier or rigid goes Ground Advantage at about $7-14 (2-5 days, tracked) or, if it qualifies, Media Mail at $4.39 (2-8 days). Bulk classes (Marketing Mail, Periodicals) carry permits and fees that do not suit 100 copies a week. No priced third-party fulfillment option for 100 pieces was found other than DocuCopies' own print-and-mail service.
 
 ### Cited Findings
+
 - The USPS price list is marked "Effective October 04, 2026". — [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm)
 - First-Class Mail large envelopes (flats), retail: 6 oz $3.14, 7 oz $3.43, 8 oz $3.72, 9 oz $4.02, 10 oz $4.32, 11 oz $4.62, 12 oz $4.93, 13 oz $5.24 (13 oz is the top of the table). "Large envelope-sized pieces that are rigid, nonrectangular, or not uniformly thick pay parcel prices." — [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm)
 - First-Class Mail commercial flats (presorted): 8 oz $3.62, 12 oz $4.83, 13 oz $5.14; annual First-Class presort mailing fee $390. — [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm)
@@ -197,6 +225,7 @@ A 6 x 9 copy under 13 oz can go as a First-Class large envelope for $3.72-$5.24 
 - DocuCopies' print-and-mail handling for books in padded envelopes added about $3.27 per book in a live quote, postage extra. — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
 
 ### Inferences
+
 - Postage per copy by format, adding roughly 1 oz for an envelope:
   - 6 x 9, 100 pp (about 9 oz mailed): First-Class flat $4.02; Ground Advantage $7.33-$8.95 commercial or $10.05-$13.65 retail.
   - 6 x 9, 152 pp (about 12.7-13 oz mailed): First-Class flat $5.24 if it stays at or under 13 oz, which is marginal; otherwise Ground Advantage.
@@ -210,6 +239,7 @@ A 6 x 9 copy under 13 oz can go as a First-Class large envelope for $3.72-$5.24 
 - Commercial Ground Advantage in this price list charges one rate for everything under 1 lb, so label platforms' discounted rates (not published) decide the real cost; check Pirate Ship's calculator with the actual weight.
 
 ### Gaps
+
 - No sourced prices were found for envelopes, poly bags, or labor, or for a mail house or fulfillment service that will take a box of 100 magazines and mail them to a list. Searches returned only general direct-mail cost guides. Local mail houses would need to be asked for a quote with their minimums.
 - Whether Pirate Ship or similar tools can print First-Class flat (large envelope) postage was not confirmed; forum posts in search summaries suggest flats usually cannot be bought through shipping platforms and default to Ground Advantage. Stamps or a postage meter account may be needed for flats.
 - The 200-piece / 50-pound minimum for Marketing Mail and the 3/4 inch maximum thickness for flats are from general knowledge of USPS rules and were not re-verified against the current DMM in this session.
@@ -219,9 +249,11 @@ A 6 x 9 copy under 13 oz can go as a First-Class large envelope for $3.72-$5.24 
 ## 6. Realistic all-in cost and file-to-doorstep time for the best routes
 
 ### Takeaway
+
 Three workable routes emerged: DocuCopies print-and-mail (least effort, roughly $23-30+ per copy, about 1-2 weeks at standard speed); a fast printer such as Printivity or 48 Hour Books shipped to the organizer and hand-mailed (roughly $17-26 per copy, about 5-9 days); and Mixam shipped to the organizer and hand-mailed (roughly $13-18 per copy, about 12-16 days, or 9-12 with air shipping). Only the second route plausibly meets "members within about a week".
 
 ### Cited Findings
+
 - DocuCopies print-and-mail, 100 copies, 6 x 9: 152 pp $24.66/book including mailing service, postage extra; 100 pp $15.28/book before the mailing service. Books are mailed "typically in 3-5 business days". — [DocuCopies perfect bound books](https://www.docucopies.com/order/PERFECT-BOUND-BOOKS/)
 - Printivity, 100 copies, 6 x 9, matte text and laminated cover: $10.84/copy at 100 pp, $13.86/copy at 152 pp; next-day rush delivery was offered on the day checked; two-day turnaround options exist for most bindings. — [Printivity perfect bound books](https://www.printivity.com/books/perfect-bound-books); [Printivity booklets](https://www.printivity.com/booklets)
 - 48 Hour Books, 100 (+25 free) copies, 5.5 x 8.5, 152 color pages: $17.25/book; 2 business days standard, 1 day +$395, same day +$790; ships from Ohio. — [48 Hour Books pricing calculator](https://www.48hrbooks.com/book-printing/pricing-calculator)
@@ -229,6 +261,7 @@ Three workable routes emerged: DocuCopies print-and-mail (least effort, roughly 
 - Postage: First-Class flat $4.02 at 9 oz and $5.24 at 13 oz (1-5 days); Ground Advantage commercial $7.33-$8.95 under 1 lb (2-5 days). — [USPS Notice 123](https://pe.usps.com/text/dmm300/Notice123.htm); [USPS services](https://www.usps.com/ship/mail-shipping-services.htm)
 
 ### Inferences
+
 - Route A, DocuCopies prints and mails to the list (6 x 9):
   - 100 pp: about $18.55 print and handling + $4-9 postage = about $23-28 per copy.
   - 152 pp: $24.66 + $4.39-$9 postage = about $29-34 per copy, at or over the budget ceiling unless a cheaper paper is chosen.
@@ -247,6 +280,7 @@ Three workable routes emerged: DocuCopies print-and-mail (least effort, roughly 
 - Choosing 6 x 9 and keeping the mailed weight at or under 13 oz (about 150 pages on 80 lb text, or more on 70 lb) saves roughly $3-4 per copy in postage versus Ground Advantage, about $300-400 per issue.
 
 ### Gaps
+
 - All-in figures above combine live print quotes with estimated shipping shares, mailer costs, and postage; rush fees, sales tax, and exact inbound shipping for Printivity and 48 Hour Books were not captured.
 - No route was confirmed end to end for "doorstep within 7 days"; Route B's timing depends on unverified rush pricing and on where Printivity produces and ships from.
 - Bay Area local printers might beat Route B on time (no inbound shipping) but none was priced or confirmed.

@@ -5,9 +5,11 @@ Notes on method: prices marked "calculator, 2026-11-10" were read directly from 
 ## 1. Which providers have a public, self-serve print API suitable for magazines or softcover books?
 
 ### Takeaway
+
 Three options are self-serve today and fit the job: Lulu Print API (instant keys, sandbox, has a "Magazine" product), RPI Print's Self-Service API (the Blurb/MagCloud parent; softcover books only, US/Canada only, sandbox by default), and Mixam (public API plus print-on-demand "PrintLink", but the account must be approved first). MagCloud is still running (now under RPI Print) and has a no-code "Ship to Group" feature that does the same job without an API. Peecho, Cloudprinter, Bookvault, Gelato and Prodigi have APIs but are a worse fit (price, UK/EU focus, photo-book-only catalogs, or unclear US specs); Printful/Printify, Newspaper Club and PrintNinja do not fit.
 
 ### Cited Findings
+
 - **Lulu**: "You have to create an account to start using the Lulu Print API. Your account will automatically receive a client-key and a client-secret." Separate sandbox at `api.sandbox.lulu.com`; sandbox print jobs "will never be forwarded to a real production" — [Lulu Print API docs](https://api.lulu.com/docs/) ([OpenAPI spec](https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml))
 - Lulu's API pricing calculator lists product types Print Book, Photo Book, Comic Book, Magazine, Yearbook, Calendar (calculator, 2026-11-10) — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - Lulu charges no fee for using the Print API; charges are only for print jobs (manufacturing, shipping, sales tax) — [Lulu API getting started guide](https://assets.lulu.com/media/guides/en/lulu-api-getting-started-guide.pdf)
@@ -34,11 +36,13 @@ Three options are self-serve today and fit the job: Lulu Print API (instant keys
 - **PrintNinja**: offset; perfect-bound production 2-3 weeks, optional physical proof adds 1-2 weeks, standard international delivery 6-8 weeks; minimum 250 units for perfect bound — [PrintNinja turnaround times](https://printninja.com/turnaround-times/)
 
 ### Inferences
+
 - Ranked by fit for "start within 1-2 weeks, API-driven, US single-copy mailing": (1) RPI Print Self-Service API, (2) Lulu Print API, (3) Mixam POD/API if the account is approved quickly; MagCloud Ship to Group is the best no-API fallback.
 - Newspaper Club (max 64 pages, newsprint, UK), PrintNinja (offset, weeks, 250 minimum), Printful/Printify (no magazine product) can be ruled out.
 - Gelato and Prodigi can only do this as a "photo book", which is the wrong product (30-200 page photo paper books priced for photo gifts).
 
 ### Gaps
+
 - Mixam: how long API account approval takes, and whether the API's order endpoint supports print-on-demand single copies to arbitrary addresses at POD prices (the OpenAPI schema lists "PrintLink", "Mailing Lists" and a `PRINT_ON_DEMAND` quote type, but I did not read those endpoint definitions).
 - Peecho: whether API credentials are issued instantly on sign-up; the API reference page did not render for me.
 - Whether MagCloud still has any API: I found no mention of one on the current site.
@@ -48,9 +52,11 @@ Three options are self-serve today and fit the job: Lulu Print API (instant keys
 ## 2. Bindings, page counts, paper stocks, trim sizes, color tiers, and print quality reputation
 
 ### Takeaway
+
 At 80-150 pages every provider means perfect binding (saddle stitch tops out at 48-100 pages). The main quality split is Lulu "Standard" vs "Premium" color (premium costs about 2.5-3x), RPI's 100 lb coated "Premium" papers vs 70 lb uncoated, MagCloud's 80 lb text on HP Indigo, and Mixam's choice of 70/80/100 lb coated or uncoated stock with PUR binding. Review evidence is thin and mostly anecdotal: Lulu premium and Blurb premium are rated well, Lulu standard color poorly, MagCloud "flimsy" by one 2026 zine maker, Mixam mostly positive with some complaints on uncoated paper.
 
 ### Cited Findings
+
 - **Lulu Magazine product** (calculator, 2026-11-10): sizes A4 and US Letter only; binding Perfect Bound or Saddle Stitch; interior Premium Black & White or Premium Color only; paper 70# White Coated only; cover Glossy or Matte; page count 4-800 overall, perfect bound 32-800; saddle stitch showed "Option not available" at 100 pages; SKU `0850X1100.FC.PRE.PB.070CW460.MIX` — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - **Lulu Print Book product** (calculator, 2026-11-10): bindings Perfect Bound, Coil Bound, Saddle Stitch, Case Wrap, Linen Wrap; interior Premium B&W, Standard B&W, Premium Color, Standard Color; paper 60# Cream uncoated, 60# White uncoated, 80# White coated; perfect bound 32-800 pages; many trim sizes including US Trade 6x9 and US Letter — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - Lulu product codes are built from trim, color (BW/FC), quality (STD/PRE), binding, paper, finish, e.g. `0600X0900.FC.STD.PB.080CW444.GXX`; the old 27-character non-dotted format stops being supported 2027-02-01 — [Lulu Print API docs](https://api.lulu.com/docs/)
@@ -78,12 +84,14 @@ At 80-150 pages every provider means perfect binding (saddle stitch tops out at 
 - Quality, Peecho: Trustpilot reviewers flag high cost for single-copy orders — [Trustpilot: Peecho](https://www.trustpilot.com/review/peecho.com?page=5)
 
 ### Inferences
+
 - A 6x9 "journal" size is cheapest everywhere but on RPI it is only available on 70 lb uncoated paper; a coated-paper magazine look on RPI means 8x10 or 8.5x11.
 - Lulu's "Magazine" product is effectively the premium-color US Letter book on a 70# coated sheet; Lulu's cheaper route is the Print Book product in Standard Color on 80# coated, which is the tier with the weakest quality reputation.
 - Mixam offers the widest paper and finish control and is the only one here quoting specific presses; at 100+ pages its quotes moved from HP Indigo to a Canon inkjet press, which may look different from its short-run Indigo samples.
 - MagCloud and the RPI API are the same company and probably the same plants, but the products differ (MagCloud: 80 lb text magazine; RPI API: 100 lb coated book).
 
 ### Gaps
+
 - No recent (2025-2026) independent side-by-side comparison of these services for magazines was found; Reddit threads did not surface in search. The best comparative test found is from 2016.
 - Lulu standard vs premium color: I did not find Lulu's current description of the press/process difference.
 - Blurb magazine page limits and paper weight were not stated on the product page; whether the Blurb "magazine" SKU can be ordered through the RPI API is unconfirmed (the public catalog suggests not).
@@ -93,9 +101,11 @@ At 80-150 pages every provider means perfect binding (saddle stitch tops out at 
 ## 3. Production time, shipping speed, and fastest "file submitted to copy in hand"
 
 ### Takeaway
+
 No provider found can put a proof in hand in 1-3 days. Realistic best cases are about 4 business days (Mixam with next-day air; MagCloud with FedEx overnight; RPI Rush) and about 6-9 business days on standard shipping from RPI or Mixam; Lulu is slowest (its own estimates are 5-8 business days on Express and 11-14 on Mail). For a weekly issue, standard-shipping delivery windows of 1-3 weeks mean issues will overlap in transit.
 
 ### Cited Findings
+
 - **Lulu** delivery estimates including production, 1 copy to a US address (calculator, 2026-11-10): Mail 11-14 business days; Ground Business / Ground Home 9-12; Priority Mail 9-12; Expedited 6-9; Express 5-8; all listed as trackable — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - Lulu: "For orders under 100 units, we expect 3-5 days in production before shipment"; higher quantities may take an extra day — [Lulu API help center](https://help.api.lulu.com/en/support/solutions/folders/64000234922)
 - Lulu: "We generally estimate 3-5 business days from the time of ordering to print, bind, and package a paperback order"; production time increases late in the year — [Lulu getting started guide](https://assets.lulu.com/media/guides/en/lulu-getting-started-guide.pdf)
@@ -114,12 +124,14 @@ No provider found can put a proof in hand in 1-3 days. Realistic best cases are 
 - **Newspaper Club**: 2-8 working days press to door worldwide — [Newspaper Club](https://www.newspaperclub.com/)
 
 ### Inferences
+
 - Fastest realistic file-to-hand for one proof copy in the US: Mixam about 4 business days (3 production + next-day air, about $50 shipping); MagCloud about 4 business days with overnight (about $32 shipping); RPI Rush about 4-5 business days (3 production + 1 day, $35.99 shipping) plus up to a day waiting for the daily payment run unless "Pay Now" is used; Lulu Express 5-8 business days ($35.74 shipping).
 - Standard-shipping file-to-mailbox: RPI roughly 6-10 calendar days (4 business days + 2-5 days); Mixam roughly 5 business days by ground; MagCloud about 13 calendar days; Lulu Mail 11-14 business days (2-3 weeks).
 - For a weekly cadence, RPI or Mixam can land an issue about a week after the file is final; Lulu Mail and MagCloud Standard land it 2-3 weeks later.
 - Mid-November to December is peak season; Lulu explicitly warns production times lengthen late in the year, so first orders placed in the next 1-2 weeks may run slower than these estimates.
 
 ### Gaps
+
 - MagCloud does not publish a production-time figure I could find; the dates above are from one calculator session.
 - Mixam's ship dates are for its standard (bulk) ordering flow; production time for PrintLink/POD single-copy orders was not found.
 - Cloudprinter, Gelato and Prodigi US production times for multi-page products were not found.
@@ -128,9 +140,11 @@ No provider found can put a proof in hand in 1-3 days. Realistic best cases are 
 ## 4. How each API works, minimums, and whether 100 single-copy orders are practical
 
 ### Takeaway
+
 Lulu and RPI have the cleanest fit: one authenticated POST per recipient with cover and interior PDF URLs, a shipping address, a shipping level, and a webhook for status and tracking; both have sandboxes and no minimums. RPI has a default limit of 50 orders per rolling 24 hours (extra orders queue), so 100 single-copy orders needs a limit increase from support or two days; Lulu adds a $0.75 fulfillment fee per order. Mixam's API is order-based with artwork validation callbacks but needs account approval; MagCloud does the same job with no API through Ship to Group.
 
 ### Cited Findings
+
 - **Lulu auth**: OpenID Connect / OAuth2 client-credentials; POST the client key and secret to the token endpoint to get a JWT bearer token — [Lulu Print API docs](https://api.lulu.com/docs/)
 - **Lulu order**: POST `/print-jobs/` with `line_items` (each with a `pod_package_id`, page count, and publicly reachable cover and interior PDF URLs), one `shipping_address` (phone number required), `contact_email`, `shipping_level` (MAIL, PRIORITY_MAIL, GROUND, EXPEDITED, EXPRESS), optional `external_id` and `production_delay` — [Lulu Print API docs](https://api.lulu.com/docs/)
 - Lulu endpoints: `/print-job-cost-calculations/`, `/shipping-options/`, `/validate-interior/`, `/validate-cover/`, `/cover-dimensions/`, `/print-jobs/{id}/status/`, `/print-jobs/{id}/costs/`, `/webhooks/` — [Lulu OpenAPI spec](https://api.lulu.com/api-docs/openapi-specs/openapi_public.yml)
@@ -154,6 +168,7 @@ Lulu and RPI have the cleanest fit: one authenticated POST per recipient with co
 - **Peecho**: files can be sent before or after creating the order; order status and shipping info available per order — [Peecho Print API](https://www.peecho.com/print-api)
 
 ### Inferences
+
 - With Lulu, 100 single-copy print jobs is the normal use of the API. The penalty versus one bulk order is $0.75 x 100 = $75 in fulfillment fees, per-order shipping (from $5.69 each instead of about $0.83 each in a 100-copy ground shipment), and probably no 5% bulk discount, since each order's quantity is 1.
 - With RPI, 100 single-copy orders each pay the $6.99 first-item rate; the default 50-orders-per-day limit should be raised before the first issue (or send two days' worth). Members sharing an address could be combined into one order at $2.50 for the second copy.
 - RPI cannot serve members outside the US and Canada on a self-service account; those few copies would need Lulu (global network) or MagCloud (ships worldwide).
@@ -161,6 +176,7 @@ Lulu and RPI have the cleanest fit: one authenticated POST per recipient with co
 - MagCloud Ship to Group is practical for 100 recipients only if addresses can be entered once and reused each week; the FAQ describes building the group from existing address-book entries and does not mention CSV import.
 
 ### Gaps
+
 - Lulu: how API print jobs are paid (card on file, per job or batched) was not confirmed from the docs I read.
 - Lulu: whether the 5% bulk discount can apply across many single-copy jobs. The calculator ties it to copies in an order.
 - Mixam: whether the API has a sandbox (none mentioned in the docs I read), and POD order semantics.
@@ -170,9 +186,11 @@ Lulu and RPI have the cleanest fit: one authenticated POST per recipient with co
 ## 5. Pricing: per-copy print cost at this spec, shipping to a US address, bulk discounts
 
 ### Takeaway
+
 Delivered single-copy cost for a ~100-page and ~150-page full-color perfect-bound issue: RPI Print API about $21 and $26 (8.5x11 on 100 lb coated) or $17 and $19 (6x9 uncoated, no bleed); Lulu standard color about $13-15 and $16-18, Lulu premium 6x9 about $22 and $29, Lulu premium Letter/"Magazine" about $30 and $41; MagCloud about $24 and $31+ at 100+ copies; Peecho about $30 and $39; Mixam about $33+ as individually shipped singles but about $8-11 per copy as a 100-copy bulk order to one address. Within a $20-30 budget with quality first, RPI's coated-paper book and Lulu premium 6x9 fit; Lulu premium Letter and Peecho do not at 150 pages.
 
 ### Cited Findings
+
 - **Lulu Magazine**, US Letter, perfect bound, premium color, 70# coated, matte (calculator, 2026-11-10): 100 pages $23.95; 150 pages $34.69. With Mail shipping $5.69 and fulfillment fee $0.75 the calculator's subtotal was $30.39 (100 pp) and $41.13 (150 pp). Bulk price per copy at 100-499: $22.75 (100 pp), $32.96 (150 pp) — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - **Lulu Print Book**, US Letter, perfect bound, 80# white coated, matte (calculator, 2026-11-10): Standard Color 100 pp $8.51, 150 pp $11.69; Premium Color 100 pp $23.64, 150 pp $34.38 — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
 - **Lulu Print Book**, US Trade 6x9, perfect bound, 80# white coated, matte (calculator, 2026-11-10): Standard Color 100 pp $7.04, 150 pp $9.57; Premium Color 100 pp $15.88, 150 pp $22.83 — [Lulu API Pricing Calculator](https://developers.lulu.com/price-calculator)
@@ -189,24 +207,25 @@ Delivered single-copy cost for a ~100-page and ~150-page full-color perfect-boun
 - **Gelato** softcover photo book starting price cited as $11.85 (paid-review site, unverified) — [BestReviews: Gelato](https://bestreviews.net/gelato-reviews/)
 
 ### Inferences
+
 Computed delivered cost per copy, one single-copy order per recipient, cheapest tracked/standard shipping, before tax:
 
-| Provider and spec | 100 pp print | 150 pp print | Per-order shipping + fees | 100 pp delivered | 150 pp delivered |
-|---|---|---|---|---|---|
-| RPI API, 8.5x11, 100 lb gloss/dull, full bleed | $14.20 | $18.70 | $6.99 | $21.19 | $25.69 |
-| RPI API, 8x10, 100 lb gloss/dull | $14.40 | $18.90 | $6.99 | $21.39 | $25.89 |
-| RPI API, 6x9, 70 lb uncoated, full bleed | $14.48 | $18.48 | $6.99 | $21.47 | $25.47 |
-| RPI API, 6x9, 70 lb uncoated, no bleed | $10.44 | $12.44 | $6.99 | $17.43 | $19.43 |
-| Lulu Print Book, 6x9, Standard Color, 80# coated | $7.04 | $9.57 | $5.69 + $0.75 | $13.48 | $16.01 |
-| Lulu Print Book, Letter, Standard Color, 80# coated | $8.51 | $11.69 | $5.69 + $0.75 | $14.95 | $18.13 |
-| Lulu Print Book, 6x9, Premium Color, 80# coated | $15.88 | $22.83 | $5.69 + $0.75 | $22.32 | $29.27 |
-| Lulu Print Book, Letter, Premium Color, 80# coated | $23.64 | $34.38 | $5.69 + $0.75 | $30.08 | $40.82 |
-| Lulu Magazine, Letter, Premium Color, 70# coated | $23.95 | $34.69 | $5.69 + $0.75 | $30.39 | $41.13 |
-| MagCloud Magazine 8.25x10.75, perfect bound, 1 copy list price | $21.00 | $31.00 | about $8.14+ | about $29 | about $39 |
-| MagCloud Magazine, 100+ copy discount (25%) | $15.75 | $23.25 | about $8.14+ | about $24 | about $31 |
-| MagCloud Digest 5.25x8.25, 100+ copy discount | $13.50 | $19.88 | not priced | n/a | n/a |
-| Peecho A4 matte magazine | $22.39 | $31.90 | from $7.45 | $29.84 | $39.35 |
-| Mixam Letter, 80 lb satin, single copy shipped by courier | not priced | $16.50 (152 pp) | $16.88-17.50 | n/a | about $33-34 |
+| Provider and spec                                              | 100 pp print | 150 pp print    | Per-order shipping + fees | 100 pp delivered | 150 pp delivered |
+| -------------------------------------------------------------- | ------------ | --------------- | ------------------------- | ---------------- | ---------------- |
+| RPI API, 8.5x11, 100 lb gloss/dull, full bleed                 | $14.20       | $18.70          | $6.99                     | $21.19           | $25.69           |
+| RPI API, 8x10, 100 lb gloss/dull                               | $14.40       | $18.90          | $6.99                     | $21.39           | $25.89           |
+| RPI API, 6x9, 70 lb uncoated, full bleed                       | $14.48       | $18.48          | $6.99                     | $21.47           | $25.47           |
+| RPI API, 6x9, 70 lb uncoated, no bleed                         | $10.44       | $12.44          | $6.99                     | $17.43           | $19.43           |
+| Lulu Print Book, 6x9, Standard Color, 80# coated               | $7.04        | $9.57           | $5.69 + $0.75             | $13.48           | $16.01           |
+| Lulu Print Book, Letter, Standard Color, 80# coated            | $8.51        | $11.69          | $5.69 + $0.75             | $14.95           | $18.13           |
+| Lulu Print Book, 6x9, Premium Color, 80# coated                | $15.88       | $22.83          | $5.69 + $0.75             | $22.32           | $29.27           |
+| Lulu Print Book, Letter, Premium Color, 80# coated             | $23.64       | $34.38          | $5.69 + $0.75             | $30.08           | $40.82           |
+| Lulu Magazine, Letter, Premium Color, 70# coated               | $23.95       | $34.69          | $5.69 + $0.75             | $30.39           | $41.13           |
+| MagCloud Magazine 8.25x10.75, perfect bound, 1 copy list price | $21.00       | $31.00          | about $8.14+              | about $29        | about $39        |
+| MagCloud Magazine, 100+ copy discount (25%)                    | $15.75       | $23.25          | about $8.14+              | about $24        | about $31        |
+| MagCloud Digest 5.25x8.25, 100+ copy discount                  | $13.50       | $19.88          | not priced                | n/a              | n/a              |
+| Peecho A4 matte magazine                                       | $22.39       | $31.90          | from $7.45                | $29.84           | $39.35           |
+| Mixam Letter, 80 lb satin, single copy shipped by courier      | not priced   | $16.50 (152 pp) | $16.88-17.50              | n/a              | about $33-34     |
 
 - RPI arithmetic: 8.5x11 gloss 100 pp = 7.00 + 0.09 x 80; 150 pp = 7.00 + 0.09 x 130. 6x9 no bleed 100 pp = 7.40 + 0.04 x 76; 150 pp = 7.40 + 0.04 x 126.
 - MagCloud arithmetic: pages x $0.20 + $1.00 binding (150 pp: $31.00), then 25% off at 100+ copies. The $8.14 shipping figure was for a 60-page copy, so a 100-150 page copy will likely cost somewhat more; MagCloud's discount applying to the binding surcharge is assumed.
@@ -216,6 +235,7 @@ Computed delivered cost per copy, one single-copy order per recipient, cheapest 
 - On a $20-30 budget with quality prioritized: RPI 100 lb coated (8x10 or 8.5x11) is the only coated-paper Letter-size option under $30 at 150 pages; Lulu premium fits only at 6x9 (and just under $30 at 150 pages); Lulu standard color fits easily but is the tier with the weakest quality evidence.
 
 ### Gaps
+
 - Mixam PrintLink/POD per-copy price and its shipping rates for single copies were not obtained; the single-copy figure above is from the standard order calculator and its courier shipping.
 - MagCloud shipping for a 100-150 page copy and per-recipient shipping under Ship to Group were not priced.
 - Bookvault US print prices: the quote tool would not load (site showed an outage notice on 2026-11-10).
@@ -227,9 +247,11 @@ Computed delivered cost per copy, one single-copy order per recipient, cheapest 
 ## 6. Can any of them also run a storefront or sell copies to the public with fulfillment?
 
 ### Takeaway
+
 Yes, most can. Lulu (Lulu Direct for Shopify/WooCommerce/Wix, buy button, Lulu Bookstore), Blurb (Blurb Bookstore), MagCloud (its own shop, print and digital), Mixam (PrintLink shareable links and a Shopify app), Peecho (Button, Shop, Checkout) and Bookvault (Shopify/Wix/WooCommerce/Payhip/Kickstarter, Bookvault Shop) all offer public selling with automatic fulfillment. RPI's self-service API has no storefront of its own.
 
 ### Cited Findings
+
 - **Lulu Direct**: connects a store to Lulu's print network; the seller collects payment and pays Lulu the production cost (print, fulfillment fee, shipping, sales tax); "Keep 100% of Your Profit" — [Lulu: Sell on your site](https://www.lulu.com/sell/sell-on-your-site)
 - Lulu publishes integration guides for Shopify, WooCommerce and Wix, and a Direct Buy Button — [Lulu Direct Shopify guide](https://assets.lulu.com/media/guides/en/lulu-direct-shopify-integration-guide.pdf), [Lulu buy button](https://www.lulu.com/sell/sell-on-your-site/buy-button)
 - Lulu Direct Shopify app is free to install; its reviews include complaints that production time is longer than the stated 3-5 days, that international shipping is untracked, and one unverified claim of app print costs about 20% above the Lulu bookstore price plus $1.50 per book; ratings around 2.7-3.2 stars across listings — [Shopify App Store: Lulu Direct](https://apps.shopify.com/lulu-direct)
@@ -242,10 +264,12 @@ Yes, most can. Lulu (Lulu Direct for Shopify/WooCommerce/Wix, buy button, Lulu B
 - **RPI Print API**: orders ship in unbranded packaging with no RPI or Blurb logos (white label); no storefront described — [Blurb Print API](https://www.blurb.com/print-api-software)
 
 ### Inferences
+
 - If public sales matter later, Lulu gives the most direct path from the same API account and files (Lulu Direct + Shopify), and Mixam gives the lowest-friction option without a website (PrintLink).
 - Since this site already takes payments through Stripe, a custom checkout that calls the Lulu or RPI API per paid order would work without any of the storefront products.
 
 ### Gaps
+
 - Fees on Lulu Direct beyond print, shipping and the fulfillment fee were not confirmed from an official current fee schedule.
 - MagCloud's seller revenue terms (markup, payout thresholds) were not read.
 - Whether Blurb Bookstore listings can use the same files and SKUs as RPI API orders.

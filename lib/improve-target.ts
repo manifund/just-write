@@ -36,14 +36,17 @@ export async function pickTarget(brief: {
   // "#40", "PR 40", "run 78": a PR number or a run number of an open PR or the failed run.
   // The failed run comes first: it may be a follow-up on one of the open PRs, with newer work.
   const named = failedRun ? [failedRun, ...openPrs] : openPrs;
-  for (const m of request.matchAll(/(?:#|\b(?:pr|pull request|run)\s*#?)(\d+)\b/gi)) {
+  for (const m of request.matchAll(
+    /(?:#|\b(?:pr|pull request|run)\s*#?)(\d+)\b/gi,
+  )) {
     const n = Number(m[1]);
     const pr = named.find((p) => p.prNumber === n || p.run === n);
     if (pr) return { pr, why: "named in the request" };
   }
 
   // The last run stopped partway; a reply in the thread is almost always "keep going".
-  if (failedRun) return { pr: failedRun, why: "the last run stopped before finishing" };
+  if (failedRun)
+    return { pr: failedRun, why: "the last run stopped before finishing" };
 
   const fallback = (why: string): Target => ({
     pr: openPrs.find((p) => p.prNumber === brief.latestOpenPr) ?? null,
@@ -56,7 +59,10 @@ export async function pickTarget(brief: {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       signal: AbortSignal.timeout(30_000),
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      headers: {
+        authorization: `Bearer ${key}`,
+        "content-type": "application/json",
+      },
       body: JSON.stringify({
         model: CLASSIFIER_MODEL,
         response_format: { type: "json_object" },
@@ -64,7 +70,7 @@ export async function pickTarget(brief: {
           {
             role: "system",
             content:
-              "A member of a small website's community asked an AI agent, in a chat thread, to change the site. Earlier requests in the thread left pull requests open. Decide whether the new request is more work on one of those PRs (fixing, adjusting, retrying, updating, or extending that change) or a separate change that should get its own PR. If it refers back to earlier work in the thread (\"try again\", \"go ahead\", \"also make it blue\"), continue that PR. If it is about something unrelated, start a new one. " +
+              'A member of a small website\'s community asked an AI agent, in a chat thread, to change the site. Earlier requests in the thread left pull requests open. Decide whether the new request is more work on one of those PRs (fixing, adjusting, retrying, updating, or extending that change) or a separate change that should get its own PR. If it refers back to earlier work in the thread ("try again", "go ahead", "also make it blue"), continue that PR. If it is about something unrelated, start a new one. ' +
               'Answer with JSON {"continue": <PR number or null>, "reason": "<under 12 words>"}.',
           },
           {
@@ -75,7 +81,10 @@ export async function pickTarget(brief: {
                 .join("\n\n")
                 .slice(-20_000)}`,
               `Open PRs:\n${openPrs
-                .map((p) => `PR #${p.prNumber} (run #${p.run}): ${p.title}\n  asked: ${p.request}`)
+                .map(
+                  (p) =>
+                    `PR #${p.prNumber} (run #${p.run}): ${p.title}\n  asked: ${p.request}`,
+                )
                 .join("\n")}`,
               `New request:\n${request}`,
             ].join("\n\n"),
@@ -89,7 +98,8 @@ export async function pickTarget(brief: {
       reason?: unknown;
     };
     const why = String(out.reason ?? "").slice(0, 120);
-    if (out.continue === null || out.continue === undefined) return { pr: null, why };
+    if (out.continue === null || out.continue === undefined)
+      return { pr: null, why };
     const pr = openPrs.find((p) => p.prNumber === Number(out.continue));
     return pr ? { pr, why } : fallback("the classifier named an unknown PR");
   } catch (err) {

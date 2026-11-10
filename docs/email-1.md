@@ -6,6 +6,7 @@ Hi {firstname}! Welcome to week 1 of Just Write~
 Most of the programming & updates are on our internal site, find them at https://justwrite.club/home!
 
 Some things you might enjoy there:
+
 1. Post a snippet in #check-ins. Then you get to peek at everybody else's check-ins!
 2. Ask @Claude to vibe a new feature in #site
 3. RSVP for a meetup on the calendar, or propose your own. Vlad is hosting one on Wed 2-5pm. Meetups can also be virtual!
@@ -15,4 +16,5 @@ I'll probably close off signups soon (maybe EOD Wed?) but you still have time to
 Also starting next week, I might propose some writing challenges in case you're looking for inspiration.
 
 Keep writing,
+
 - Austin
