@@ -32,7 +32,7 @@ async function ghText(
   return text;
 }
 
-type PR = { number: number; html_url: string; state: string; merged: boolean; node_id: string };
+type PR = { number: number; title: string; html_url: string; state: string; merged: boolean; node_id: string };
 
 export async function createPr(
   token: string,
