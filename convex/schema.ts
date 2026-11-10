@@ -239,6 +239,10 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
     decidedBy: v.optional(v.id("members")), // admin who merged or closed it
+    // The Stop button on the card (improvements.stop): who pressed it, and when. A code run
+    // stops when its runner next polls; one that doesn't is ended a little later anyway.
+    stoppedBy: v.optional(v.id("members")),
+    stopRequestedAt: v.optional(v.number()),
     // What the agent is doing between checklist lines, shown on the card while it runs
     // (convex/runner.ts#activity). Times are server times. Cleared when the sandbox finishes.
     activity: v.optional(

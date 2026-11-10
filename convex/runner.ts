@@ -1,8 +1,8 @@
 // Functions the @Claude sandbox runner (scripts/improve-runner.ts) calls while it works.
 // The sandbox never sees CONVEX_SERVER_SECRET: /api/improve gives it a random key for its own
 // run, and these accept only that key, only for that run, and only while it's going. They can
-// add checklist lines to the run's card, save the agent's session id, pick up follow-ups,
-// show what the agent is doing between lines, and add to the run's log.
+// add checklist lines to the run's card, save the agent's session id, pick up follow-ups
+// and stop requests, show what the agent is doing between lines, and add to the run's log.
 // Everything else (pushing, the PR, the merge decision, the final status) happens in
 // /api/improve, which holds the real secrets.
 import { v } from "convex/values";
@@ -28,10 +28,19 @@ export const report = mutation({
   },
 });
 
+// Polled every few seconds while the agent works. `stop` is the name of whoever pressed Stop
+// on the card (improvements.stop); the runner then stops the agent and wraps up. Follow-ups
+// aren't taken once a stop is asked for: they start as their own run when this one ends.
 export const followUps = mutation({
   args: { id: v.id("improvements"), runToken: v.string() },
-  handler: async (ctx, { id, runToken }) =>
-    await takeFollowUps(ctx, await checkRunToken(ctx, id, runToken)),
+  handler: async (ctx, { id, runToken }) => {
+    const r = await checkRunToken(ctx, id, runToken);
+    if (r.stopRequestedAt) {
+      const by = r.stoppedBy && (await ctx.db.get(r.stoppedBy));
+      return { followUps: [], stop: by?.name ?? "a member" };
+    }
+    return { followUps: await takeFollowUps(ctx, r), stop: null };
+  },
 });
 
 // A batch of log events (convex/lib/improveLogs.ts caps their size).
