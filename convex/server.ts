@@ -16,6 +16,7 @@ import {
 } from "./improvements";
 import { hashRunToken, parseEffort } from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
+import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { checkServerSecret } from "./lib/viewer";
@@ -200,7 +201,10 @@ export const claimImprovement = mutation({
   handler: async (ctx, { secret, id, runTokenHash }) => {
     checkServerSecret(secret);
     const r = await ctx.db.get(id);
-    if (!r || r.status !== "queued") return null;
+    // Runs waiting their turn are started by releaseWaiting, which clears waitingOn first.
+    if (!r || r.status !== "queued" || r.waitingOn) return null;
+    // A chat task's sandbox reads the club's data with this key (convex/chatTasks.ts).
+    if (r.kind === "chat" && !runTokenHash) throw new ConvexError("A chat task needs a run key.");
     const [root, previous] = await Promise.all([
       ctx.db.get(r.threadId),
       r.previousId ? ctx.db.get(r.previousId) : null,
@@ -220,18 +224,44 @@ export const claimImprovement = mutation({
       .collect();
     const names = new Map<string, string>();
     const thread = [];
+    // In #check-ins the agent only learns who wrote what length, apart from the request
+    // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
+    // posting, while what Claude writes back is seen by every member, ungated (and, for
+    // code runs, in public PRs).
+    const channel = await ctx.db.get(r.channelId);
+    const inCheckIns = channel?.slug === CHECK_IN_SLUG;
     for (const m of [root, ...replies]) {
       if (!m || (!m.improvementId && !m.text)) continue;
       if (!names.has(m.authorId))
         names.set(m.authorId, (await ctx.db.get(m.authorId))?.name ?? "Someone");
-      // Claude's own cards: include what that run did instead of the empty body.
+      const author = names.get(m.authorId)!;
       let text = m.text;
       if (m.improvementId) {
+        // Claude's own cards: include what that run did instead of the empty body.
         const earlier = await ctx.db.get(m.improvementId);
         if (!earlier || earlier._id === id) continue;
-        text = `[Run #${earlier.number}, ${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
+        if (earlier.kind === "chat" && r.kind !== "chat")
+          // What a chat task found comes from members-only data; keep it out of public PRs.
+          text = `[Run #${earlier.number}, chat task: its reply is only shown in the thread]`;
+        else {
+          text = `[Run #${earlier.number}, ${earlier.kind === "chat" ? "chat task, " : ""}${earlier.status}] ${earlier.summary ?? earlier.error ?? ""}`;
+          // A chat task's draft or post, so "make it shorter" has something to work from.
+          if (earlier.draft && !inCheckIns) {
+            const to = await ctx.db.get(earlier.draft.channelId);
+            text += `\n\n${earlier.postId ? "Posted" : "Draft"} for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
+          }
+        }
+      } else if (m.postedFrom && r.kind !== "chat") {
+        // Claude's post of a chat task's result: members-only data, kept out of public PRs.
+        text = "[A post Claude made for a chat task; only shown in chat]";
+      } else if (
+        inCheckIns &&
+        m._id !== r.requestMessageId &&
+        (m.authorId !== r.requesterId || r.kind === "chat")
+      ) {
+        text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
       }
-      thread.push({ author: names.get(m.authorId)!, text, at: m._creationTime });
+      thread.push({ author, text, at: m._creationTime });
     }
     // PRs still open from earlier runs in this thread (the latest run on each). The route
     // decides which one, if any, this request continues (lib/improve-target.ts).
@@ -241,7 +271,8 @@ export const claimImprovement = mutation({
         .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
         .collect()
     )
-      .filter((e) => e._id !== id && e.number < r.number)
+      // Chat tasks in the thread don't count: they never have a PR or saved work.
+      .filter((e) => e._id !== id && e.number < r.number && e.kind !== "chat")
       .sort((a, b) => b.number - a.number);
     const openPrs = runs
       .filter((e) => e.status === "pr" && e.prNumber)
@@ -255,9 +286,13 @@ export const claimImprovement = mutation({
     // The run right before this one, if it failed after its sandbox started (out of steps,
     // timed out, crashed). Its saved sandbox may still hold its edits and agent session, so a
     // reply in the thread picks it up (lib/improve-target.ts).
-    const failed = runs[0]?.status === "failed" && runs[0].sandboxId ? runs[0] : null;
+    const failed =
+      runs[0]?.status === "failed" && runs[0].sandboxId
+        ? runs[0]
+        : null;
     return {
       number: r.number,
+      kind: r.kind ?? null,
       branch: r.branch,
       prNumber: r.prNumber ?? null,
       // If the earlier run's sandbox is still saved, the agent picks up where it left off.
@@ -305,6 +340,8 @@ export const startFinish = mutation({
   handler: async (ctx, { secret, id, runToken }) => {
     checkServerSecret(secret);
     const r = await checkRunToken(ctx, id, runToken);
+    // Chat tasks finish through chatTasks.finish and never push anything.
+    if (r.kind === "chat") throw new ConvexError("This run has ended.");
     // The sandbox is done: its key stops working, and the card stops showing its activity.
     await ctx.db.patch(id, { runTokenHash: undefined, activity: undefined });
     return {
@@ -389,7 +426,8 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     .collect();
   const out = [];
   for (const w of rows) {
-    if (w.waitingOn !== id || w.status !== "queued") continue;
+    // A chat task sent during a code run gets its own run (and the other way round).
+    if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind) continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,

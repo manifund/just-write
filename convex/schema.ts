@@ -123,6 +123,7 @@ export default defineSchema({
     eventId: v.optional(v.id("events")), // set on #meetups event announcements
     editedAt: v.optional(v.number()),
     improvementId: v.optional(v.id("improvements")), // Claude's live status card for a run
+    postedFrom: v.optional(v.id("improvements")), // Claude's post with a chat task's result
   })
     .index("by_channel_parent", ["channelId", "parentId"])
     .index("by_channel_parent_author", ["channelId", "parentId", "authorId"])
@@ -231,6 +232,17 @@ export default defineSchema({
         ),
       }),
     ),
+    // Chat tasks (convex/chatTasks.ts): runs that read the club's data and may post one
+    // message. Unset means a code run. Set when the run is created.
+    kind: v.optional(v.literal("chat")),
+    draft: v.optional(
+      v.object({
+        channelId: v.id("channels"),
+        markdown: v.string(), // what Claude wrote, for follow-ups ("make it shorter")
+        body: v.string(), // Tiptap JSON, as posted (or for the composer, if it wasn't)
+      }),
+    ),
+    postId: v.optional(v.id("messages")), // Claude's post of the draft, if it went out
   })
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])

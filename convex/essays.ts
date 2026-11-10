@@ -1,4 +1,5 @@
 import { ConvexError, v } from "convex/values";
+import { api } from "./_generated/api";
 import { action, mutation, query } from "./_generated/server";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
@@ -7,10 +8,13 @@ import { canCountFor, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import { publicMember, requireMember } from "./lib/viewer";
 
-// Fetches an essay URL to suggest a title and estimate its word count.
+// Fetches an essay URL to suggest a title and estimate its word count. Members only, so it
+// can't be used by anyone on the internet (or a chat task's sandbox) to fetch arbitrary URLs.
 export const preview = action({
   args: { url: v.string() },
-  handler: async (_ctx, args) => {
+  handler: async (ctx, args) => {
+    const viewer = await ctx.runQuery(api.members.viewer, {});
+    if (!viewer?.canEnter) throw new ConvexError("Only committed members can do that.");
     const url = parseWebsite(args.url);
     if (!url) return { url: null, title: null, wordCount: null };
     try {

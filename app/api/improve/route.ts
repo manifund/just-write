@@ -23,12 +23,17 @@ import {
   sandboxNameFor,
 } from "@/convex/lib/improve";
 import { serverSecret } from "@/lib/auth-server";
+import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "@/lib/chat-task-sandbox";
+import { readClub } from "@/lib/club-snapshot";
 import { finishRun, parseResult } from "@/lib/improve-finish";
 import { pickTarget } from "@/lib/improve-target";
 
 export const maxDuration = 300;
 
 const RUN_TIMEOUT_MS = 40 * 60 * 1000;
+// Chat tasks: the runner gives the agent 15 minutes (scripts/improve-runner.ts), and Convex
+// reaps them after 30 (improvements.reapStale).
+const CHAT_TIMEOUT_MS = 25 * 60 * 1000;
 // Three tries in total, waiting 10s and then 30s between them (well under maxDuration).
 const START_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [10_000, 30_000];
@@ -43,6 +48,7 @@ const RUNNER_REF = /^[0-9a-f]{40}$/.test(process.env.VERCEL_GIT_COMMIT_SHA ?? ""
 type Body = {
   secret?: string;
   id?: string;
+  stop?: string; // a chat task's sandbox, stopped by Convex when its run ends
   runToken?: string;
   finish?: unknown;
 };
@@ -62,11 +68,18 @@ function reporter(convex: ConvexHttpClient, id: Id<"improvements">) {
 }
 
 export async function POST(req: Request) {
+  const requestStart = Date.now();
   const raw: unknown = await req.json().catch(() => null);
   const body = raw && typeof raw === "object" ? (raw as Body) : null;
   if (body && "finish" in body) return await finish(body);
   if (!body || body.secret !== serverSecret())
     return new Response("Forbidden", { status: 403 });
+
+  if (typeof body.stop === "string") {
+    const sandbox = await Sandbox.get({ name: body.stop }).catch(() => null);
+    await sandbox?.stop().catch(() => {});
+    return Response.json({ ok: true });
+  }
 
   const id = body.id as Id<"improvements">;
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
@@ -81,6 +94,7 @@ export async function POST(req: Request) {
   if (!claimed) return Response.json({ ok: true, skipped: true });
   const brief = { ...claimed };
   const report = reporter(convex, id);
+  if (brief.kind === "chat") return await runChatTask();
 
   // Continue one of the thread's open PRs or a run that failed partway, or start a new PR,
   // depending on what was asked. Decided before the sandbox starts, since each branch has
@@ -131,6 +145,111 @@ export async function POST(req: Request) {
     patch: { status: "failed", error: "Couldn’t start a sandbox." },
   });
   return new Response("Couldn't start", { status: 500 });
+
+  // A chat task (convex/chatTasks.ts): read the club's data once, here, then start a
+  // throwaway sandbox for it. Bun, the Agent SDK, and the runner go in while the sandbox
+  // holds only the public repo; then a firewall cuts it off from everything but the model
+  // API (which gets our key added on the way out, so the sandbox never has it) and Convex;
+  // only then are the data and the run's key written. It finishes through
+  // chatTasks.finish, not through this route, which the firewall blocks.
+  async function runChatTask() {
+    let files;
+    try {
+      await report({ step: "Reading the club’s chat, essays, and calendar" });
+      const club = await readClub(convex, { secret, id, token: runToken });
+      console.log("improve: club snapshot", id, club.counts);
+      files = club.files;
+    } catch (err) {
+      console.error("improve: couldn't read the club's data", id, err);
+      await report({
+        fail: true,
+        patch: { status: "failed", error: "Couldn’t read the club’s data." },
+      });
+      return new Response("Couldn't read the club's data", { status: 500 });
+    }
+    await report({ step: "Starting a sandbox" }).catch(() => {});
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        // A second try (up to ~150s) that can't finish within this function's 300s would
+        // leave the run stuck until it's reaped.
+        if (Date.now() - requestStart > 130_000) break;
+        await report({ step: "Couldn’t start the sandbox, trying again (2 of 2)" }).catch(
+          () => {},
+        );
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[0]));
+      }
+      try {
+        const sandbox = await startChatSandbox(files);
+        return Response.json({ ok: true, sandbox: sandbox.name, attempt: attempt + 1 });
+      } catch (err) {
+        lastError = err;
+        console.error(`improve: couldn't start chat task (attempt ${attempt + 1})`, id, err);
+      }
+    }
+    console.error("improve: giving up", id, lastError);
+    await report({
+      fail: true,
+      patch: { status: "failed", error: "Couldn’t start a sandbox." },
+    });
+    return new Response("Couldn't start", { status: 500 });
+  }
+
+  async function startChatSandbox(files: { path: string; content: Buffer }[]) {
+    let sandbox: Sandbox | null = null;
+    try {
+      sandbox = await Sandbox.create({
+        source: { type: "git", url: `https://github.com/${REPO}.git`, depth: 1 },
+        resources: { vcpus: 2 },
+        timeout: CHAT_TIMEOUT_MS,
+        persistent: false,
+      });
+      await report({ patch: { sandboxId: sandbox.name } });
+      await report({ step: "Getting ready" }).catch(() => {});
+      const setup = await sandbox.runCommand({
+        cmd: "bash",
+        args: [
+          "-c",
+          `set -eo pipefail; ${SETUP}; cd ${SANDBOX_ROOT}; rm -rf ${RUNNER_DIR}; mkdir -p ${RUNNER_DIR}; git fetch -q --depth=1 origin ${RUNNER_REF}; git archive FETCH_HEAD scripts/improve-runner.ts convex/lib/improve.ts | tar -x -C ${RUNNER_DIR}`,
+        ],
+        cwd: SANDBOX_ROOT,
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (setup.exitCode !== 0)
+        throw new Error(`setup failed: ${(await setup.stderr()).slice(-500)}`);
+      // Throws if it can't be applied, which fails this attempt before any data is written.
+      await sandbox.update({
+        networkPolicy: chatTaskPolicy(
+          process.env.OPENROUTER_API_KEY ?? "",
+          new URL(process.env.NEXT_PUBLIC_CONVEX_URL!).host,
+        ),
+      });
+      await sandbox.writeFiles([
+        { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
+        ...files,
+      ]);
+      await sandbox.runCommand({
+        cmd: "bash",
+        args: [
+          "-c",
+          `export PATH="$HOME/.bun/bin:$PATH"; bun ${RUNNER_DIR}/scripts/improve-runner.ts > /tmp/runner.log 2>&1`,
+        ],
+        cwd: SANDBOX_ROOT,
+        detached: true,
+        env: {
+          IMPROVEMENT_ID: id,
+          RUN_TOKEN: runToken,
+          CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL!,
+          // The firewall swaps in the real key on the way out (lib/chat-task-sandbox.ts).
+          OPENROUTER_API_KEY: KEY_PLACEHOLDER,
+        },
+      });
+      return sandbox;
+    } catch (err) {
+      await sandbox?.stop().catch(() => {});
+      throw err;
+    }
+  }
 
   async function startSandbox({ discardSaved }: { discardSaved: boolean }): Promise<Sandbox> {
     let sandbox: Sandbox | null = null;

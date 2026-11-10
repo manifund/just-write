@@ -100,7 +100,9 @@ export function RunLog() {
 
       {!run.readable ? (
         <p className="text-[15px] text-ink-muted">
-          This log quotes #check-ins posts, so it shows once you’ve checked in today.
+          {run.kind === "chat"
+            ? "Chat task logs quote the club’s data, so only admins can see them."
+            : "This log quotes #check-ins posts, so it shows once you’ve checked in today."}
         </p>
       ) : paged.status === "LoadingFirstPage" ? (
         <p className="text-ink-muted">Loading…</p>

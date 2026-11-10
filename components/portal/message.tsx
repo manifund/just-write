@@ -7,6 +7,7 @@ import type { ChatMessage } from "@/convex/chat";
 import type { Id } from "@/convex/_generated/dataModel";
 import { REACTIONS } from "@/convex/lib/reactions";
 import { fmtWhen } from "@/convex/lib/time";
+import { chatLinkClick } from "@/lib/chat-url";
 import { errorMessage } from "@/lib/convex";
 import { Avatar } from "./avatar";
 import { Composer } from "./composer";
@@ -250,6 +251,17 @@ export function Message({
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
             <MessageLinkPreviews body={m.body} />
+            {m.postedFor && (
+              <p className="mt-1 text-[13px] text-ink-muted">
+                Posted for {m.postedFor.name} ·{" "}
+                <Link
+                  href={m.postedFor.threadHref}
+                  onClick={(e) => chatLinkClick(e, m.postedFor!.threadHref)}
+                >
+                  see the request
+                </Link>
+              </p>
+            )}
           </div>
         )}
 
@@ -443,7 +455,8 @@ export function Message({
                   </svg>
                 </ActionButton>
               )}
-              {(mine || viewer.isAdmin) && !m.essay && (
+              {(mine || viewer.isAdmin || m.postedFor?.memberId === me._id) &&
+                !m.essay && (
                 <ActionButton
                   label="Delete"
                   onClick={() => setConfirmDelete(true)}
