@@ -16,6 +16,7 @@ import {
   txt,
 } from "./improvements";
 import { hashRunToken, parseEffort } from "./lib/improve";
+import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
@@ -345,7 +346,8 @@ export const startFinish = mutation({
     const r = await checkRunToken(ctx, id, runToken);
     // Chat tasks finish through chatTasks.finish and never push anything.
     if (r.kind === "chat") throw new ConvexError("This run has ended.");
-    await ctx.db.patch(id, { runTokenHash: undefined });
+    // The sandbox is done: its key stops working, and the card stops showing its activity.
+    await ctx.db.patch(id, { runTokenHash: undefined, activity: undefined });
     return {
       number: r.number,
       branch: r.branch,
@@ -572,6 +574,9 @@ export async function applyReport(
   const final =
     patch.status && patch.status !== "running" && patch.status !== "queued";
   if (final && !fail) steps = finish("done");
+  // Steps go in the run's log too, wherever they come from (runner, route, admin actions).
+  if (step && steps !== r.steps)
+    await appendLogs(ctx, id, [{ kind: "step", text: step }]);
   if (final) await endRun(ctx, r, { ...patch, steps });
   else await ctx.db.patch(id, { ...patch, steps });
 

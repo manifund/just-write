@@ -2,7 +2,10 @@
 // startFromMessage, which records a run, posts Claude's status card in the thread, and
 // asks the Next.js route /api/improve to start a Vercel Sandbox. The runner inside it
 // (scripts/improve-runner.ts) reports progress back through server.reportImprovement.
-import type { WithoutSystemFields } from "convex/server";
+import {
+  paginationOptsValidator,
+  type WithoutSystemFields,
+} from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -11,6 +14,7 @@ import {
   internalMutation,
   query,
   type MutationCtx,
+  type QueryCtx,
 } from "./_generated/server";
 import {
   CLAUDE_EMAIL,
@@ -19,7 +23,9 @@ import {
   branchFor,
   isChatTask,
 } from "./lib/improve";
+import { checkInGate, veil } from "./chat";
 import { recordActivity } from "./lib/activity";
+import { appendLogs } from "./lib/improveLogs";
 import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
@@ -287,10 +293,17 @@ export async function endRun(
   await ctx.db.patch(r._id, {
     ...patch,
     runTokenHash: undefined, // the sandbox's key stops working
+    activity: undefined,
     ...(first ? { finishedAt: Date.now() } : {}),
   });
   if (!first) return;
   const after = { ...r, ...patch };
+  await appendLogs(ctx, r._id, [
+    {
+      kind: after.status === "failed" ? "error" : "info",
+      text: `Run ended: ${after.status}${after.error ? `. ${after.error}` : ""}`,
+    },
+  ]);
   // A chat task's runner can't reach /api/improve (its firewall), so stop its sandbox here.
   if (r.kind === "chat" && after.sandboxId)
     await ctx.scheduler.runAfter(5000, internal.chatTasks.stopSandbox, {
@@ -370,6 +383,7 @@ export function cardOf(r: Doc<"improvements">) {
     error: r.error ?? null,
     startedAt: r.startedAt ?? null,
     finishedAt: r.finishedAt ?? null,
+    activity: r.status === "running" ? (r.activity ?? null) : null,
   };
 }
 export type ImprovementCard = ReturnType<typeof cardOf>;
@@ -434,5 +448,69 @@ export const forAdmin = query({
       revertPrUrl: r.revertPrUrl ?? null,
       adminId: viewer.member?._id ?? null,
     };
+  },
+});
+
+// /improvements/<id>/log. Members only, like /improvements: the coding agent has no live site
+// data (no GitHub token or server secret in the sandbox, only public queries), so the member
+// content a log can hold is the chat thread it was asked in and its follow-ups. Members can
+// read those in chat, except in #check-ins, where others' posts stay previews until you've
+// checked in (chat.ts#checkInGate): there the log is hidden while the thread's first post
+// would be. That's enough, since replies show whenever their root does (chat.ts#veil).
+// Chat tasks (convex/chatTasks.ts) read the club's data, so their logs are for admins only.
+async function canReadLog(ctx: QueryCtx, r: Doc<"improvements">) {
+  const viewer = await requireMember(ctx, { allowReadonly: true });
+  if (viewer.isAdmin) return true;
+  if (r.kind === "chat") return false;
+  const [channel, root] = await Promise.all([
+    ctx.db.get(r.channelId),
+    ctx.db.get(r.threadId),
+  ]);
+  if (!channel || !root) return false; // a deleted thread's log isn't shown either
+  return !veil(root, await checkInGate(ctx, channel, viewer.member)).hidden;
+}
+
+// `id` comes from the URL, so it's checked here rather than by the validator.
+export const logRun = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    await requireMember(ctx, { allowReadonly: true });
+    const id = ctx.db.normalizeId("improvements", args.id);
+    const r = id && (await ctx.db.get(id));
+    if (!r) return null;
+    const [channel, previous, next, readable] = await Promise.all([
+      ctx.db.get(r.channelId),
+      r.previousId ? ctx.db.get(r.previousId) : null,
+      // A later run that continued this one, if any.
+      ctx.db
+        .query("improvements")
+        .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+        .filter((q) => q.eq(q.field("previousId"), r._id))
+        .first(),
+      canReadLog(ctx, r),
+    ]);
+    return {
+      // What /improvements already shows, plus whether the log itself is readable.
+      ...cardOf(r),
+      request: r.request,
+      effort: r.effort ?? null,
+      threadHref: `/chat/${channel?.slug ?? "general"}/${r.threadId}`,
+      previous: previous ? { id: previous._id, number: previous.number } : null,
+      next: next ? { id: next._id, number: next.number } : null,
+      readable,
+    };
+  },
+});
+
+export const logs = query({
+  args: { id: v.id("improvements"), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { id, paginationOpts }) => {
+    const r = await ctx.db.get(id);
+    if (!r || !(await canReadLog(ctx, r)))
+      return { page: [], isDone: true, continueCursor: "" };
+    return await ctx.db
+      .query("improvementLogs")
+      .withIndex("by_improvement", (q) => q.eq("improvementId", id))
+      .paginate(paginationOpts);
   },
 });

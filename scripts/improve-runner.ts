@@ -1,6 +1,8 @@
 // Runs one @Claude improvement inside a Vercel Sandbox (started by app/api/improve/route.ts).
 // Installs deps, runs the Claude Agent SDK on the request, and checks the result. Steps are
-// reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live.
+// reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live,
+// along with a light heartbeat of what the agent and its subagents are doing between steps
+// and a detailed log for members (/improvements/<id>/log).
 // When it's done it sends the list of changed files to /api/improve, which reads them out of
 // the sandbox, pushes them, opens the PR, and decides whether it merges.
 //
@@ -29,10 +31,15 @@ import {
   AGENT_MODEL,
   CHAT_DRAFT_MAX_CHARS,
   CHAT_POST_CHANNELS,
+  LOG_BATCH_EVENTS,
+  LOG_EVENT_CHARS,
   REPO,
   SANDBOX_ROOT,
+  clip,
   isEffort,
 } from "../convex/lib/improve";
+// Type-only imports are erased, so these don't need their modules at runtime (see the top).
+import type { LogKind, TaskState } from "../convex/lib/improveLogs";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 type Brief = {
@@ -108,6 +115,8 @@ async function runnerMutation(
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
+      // A hung request mustn't hold up the steps and the finish that wait on it.
+      signal: AbortSignal.timeout(15_000),
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         path,
@@ -130,6 +139,8 @@ let lastStep = "";
 async function report(r: Report) {
   if (r.step) lastStep = r.step;
   if (DRY) return console.log("[report]", JSON.stringify(r));
+  // Convex logs the step itself; send what came before it first, so the log stays in order.
+  if (r.step) await flushLogs();
   await runnerMutation("runner:report", r); // on failure the card just lags
 }
 const step = (label: string) => report({ step: label });
@@ -145,6 +156,188 @@ async function claimFollowUps() {
   }[];
 }
 
+// --- Log -------------------------------------------------------------------------------
+
+// Secrets this process knows, and the shapes of common API keys, are replaced before anything
+// goes into the log. The sandbox holds no site secrets (see the top), but the agent could still
+// print a key it finds.
+const SECRETS = [OPENROUTER_API_KEY, RUN_TOKEN].filter((s) => s.length >= 8);
+const SECRET_PATTERNS = [
+  /\bsk-(?:or|ant)-[\w-]{10,}/g, // OpenRouter, Anthropic
+  /\b(?:sk|rk)_(?:live|test)_\w{10,}/g, // Stripe
+  /\bwhsec_\w{10,}/g,
+  /\b(?:ghp|gho|ghs|ghu|github_pat)_\w{20,}/g, // GitHub
+  /\bBearer\s+[\w.~+/-]{16,}=*/gi,
+  /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}/g, // JWTs
+  /\b(?:CONVEX_SERVER_SECRET|BETTER_AUTH_SECRET|[A-Z_]*(?:API_KEY|TOKEN|SECRET))=\S+/g,
+];
+function redact(text: string) {
+  let out = text;
+  for (const secret of SECRETS) out = out.split(secret).join("[redacted]");
+  for (const re of SECRET_PATTERNS) out = out.replace(re, "[redacted]");
+  return out;
+}
+
+const LOG_LIMITS: Partial<Record<LogKind, number>> = {
+  tool: 1500,
+  result: 2000,
+};
+const LOG_FLUSH_MS = 3000;
+
+const logBuffer: { kind: LogKind; text: string; agent?: string; t: number }[] =
+  [];
+function log(kind: LogKind, text: string, agent?: string) {
+  const t = redact(text).trim();
+  if (!t) return;
+  const entry = {
+    kind,
+    text: clip(t, LOG_LIMITS[kind] ?? LOG_EVENT_CHARS),
+    agent: agent && redact(agent),
+    t: Date.now(),
+  };
+  if (DRY)
+    console.log(
+      `[log ${kind}${agent ? ` · ${agent}` : ""}]`,
+      entry.text.slice(0, 300),
+    );
+  else logBuffer.push(entry);
+}
+
+// Sends the buffered events (convex/runner.ts#log). One send at a time, in order. Failed
+// batches are dropped: the log is best effort.
+let flushing = Promise.resolve();
+function flushLogs() {
+  flushing = flushing.then(async () => {
+    while (logBuffer.length) {
+      const now = Date.now();
+      const events = logBuffer
+        .splice(0, LOG_BATCH_EVENTS)
+        .map(({ t, agent, ...e }) => ({
+          ...e,
+          ...(agent ? { agent } : {}),
+          ago: now - t,
+        }));
+      await runnerMutation("runner:log", { events });
+    }
+  });
+  return flushing;
+}
+setInterval(() => void flushLogs(), LOG_FLUSH_MS).unref();
+
+// --- Activity ---------------------------------------------------------------------------
+// Between checklist lines the agent can be busy for minutes: waiting on a long command, or on
+// subagents it started in the background. The card shows that from a heartbeat
+// (convex/runner.ts#activity), sent when something changes, at most every ACTIVITY_MS.
+
+type Task = {
+  label: string;
+  state: TaskState;
+  lastAt: number;
+  summary?: string;
+};
+const tasks = new Map<string, Task>(); // by SDK task id
+const taskByToolUse = new Map<string, string>(); // the Agent/Bash call that started it → task id
+const agentLabels = new Map<string, string>(); // Agent tool call id → its description
+const openTools = new Map<string, { name: string; since: number }>(); // the main agent's calls
+let lastEventAt = Date.now();
+const ACTIVITY_MS = 12_000;
+const FINISHED_TASK_SHOWN_MS = 10 * 60_000;
+let lastActivitySent = 0;
+let lastActivityEmpty = true;
+let activityTimer: ReturnType<typeof setTimeout> | null = null;
+
+function touch(toolUseId?: string | null) {
+  const now = Date.now();
+  lastEventAt = now;
+  const task = toolUseId
+    ? tasks.get(taskByToolUse.get(toolUseId) ?? "")
+    : undefined;
+  if (task) task.lastAt = now;
+  scheduleActivity();
+}
+
+function scheduleActivity() {
+  if (activityTimer) return;
+  activityTimer = setTimeout(
+    () => {
+      activityTimer = null;
+      lastActivitySent = Date.now();
+      void queueActivity();
+    },
+    Math.max(0, lastActivitySent + ACTIVITY_MS - Date.now()),
+  );
+  activityTimer.unref();
+}
+
+// One send at a time, in order, so a late heartbeat can't land after the one that clears it.
+let activitySending = Promise.resolve();
+function queueActivity() {
+  activitySending = activitySending.then(sendActivity);
+  return activitySending;
+}
+
+async function sendActivity() {
+  const now = Date.now();
+  const tool = [...openTools.values()].sort((a, b) => a.since - b.since)[0];
+  const shown = [...tasks.values()].filter(
+    (t) => t.state === "running" || now - t.lastAt < FINISHED_TASK_SHOWN_MS,
+  );
+  const payload = {
+    idleMs: now - lastEventAt,
+    ...(tool ? { tool: { name: tool.name, forMs: now - tool.since } } : {}),
+    tasks: shown.map((t) => ({
+      label: redact(t.label),
+      state: t.state,
+      ...(t.summary ? { summary: redact(t.summary) } : {}),
+    })),
+  };
+  // Nothing to show, and the card already shows nothing: skip the write.
+  const empty = !tool && payload.tasks.length === 0;
+  if (empty && lastActivityEmpty) return;
+  lastActivityEmpty = empty;
+  if (DRY) return console.log("[activity]", JSON.stringify(payload));
+  await runnerMutation("runner:activity", payload);
+}
+
+// The agent session ended: nothing is open any more, so the card drops the line.
+async function clearActivity() {
+  if (activityTimer) clearTimeout(activityTimer);
+  activityTimer = null;
+  openTools.clear();
+  tasks.clear();
+  taskByToolUse.clear();
+  await queueActivity();
+}
+
+// Which subagent a message came from, for the log.
+const agentLabel = (toolUseId: string) =>
+  agentLabels.get(toolUseId) ??
+  tasks.get(taskByToolUse.get(toolUseId) ?? "")?.label ??
+  "subagent";
+
+function describeInput(name: string, input: unknown) {
+  const o = (input ?? {}) as Record<string, unknown>;
+  if (typeof o.command === "string")
+    return `${name}: $ ${o.command}${o.run_in_background ? " (background)" : ""}`;
+  if (
+    typeof o.file_path === "string" &&
+    !("content" in o) &&
+    !("old_string" in o)
+  )
+    return `${name}: ${o.file_path}`;
+  return `${name}: ${JSON.stringify(o)}`;
+}
+
+function resultText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((c: { type?: string; text?: string }) =>
+      c.type === "text" ? (c.text ?? "") : `[${c.type ?? "content"}]`,
+    )
+    .join("\n");
+}
+
 // --- Shell ------------------------------------------------------------------------------
 
 function sh(cmd: string, opts: { quiet?: boolean } = {}) {
@@ -154,8 +347,17 @@ function sh(cmd: string, opts: { quiet?: boolean } = {}) {
     maxBuffer: 64 * 1024 * 1024,
     env: { ...env, RUN_TOKEN: "" },
   });
-  const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-  if (!opts.quiet) console.log(`$ ${cmd}\n${out.slice(-4000)}`);
+  // Redacted before anything slices it (a cut through a key would hide it from `redact`).
+  // Quiet commands are parsed (git status, git diff), so they're left as they are.
+  const raw = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  const out = opts.quiet ? raw : redact(raw);
+  if (!opts.quiet) {
+    console.log(`$ ${cmd}\n${out.slice(-4000)}`);
+    log(
+      "shell",
+      `$ ${cmd}${r.status === 0 ? "" : ` (exit ${r.status})`}\n${tail(out.trim(), 2500)}`,
+    );
+  }
   return { ok: r.status === 0, out };
 }
 function must(cmd: string) {
@@ -338,6 +540,7 @@ async function* agentInput(
     if (isDone()) return;
     for (const f of await claimFollowUps()) {
       await step(`Reading a follow-up from ${f.author}`);
+      log("info", `Follow-up from ${f.author}:\n${f.text}`);
       yield userMessage(
         `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",
@@ -368,6 +571,18 @@ async function saveSession(id: string) {
 
 // `outOfTurns`: the agent hit maxTurns before returning its result. Its edits are kept.
 async function runAgent(input: string, resume?: string) {
+  log(
+    "info",
+    `${resume ? "Resuming the agent session with" : "Starting the agent with"}:\n${input}`,
+  );
+  try {
+    return await runAgentSession(input, resume);
+  } finally {
+    await clearActivity();
+  }
+}
+
+async function runAgentSession(input: string, resume?: string) {
   const { query } = await loadSdk();
   // A chat task has to finish before its sandbox stops.
   const abortController = new AbortController();
@@ -396,6 +611,9 @@ async function runAgent(input: string, resume?: string) {
       effort: EFFORT,
       maxTurns: CHAT ? 100 : 150,
       abortController,
+      // Subagents' own text and periodic summaries, for the log and the card's heartbeat.
+      forwardSubagentText: true,
+      agentProgressSummaries: true,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
       settingSources: ["project"], // loads CLAUDE.md
@@ -422,57 +640,170 @@ async function runAgent(input: string, resume?: string) {
     },
   });
 
-  for await (const msg of q) {
-    if (msg.type === "system" && msg.subtype === "init") {
-      sessionId = msg.session_id;
-      await saveSession(sessionId);
-    }
-    if (msg.type === "assistant" && !msg.parent_tool_use_id) {
-      for (const block of msg.message.content) {
-        // The agent narrates in short sentences between tool calls; those are its status lines.
-        if (block.type === "text") {
-          const line = statusLine(block.text);
-          if (line) await step(line);
-        } else if (block.type === "tool_use") {
-          const cmd = String(
-            (block.input as { command?: unknown }).command ?? "",
-          );
-          console.log(
-            "[tool]",
-            block.name,
-            JSON.stringify(block.input).slice(0, 200),
-          );
-          if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
-            typechecked = true;
-            await step("Typechecking");
+  // However the session ends (a result, or the stream throwing), stop polling for follow-ups.
+  try {
+    for await (const msg of q) {
+      if (msg.type === "system") {
+        const now = Date.now();
+        switch (msg.subtype) {
+          case "init":
+            sessionId = msg.session_id;
+            log(
+              "info",
+              `Agent session ${resume ? "resumed" : "started"} (${msg.model})`,
+            );
+            await saveSession(sessionId);
+            break;
+          case "task_started":
+            if (msg.ambient || msg.skip_transcript) break;
+            tasks.set(msg.task_id, {
+              // Subagents show their description; background commands are marked as such.
+              label:
+                msg.task_type === "local_bash"
+                  ? `Command: ${msg.description}`
+                  : msg.description,
+              state: "running",
+              lastAt: now,
+            });
+            if (msg.tool_use_id)
+              taskByToolUse.set(msg.tool_use_id, msg.task_id);
+            log(
+              "task",
+              `Started ${msg.subagent_type ?? msg.task_type ?? "task"}${msg.is_backgrounded ? " in the background" : ""}: ${msg.description}`,
+            );
+            touch();
+            break;
+          case "task_progress": {
+            const task = tasks.get(msg.task_id);
+            if (!task) break;
+            task.lastAt = now;
+            if (msg.summary) task.summary = msg.summary;
+            touch();
+            break;
+          }
+          case "task_updated": {
+            const task = tasks.get(msg.task_id);
+            const s = msg.patch.status;
+            if (!task || !s) break;
+            if (s === "completed") task.state = "done";
+            else if (s === "failed") task.state = "failed";
+            else if (s === "killed") task.state = "stopped";
+            touch();
+            break;
+          }
+          case "task_notification": {
+            // Can be for a task from before this session (a resume), which isn't tracked.
+            const task = tasks.get(msg.task_id);
+            const state: TaskState =
+              msg.status === "completed"
+                ? "done"
+                : msg.status === "failed"
+                  ? "failed"
+                  : "stopped";
+            if (task) {
+              task.state = state;
+              task.lastAt = now;
+            }
+            const label =
+              task?.label ??
+              (msg.tool_use_id && agentLabels.get(msg.tool_use_id)) ??
+              "a task";
+            const usage = msg.usage
+              ? ` (${msg.usage.tool_uses} tool calls, ${Math.round(msg.usage.duration_ms / 1000)}s)`
+              : "";
+            const verb =
+              state === "done"
+                ? "Finished"
+                : state === "failed"
+                  ? "Failed"
+                  : "Stopped";
+            log("task", `${verb}: ${label}${usage}\n${msg.summary ?? ""}`);
+            touch();
+            break;
           }
         }
       }
-    }
-    // Tool results are back: log newly changed files (the card lists files at the end).
-    if (msg.type === "user") {
-      for (const f of dirtyFiles())
-        if (!reported.has(f)) {
-          reported.add(f);
-          console.log("[edited]", f);
+      if (msg.type === "assistant") {
+        const sub = msg.parent_tool_use_id;
+        const agent = sub ? agentLabel(sub) : undefined;
+        touch(sub);
+        for (const block of msg.message.content) {
+          if (block.type === "text") {
+            log("text", block.text, agent);
+            // The agent narrates in short sentences between tool calls; those are its status lines.
+            const line = sub ? null : statusLine(block.text);
+            if (line) await step(line);
+          } else if (block.type === "tool_use") {
+            log("tool", describeInput(block.name, block.input), agent);
+            const input = (block.input ?? {}) as {
+              command?: unknown;
+              description?: unknown;
+            };
+            if (block.name === "Agent" || block.name === "Task")
+              agentLabels.set(
+                block.id,
+                String(input.description ?? "subagent").slice(0, 120),
+              );
+            if (sub) continue;
+            openTools.set(block.id, { name: block.name, since: Date.now() });
+            const cmd = String(input.command ?? "");
+            console.log(
+              "[tool]",
+              block.name,
+              JSON.stringify(block.input).slice(0, 200),
+            );
+            if (!typechecked && /\btsc\b|\bbun (--)?check\b/.test(cmd)) {
+              typechecked = true;
+              await step("Typechecking");
+            }
+          }
         }
+      }
+      // Tool results are back: log them, and newly changed files (the card lists files at the end).
+      if (msg.type === "user") {
+        const sub = msg.parent_tool_use_id;
+        const agent = sub ? agentLabel(sub) : undefined;
+        touch(sub);
+        const content = msg.message.content;
+        if (Array.isArray(content))
+          for (const block of content) {
+            if (block.type !== "tool_result") continue;
+            if (!sub) openTools.delete(block.tool_use_id);
+            log(
+              block.is_error ? "error" : "result",
+              resultText(block.content),
+              agent,
+            );
+          }
+        for (const f of dirtyFiles())
+          if (!reported.has(f)) {
+            reported.add(f);
+            console.log("[edited]", f);
+            log("info", `Changed ${f}`);
+          }
+      }
+      if (msg.type === "result") {
+        // Stop taking follow-ups. One sent just before this still gets its own turn, and its
+        // result (the last one) is what counts.
+        done = true;
+        markDone();
+        sessionId = msg.session_id;
+        log(
+          msg.subtype === "success" ? "info" : "error",
+          `Agent finished (${msg.subtype}) after ${msg.num_turns} turns, ${Math.round(msg.duration_ms / 1000)}s`,
+        );
+        await saveSession(sessionId);
+        if (msg.subtype === "success")
+          final = parseFinal(msg.structured_output, msg.result);
+        else if (msg.subtype === "error_max_turns") outOfTurns = true;
+        else throw new Error(`The agent stopped early (${msg.subtype}).`);
+      }
     }
-    if (msg.type === "result") {
-      // Stop taking follow-ups. One sent just before this still gets its own turn, and its
-      // result (the last one) is what counts.
-      done = true;
-      markDone();
-      sessionId = msg.session_id;
-      await saveSession(sessionId);
-      if (msg.subtype === "success")
-        final = parseFinal(msg.structured_output, msg.result);
-      else if (msg.subtype === "error_max_turns") outOfTurns = true;
-      else throw new Error(`The agent stopped early (${msg.subtype}).`);
-    }
+  } finally {
+    done = true;
+    markDone();
+    if (timer) clearTimeout(timer);
   }
-  done = true;
-  markDone();
-  if (timer) clearTimeout(timer);
   return { final, sessionId, outOfTurns };
 }
 
@@ -717,6 +1048,10 @@ async function main(): Promise<RunnerResult> {
   ).catch((err) => {
     if (!resume) throw err;
     console.error("resume failed; starting a new session", err);
+    log(
+      "error",
+      `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return runAgent(prompt(mergeNote(merge)));
   });
 
@@ -792,6 +1127,7 @@ async function finish(result: RunnerResult) {
 
 function failure(err: unknown) {
   console.error(err);
+  log("error", err instanceof Error ? (err.stack ?? err.message) : String(err));
   const message =
     CHAT && Date.now() >= startedAt + CHAT_AGENT_MS
       ? "Ran out of time."
@@ -804,13 +1140,23 @@ function failure(err: unknown) {
   };
 }
 
+// Finishing retires this run's key, so send the rest of the log first.
+async function flushThen<T extends { outcome: string }>(
+  result: T,
+  send: (r: T) => Promise<unknown>,
+) {
+  log("info", `Sending the result: ${result.outcome}`);
+  await flushLogs();
+  await send(result);
+}
+
 if (CHAT)
   chatMain()
     .catch(async (err): Promise<ChatResult> => {
       if (agentSessionId) await report({ sessionId: agentSessionId });
       return failure(err);
     })
-    .then(finishChat);
+    .then((result) => flushThen(result, finishChat));
 else
   main()
     .catch(async (err): Promise<RunnerResult> => {
@@ -818,4 +1164,4 @@ else
       if (agentSessionId) await report({ sessionId: agentSessionId });
       return failure(err);
     })
-    .then(finish);
+    .then((result) => flushThen(result, finish));
