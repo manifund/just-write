@@ -12,9 +12,11 @@ import {
   paragraph,
   postAsClaude,
   releaseWaiting,
+  startFromMessage,
   txt,
 } from "./improvements";
 import { hashRunToken, parseEffort } from "./lib/improve";
+import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
@@ -344,7 +346,8 @@ export const startFinish = mutation({
     const r = await checkRunToken(ctx, id, runToken);
     // Chat tasks finish through chatTasks.finish and never push anything.
     if (r.kind === "chat") throw new ConvexError("This run has ended.");
-    await ctx.db.patch(id, { runTokenHash: undefined });
+    // The sandbox is done: its key stops working, and the card stops showing its activity.
+    await ctx.db.patch(id, { runTokenHash: undefined, activity: undefined });
     return {
       number: r.number,
       branch: r.branch,
@@ -418,6 +421,60 @@ export const continuePr = mutation({
       resumesFailedRun: failed ? prev.number : null,
       effort: effort ?? null,
     };
+  },
+});
+
+// An admin's Merge failed because the PR conflicts with main (app/(portal)/(private)/
+// improvements/actions.ts). Starts a follow-up on the same PR, in its thread: like every run
+// on a PR, it merges main into the branch first and the agent resolves the conflicts. Once
+// it's done, its card has the Merge button.
+export const fixConflicts = mutation({
+  args: {
+    secret: v.string(),
+    id: v.id("improvements"),
+    adminId: v.optional(v.id("members")),
+  },
+  handler: async (ctx, { secret, id, adminId }) => {
+    checkServerSecret(secret);
+    const r = await ctx.db.get(id);
+    if (!r || r.status !== "pr" || !r.prNumber || r.kind === "chat")
+      return { started: false };
+    // One at a time: a second Merge click while it's going doesn't start another.
+    const inThread = await ctx.db
+      .query("improvements")
+      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+      .collect();
+    if (
+      inThread.some(
+        (e) =>
+          e.previousId === r._id &&
+          (e.status === "queued" || e.status === "running"),
+      )
+    )
+      return { started: true };
+    const member =
+      (adminId && (await ctx.db.get(adminId))) ||
+      (await ctx.db.get(r.requesterId));
+    if (!member) return { started: false };
+    const messageId = await postAsClaude(ctx, {
+      channelId: r.channelId,
+      parentId: r.threadId,
+      body: paragraph(
+        txt(
+          `PR #${r.prNumber} couldn’t merge because it conflicts with newer changes to the site. I’ll merge those in and fix the conflicts.`,
+        ),
+      ),
+    });
+    await startFromMessage(ctx, {
+      member,
+      isAdmin: true,
+      channelId: r.channelId,
+      messageId,
+      parentId: r.threadId,
+      text: `Merge main into PR #${r.prNumber} and resolve the merge conflicts, keeping what both sides changed.`,
+      continues: r,
+    });
+    return { started: true };
   },
 });
 
@@ -517,6 +574,9 @@ export async function applyReport(
   const final =
     patch.status && patch.status !== "running" && patch.status !== "queued";
   if (final && !fail) steps = finish("done");
+  // Steps go in the run's log too, wherever they come from (runner, route, admin actions).
+  if (step && steps !== r.steps)
+    await appendLogs(ctx, id, [{ kind: "step", text: step }]);
   if (final) await endRun(ctx, r, { ...patch, steps });
   else await ctx.db.patch(id, { ...patch, steps });
 

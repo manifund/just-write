@@ -40,6 +40,7 @@ type PR = {
   html_url: string;
   state: string;
   merged: boolean;
+  mergeable: boolean | null; // null while GitHub is still working it out
   node_id: string;
 };
 
@@ -80,11 +81,12 @@ export async function comment(token: string, number: number, body: string) {
   });
 }
 
-// Squash-merges and deletes the branch.
-export async function mergePr(token: string, number: number, branch: string) {
+// Squash-merges and deletes the branch. With `sha`, GitHub refuses if the PR's head has
+// moved since then, so what merges is exactly what was checked.
+export async function mergePr(token: string, number: number, branch: string, sha?: string) {
   await gh(token, `/repos/${REPO}/pulls/${number}/merge`, {
     method: "PUT",
-    body: { merge_method: "squash" },
+    body: { merge_method: "squash", ...(sha ? { sha } : {}) },
   });
   await gh(token, `/repos/${REPO}/git/refs/heads/${branch}`, {
     method: "DELETE",
@@ -141,11 +143,16 @@ export async function branchHead(token: string, branch: string) {
 
 // Whether `sha` is main's head or one of its ancestors.
 export async function isOnMain(token: string, sha: string) {
-  const c = await gh<{ status: string }>(
-    token,
-    `/repos/${REPO}/compare/${sha}...main`,
-  ).catch(() => null);
-  return c?.status === "identical" || c?.status === "ahead";
+  try {
+    const res = await gh<{ status: string }>(
+      token,
+      `/repos/${REPO}/compare/${sha}...main`,
+    );
+    return res.status === "ahead" || res.status === "identical";
+  } catch (err) {
+    if (String(err).includes(": 404 ")) return false; // GitHub doesn’t know the commit
+    throw err;
+  }
 }
 
 // Makes one commit with `files` changed from the first parent's tree, and points `branch`
@@ -229,21 +236,35 @@ export async function commitFiles(
   return commit.sha;
 }
 
-// What a branch changes compared with main (from where they split, like the PR page shows):
-// the changed paths and the diff, both straight from GitHub.
-export async function compareWithMain(token: string, branch: string) {
-  const path = `/repos/${REPO}/compare/main...${branch}`;
+// What a branch (or commit) changes compared with main (from where they split, like the PR
+// page shows): the changed paths and the diff, both straight from GitHub. `hidden` lists files
+// whose changes GitHub leaves out of the diff (binary, or too big to show).
+export async function compareWithMain(token: string, ref: string) {
+  const path = `/repos/${REPO}/compare/main...${ref}`;
   const [info, diff] = await Promise.all([
-    gh<{ files?: { filename: string; previous_filename?: string }[] }>(
-      token,
-      path,
-    ),
+    gh<{
+      files?: {
+        filename: string;
+        previous_filename?: string;
+        status?: string;
+        patch?: string;
+        changes?: number;
+      }[];
+    }>(token, path),
     ghText(token, path, { accept: "application/vnd.github.diff" }),
   ]);
   const files = new Set<string>();
+  const hidden: string[] = [];
   for (const f of info.files ?? []) {
     files.add(f.filename);
     if (f.previous_filename) files.add(f.previous_filename);
+    // Git calls any file with a NUL byte binary, so "binary" alone doesn't mean harmless.
+    const shown =
+      f.patch ||
+      f.status === "removed" ||
+      (f.changes === 0 && (f.status === "renamed" || f.status === "changed")) ||
+      /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|pdf)$/i.test(f.filename);
+    if (!shown) hidden.push(f.filename);
   }
-  return { files: [...files], diff };
+  return { files: [...files], hidden, diff };
 }
