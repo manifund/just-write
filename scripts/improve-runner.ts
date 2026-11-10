@@ -400,6 +400,7 @@ How this run works:
 - Never run \`bun convex\`, \`convex dev\`, \`convex deploy\`, \`convex run\`, or anything else that touches the live Convex deployment, which real members use. Don't edit env files or secrets.
 - Before each step, write one short, plain sentence about what you're doing, e.g. "Looking at how the chat composer works." or "Adding a word count under the message box." Members see these sentences live as a checklist, so write them for people, not programmers, and keep them under 80 characters.
 - Keep the change focused on what was asked, and follow CLAUDE.md and the site's existing patterns, design tokens, and plain copy style.
+- Update CLAUDE.md only when behavior it describes changes. Keep it one fact per line: add new facts as new bullets rather than rewriting existing lines.
 - If the request is unclear, far too large, would hurt members, or touches payments, terms, or other members' private data, don't change code: explain briefly in your final message instead. If it's a question, just answer it.
 - You can't see the club's live data (chat, essays, members) here. If the request needs it, or asks for something to be posted in chat (a recap, stats, an announcement), say they can ask again with "chat task" in the message, and you'll read the data and post it.
 - Changes under convex/ deploy automatically when merged, but previews share the live backend, so a preview won't show them until then. If that matters for this change, say so in one short clause in your chat reply.
