@@ -18,6 +18,9 @@ export type Brief = {
   // "@Claude !restart": start run `run` over with a fresh session, redoing `request`, with
   // `note` (what followed the command) as extra direction.
   restart?: { run: number; request: string; note: string } | null;
+  // Code runs: other threads' open PRs and latest merges, newest first
+  // (convex/server.ts#otherWork). `at` is when that run finished.
+  otherWork?: { open: OtherPr[]; merged: OtherPr[] } | null;
   // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
   effort?: string | null;
   request: string;
@@ -27,6 +30,19 @@ export type Brief = {
   threadUrl: string;
   // `images`: URLs of the images in that message (convex/server.ts#claimImprovement).
   thread: { author: string; text: string; at: number; images?: string[] }[];
+};
+
+export type OtherPr = {
+  prNumber: number;
+  run: number;
+  branch: string;
+  title: string;
+  requester: string;
+  channel: string;
+  at: number;
+  files: string[];
+  moreFiles: number;
+  conflictsWithMain: boolean;
 };
 
 export const env = process.env;
