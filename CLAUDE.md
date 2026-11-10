@@ -174,6 +174,14 @@ Stopping a run:
 - That means edits pushed as an "(unfinished)" PR, or a failed run if nothing changed; either way it's resumable with "@Claude continue".
 - `improvements.forceStop` ends the run after 90s if the runner doesn't.
 
+Restarting a run:
+
+- `@Claude !restart` (`convex/lib/improve.ts#restartCommand`, optionally followed by more directions) starts the thread's latest code run over with a fresh agent session instead of resuming.
+- If that run is still going, it's stopped first, the same way as Stop (`improvements.ts#requestStop`), and the restart waits for it to wrap up.
+- The new run has `restart: {run, request}` and `previousId`; it redoes the original request, carried through chains of restarts.
+- `server.claimImprovement` puts it on the earlier run's PR if that PR is still open, and never resumes a session; the route skips its target choice.
+- It's never handed to the running agent as a follow-up (`server.takeFollowUps`).
+
 Effort:
 
 - Writing `effort: high` (low/medium/high/xhigh/max) in a request sets the agent's effort for that run (`convex/lib/improve.ts#parseEffort`).

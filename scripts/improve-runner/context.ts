@@ -15,6 +15,9 @@ export type Brief = {
   // Set when this picks up an earlier run in the thread that stopped partway (out of steps,
   // timed out). Its saved sandbox, if it came back, still has that run's uncommitted edits.
   resumesFailedRun?: number | null;
+  // "@Claude !restart": start run `run` over with a fresh session, redoing `request`, with
+  // `note` (what followed the command) as extra direction.
+  restart?: { run: number; request: string; note: string } | null;
   // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
   effort?: string | null;
   request: string;

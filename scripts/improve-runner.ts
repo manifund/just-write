@@ -201,7 +201,13 @@ async function main(): Promise<RunnerResult> {
     ? (brief.resumeSessionId ?? undefined)
     : undefined;
   if (EFFORT) await step(`Using ${EFFORT} effort`);
-  await step(resume ? "Picking up where I left off" : "Reading the code");
+  await step(
+    resume
+      ? "Picking up where I left off"
+      : brief.restart
+        ? "Starting over and reading the code"
+        : "Reading the code",
+  );
   let { final, sessionId, outOfTurns } = await runAgent(
     prompt(mergeNote(merge)),
     resume,

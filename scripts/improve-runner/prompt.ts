@@ -85,10 +85,22 @@ export function prompt(extra = "") {
     brief.resumesFailedRun && !RESUMES_WORK
       ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing, and its edits weren't saved. Start the work again.`
       : "",
-    brief.prNumber
-      ? `This continues PR #${brief.prNumber}, picked from the thread as the work this request is about. Its earlier commits are already on this branch; build on them.`
-      : "",
-    !CHAT && !brief.prNumber && brief.openPrs?.length
+    brief.restart
+      ? [
+          `${brief.requester} wrote "!restart": start run #${brief.restart.run} over with a fresh session, because the earlier attempt went the wrong way. Don't assume its approach was right. Redo this request from scratch:\n"""\n${brief.restart.request}\n"""`,
+          brief.prNumber
+            ? `You're on PR #${brief.prNumber}'s branch, with its earlier commits. Read them with \`git log\` and \`git diff origin/main...HEAD\`, keep what's sound, and change or undo the rest.`
+            : "",
+          brief.restart.note
+            ? `What ${brief.requester} added for this try:\n"""\n${brief.restart.note}\n"""`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : brief.prNumber
+        ? `This continues PR #${brief.prNumber}, picked from the thread as the work this request is about. Its earlier commits are already on this branch; build on them.`
+        : "",
+    !CHAT && !brief.prNumber && !brief.restart && brief.openPrs?.length
       ? `This starts a new PR. The thread's other open PRs (${brief.openPrs.map((p) => `#${p.prNumber} "${p.title}"`).join(", ")}) were judged separate from this request. If it's really about one of them, say so in your chat reply and suggest naming it ("continue #${brief.openPrs[0].prNumber}"); members can also write "new PR" to force a fresh one.`
       : "",
     extra,

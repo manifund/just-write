@@ -177,7 +177,14 @@ export async function POST(req: Request) {
   // Continue one of the thread's open PRs or a run that failed partway, or start a new PR,
   // depending on what was asked. Decided before the sandbox starts, since each branch has
   // its own saved sandbox.
-  if (!brief.prNumber && (brief.openPrs.length > 0 || brief.failedRun)) {
+  // A restart already knows its PR (server.claimImprovement) and never resumes a session.
+  if (brief.restart)
+    await report({
+      step: brief.prNumber
+        ? `Starting over on PR #${brief.prNumber} with a fresh session`
+        : "Starting over with a fresh session",
+    }).catch(() => {});
+  else if (!brief.prNumber && (brief.openPrs.length > 0 || brief.failedRun)) {
     const target = await pickTarget(brief);
     console.log(
       "improve: target",
