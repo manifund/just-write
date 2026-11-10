@@ -211,6 +211,9 @@ export default defineSchema({
         of: v.number(),
       }),
     ),
+    // Started by "@Claude !restart" (convex/lib/improve.ts#restartCommand): `run` is the run it
+    // starts over (also `previousId`), `request` the request being redone. Never resumes a session.
+    restart: v.optional(v.object({ run: v.number(), request: v.string() })),
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     // Replies in the thread that didn't mention Claude, sent while this code run was going.
     // The runner takes them with tagged follow-ups (server.takeFollowUps), then they're cleared.

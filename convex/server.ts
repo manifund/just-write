@@ -25,6 +25,7 @@ import {
   branchFor,
   hashRunToken,
   parseEffort,
+  restartCommand,
 } from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
@@ -224,11 +225,24 @@ export const claimImprovement = mutation({
     // continuePr may change this once the route knows which run this continues. A part of a
     // split request already has the effort of the run it was split from (splitRun).
     const effort = parseEffort(r.request) ?? r.effort ?? previous?.effort;
+    // A restart ("@Claude !restart") goes on the PR of the run it starts over, if that PR is
+    // still open (a run stopped partway opens its PR as it wraps up), with a fresh session.
+    const restartPr =
+      r.restart &&
+      previous?.prNumber &&
+      (previous.status === "pr" || previous.status === "failed")
+        ? {
+            branch: previous.branch,
+            prNumber: previous.prNumber,
+            prUrl: previous.prUrl,
+          }
+        : null;
     await ctx.db.patch(id, {
       status: "running",
       startedAt: Date.now(),
       runTokenHash,
       effort,
+      ...restartPr,
     });
 
     const replies = await ctx.db
@@ -332,10 +346,14 @@ export const claimImprovement = mutation({
     return {
       number: r.number,
       kind: r.kind ?? null,
-      branch: r.branch,
-      prNumber: r.prNumber ?? null,
-      // If the earlier run's sandbox is still saved, the agent picks up where it left off.
-      resumeSessionId: previous?.sessionId ?? null,
+      branch: restartPr?.branch ?? r.branch,
+      prNumber: restartPr?.prNumber ?? r.prNumber ?? null,
+      // If the earlier run's sandbox is still saved, the agent picks up where it left off
+      // (not after a restart, which is for leaving that session behind).
+      resumeSessionId: r.restart ? null : (previous?.sessionId ?? null),
+      restart: r.restart
+        ? { ...r.restart, note: restartCommand(r.request) ?? "" }
+        : null,
       openPrs,
       // The PR of the run right before this one, if it's still open: the fallback choice.
       latestOpenPr:
@@ -666,7 +684,8 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
       continue;
     // A part of a split request can't tell which part a follow-up is about, and a request to
     // split needs its own runs, so those wait for this run to end (releaseWaiting).
-    if (r.split || PARALLEL.test(w.request)) continue;
+    // A restart wants a fresh session, so it never joins the one it's restarting.
+    if (r.split || w.restart || PARALLEL.test(w.request)) continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,
