@@ -40,6 +40,7 @@ type PR = {
   html_url: string;
   state: string;
   merged: boolean;
+  mergeable: boolean | null; // null while GitHub is still working it out
   node_id: string;
 };
 
