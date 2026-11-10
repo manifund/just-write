@@ -17,6 +17,7 @@ import {
   txt,
 } from "./improvements";
 import {
+  AGENT_MODEL,
   BRIEF_IMAGES_MAX,
   GLOBAL_DAILY_LIMIT,
   MAX_PARALLEL,
@@ -229,6 +230,7 @@ export const claimImprovement = mutation({
       startedAt: Date.now(),
       runTokenHash,
       effort,
+      model: AGENT_MODEL,
     });
 
     const replies = await ctx.db
