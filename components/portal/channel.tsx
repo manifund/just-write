@@ -26,6 +26,7 @@ import {
   notificationTag,
   PAGE_SIZE,
 } from "@/convex/lib/channels";
+import { DEADLINES, DEADLINE_LABELS } from "@/convex/lib/program";
 import { cleanBody, mentionIds } from "@/convex/lib/richtext";
 import { pushChatUrl, replaceChatUrl, useChatUrl } from "@/lib/chat-url";
 import { errorMessage } from "@/lib/convex";
@@ -364,6 +365,10 @@ function MessageList({
   locked: boolean; // #check-ins: others' posts are previews until you post today
   onOpenThread: (id: Id<"messages">) => void;
 }) {
+  // #check-ins: the deadline an essay registered now would count toward (-1 after the last).
+  const [nextDeadline] = useState(() =>
+    DEADLINES.findIndex((d) => Date.now() <= d),
+  );
   const { me, roster } = usePortal();
   const paged = usePaginatedQuery(
     api.chat.messages,
@@ -478,7 +483,11 @@ function MessageList({
         <TypingIndicator slug={slug} parentId={null} />
         {locked && (
           <p className="pb-1.5 text-[14px] text-ink-muted">
-            Post today’s check-in, or publish this week’s essay, to read everyone else’s.
+            {nextDeadline >= 0
+              ? `Post today’s check-in, or register your essay for the ${DEADLINE_LABELS[nextDeadline]} deadline, to read everyone else’s.`
+              : "Post today’s check-in to read everyone else’s."}
+            {nextDeadline > 0 &&
+              ` An essay for the ${DEADLINE_LABELS[nextDeadline - 1]} deadline unlocks check-ins posted before ${DEADLINE_LABELS[nextDeadline - 1]} at 9pm PT.`}
           </p>
         )}
         <Composer
