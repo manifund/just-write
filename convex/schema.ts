@@ -232,6 +232,7 @@ export default defineSchema({
     revertPrUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()), // sandbox name; kept (snapshotted) for 24h for follow-ups
     sessionId: v.optional(v.string()), // Agent SDK session, resumed by a follow-up in the same sandbox
+    model: v.optional(v.string()), // the agent's OpenRouter model slug, set when the run starts
     // Agent effort: set in the request ("effort: high"), or kept from the run this continues.
     effort: v.optional(
       v.union(
