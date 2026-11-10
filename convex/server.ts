@@ -5,7 +5,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type MutationCtx } from "./_generated/server";
-import { improvementStatus, status } from "./schema";
+import schema, { status } from "./schema";
 import {
   endRun,
   mention,
@@ -694,6 +694,27 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
   return out;
 }
 
+// What reportImprovement may set on a run: any field of the table except the ones fixed when the
+// run is created or moved onto a PR, and the ones other code owns (`steps` is applyReport's,
+// `waitingOn` releaseWaiting's, `runTokenHash` the claim's). A new field needs no change here.
+const improvementPatch = schema.tables.improvements.validator
+  .omit(
+    "number",
+    "requesterId",
+    "channelId",
+    "threadId",
+    "requestMessageId",
+    "request",
+    "kind",
+    "branch",
+    "previousId",
+    "split",
+    "steps",
+    "waitingOn",
+    "runTokenHash",
+  )
+  .partial();
+
 // Progress and results from the runner, and decisions from admins. `step` starts a new
 // checklist line (finishing the active one); `fail` marks the active line failed.
 export const reportImprovement = mutation({
@@ -702,25 +723,7 @@ export const reportImprovement = mutation({
     id: v.id("improvements"),
     step: v.optional(v.string()),
     fail: v.optional(v.boolean()),
-    patch: v.optional(
-      v.object({
-        status: v.optional(improvementStatus),
-        title: v.optional(v.string()),
-        summary: v.optional(v.string()),
-        files: v.optional(v.array(v.string())),
-        checksPassed: v.optional(v.boolean()),
-        touchesConvex: v.optional(v.boolean()),
-        verdict: v.optional(v.string()),
-        prNumber: v.optional(v.number()),
-        prUrl: v.optional(v.string()),
-        previewUrl: v.optional(v.string()),
-        revertPrUrl: v.optional(v.string()),
-        sandboxId: v.optional(v.string()),
-        sessionId: v.optional(v.string()),
-        error: v.optional(v.string()),
-        decidedBy: v.optional(v.id("members")),
-      }),
-    ),
+    patch: v.optional(improvementPatch),
   },
   handler: async (ctx, { secret, id, step, fail, patch = {} }) => {
     checkServerSecret(secret);

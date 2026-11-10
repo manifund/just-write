@@ -101,6 +101,7 @@ How a run goes:
 - `lib/improve-finish.ts` reads those files out of the sandbox, commits them to `claude/<n>` through GitHub's API, and opens a PR.
 - It merges the PR if `MERGE_POLICY` allows, judged on GitHub's diff of the branch, not on what the sandbox says.
 - Settings (merge policy, models, rate limits, paths that always need review) are in `convex/lib/improve.ts`.
+- `server.reportImprovement`'s `patch` validator is built from the `improvements` table in `convex/schema.ts` (minus fields set at creation or owned elsewhere), so a new field only needs the schema.
 - Merges are announced in `#site`; `/improvements` lists every run.
 - Smoke-test the sandbox side with `bun scripts/improve-try.ts "<request>"` (dry run: nothing is pushed or reported).
 
@@ -110,6 +111,8 @@ Secrets and the sandbox:
 - It gets only the OpenRouter key and a random per-run key (Convex keeps its hash in `runTokenHash`).
 - The per-run key works for that run's card while it's going and is retired when it finishes.
 - The route runs the runner from the deployed commit (copied to `/tmp/improve-runner`), not the clone's copy.
+- `RUNNER_FILES` in the route lists what gets copied: `scripts/improve-runner.ts` (the entry), `scripts/improve-runner/`, and `convex/lib/improve.ts`. Runner modules import each other with relative paths, and only dependency-free files.
+- Runner modules: `context.ts` (brief, env), `report.ts` (steps, log, heartbeat to Convex), `shell.ts`, `prompt.ts` (rules, prompt, result), `agent.ts` (SDK session, follow-ups, Stop, images), `git.ts` (`mergeMain`, changed files), `checks.ts`.
 
 Hangs and timeouts:
 
