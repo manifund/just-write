@@ -202,6 +202,15 @@ export default defineSchema({
     ),
     branch: v.string(),
     previousId: v.optional(v.id("improvements")), // the earlier run whose PR this continues
+    // One part of a request that was split into parallel runs (server.splitRun): `from` is
+    // the run the message started (which does part 1). Each part starts its own PR.
+    split: v.optional(
+      v.object({
+        from: v.id("improvements"),
+        part: v.number(),
+        of: v.number(),
+      }),
+    ),
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     // Replies in the thread that didn't mention Claude, sent while this code run was going.
     // The runner takes them with tagged follow-ups (server.takeFollowUps), then they're cleared.

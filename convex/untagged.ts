@@ -79,8 +79,9 @@ export async function handleUntaggedReply(
 
   const running = runs.find((r) => !r.kind && r.status === "running");
   if (running) {
-    // A run someone stopped takes no more follow-ups (runner.followUps).
-    if (running.stopRequestedAt) return;
+    // A run someone stopped takes no more follow-ups (runner.followUps), and the parts of a
+    // split request can't tell which part a reply is about (server.takeFollowUps).
+    if (running.stopRequestedAt || running.split) return;
     const pending = running.untaggedReplies ?? [];
     if (pending.length >= UNTAGGED_PER_RUN) return;
     await ctx.db.patch(running._id, {

@@ -52,6 +52,15 @@ export function muteCommand(text: string): "mute" | "unmute" | null {
   return rest === "!mute" ? "mute" : rest === "!unmute" ? "unmute" : null;
 }
 
+// One message can ask for several separate changes at once ("in parallel: add X, fix Y").
+// If a code run's request matches PARALLEL, the route asks a quick model call to split it
+// (lib/improve-split.ts); each part becomes its own run, with its own card, sandbox, and new
+// PR, all going at the same time (convex/server.ts#splitRun). A request that's really one
+// change stays one run. Each part counts toward the daily limits.
+export const PARALLEL =
+  /\bparallel\b|\bseparate (?:prs|pull requests|runs|sessions)\b/i;
+export const MAX_PARALLEL = 5;
+
 // Runs per non-admin member per 24 hours, and for everyone combined.
 export const MEMBER_DAILY_LIMIT = 25;
 export const GLOBAL_DAILY_LIMIT = 200;
