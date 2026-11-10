@@ -102,6 +102,10 @@ export async function startFromMessage(
     messageId: Id<"messages">;
     parentId?: Id<"messages">;
     text: string;
+    // A run that continues this run's PR from the start (server.fixConflicts), skipping
+    // the route's choice of target.
+    continues?: Doc<"improvements">;
+    mergeMain?: boolean;
   },
 ) {
   const threadId = args.parentId ?? args.messageId;
@@ -143,7 +147,9 @@ export async function startFromMessage(
     .withIndex("by_thread", (q) => q.eq("threadId", threadId))
     .order("desc")
     .collect();
-  const kind = isChatTask(
+  const kind = args.continues
+    ? undefined
+    : isChatTask(
     args.text,
     earlier.map((r) => r.kind),
   )
@@ -181,7 +187,13 @@ export async function startFromMessage(
       },
     ],
     waitingOn: busy?._id,
-    branch: branchFor(number),
+    branch: args.continues?.branch ?? branchFor(number),
+    ...(args.continues && {
+      previousId: args.continues._id,
+      prNumber: args.continues.prNumber,
+      prUrl: args.continues.prUrl,
+    }),
+    mergeMain: args.mergeMain,
   });
   const replyMessageId = await postAsClaude(ctx, {
     channelId: args.channelId,

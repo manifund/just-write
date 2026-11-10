@@ -194,6 +194,9 @@ export default defineSchema({
     ),
     branch: v.string(),
     previousId: v.optional(v.id("improvements")), // the earlier run whose PR this continues
+    // Started because an admin's Merge hit conflicts: the runner merges main into the branch
+    // first and the agent resolves the conflicts (server.fixConflicts).
+    mergeMain: v.optional(v.boolean()),
     waitingOn: v.optional(v.id("improvements")), // a follow-up sent while this earlier run was still going; starts when it ends
     title: v.optional(v.string()),
     summary: v.optional(v.string()),

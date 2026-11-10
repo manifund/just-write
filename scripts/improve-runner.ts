@@ -49,6 +49,9 @@ type Brief = {
   resumesFailedRun?: number | null;
   // Resolved in Convex: the request's "effort: high", or the effort of the run this continues.
   effort?: string | null;
+  // An admin's Merge hit conflicts with main (server.fixConflicts): merge main in first and
+  // have the agent resolve the conflicts.
+  mergeMain?: boolean;
   request: string;
   requester: string;
   channel: string;
@@ -90,6 +93,7 @@ const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY ?? "";
 // The saved sandbox from the last run on this branch came back (not a fresh clone).
 const RESUMED_SANDBOX = env.SANDBOX_FRESH === "0";
 // Picking up a failed run's uncommitted edits, which are still in this sandbox.
+const MERGE_MAIN = !CHAT && !!brief.mergeMain && !!brief.prNumber;
 const RESUMES_WORK = !!brief.resumesFailedRun && RESUMED_SANDBOX;
 
 // --- Convex reporting -------------------------------------------------------------------
@@ -240,6 +244,9 @@ function prompt() {
       : "",
     brief.resumesFailedRun && !RESUMES_WORK
       ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing, and its edits weren't saved. Start the work again.`
+      : "",
+    MERGE_MAIN
+      ? `PR #${brief.prNumber} couldn't merge because it conflicts with main. The harness has started merging origin/main into this branch (\`git merge --no-commit\`); \`git status\` lists the conflicted files. Resolve every conflict so the result keeps both main's changes and this PR's, and make anything else the merge broke work again. Don't commit, abort, or redo the merge, and leave no conflict markers.`
       : "",
     brief.prNumber
       ? `This continues PR #${brief.prNumber}, picked from the thread as the work this request is about. Its earlier commits are already on this branch; build on them.`
@@ -480,9 +487,18 @@ async function runAgent(input: string, resume?: string) {
 function checks() {
   const tsc = sh("bun check");
   const lint = sh("bun lint");
+  // After merging main in: conflict markers left anywhere in the repo.
+  const markers = MERGE_MAIN
+    ? sh("git grep -nE '^(<<<<<<<|>>>>>>>)( |$)'", { quiet: true })
+    : null;
+  const conflicts = markers?.ok ? markers.out : "";
   return {
-    ok: tsc.ok && lint.ok,
-    output: [!tsc.ok && tail(tsc.out, 4000), !lint.ok && tail(lint.out, 4000)]
+    ok: tsc.ok && lint.ok && !conflicts,
+    output: [
+      !tsc.ok && tail(tsc.out, 4000),
+      !lint.ok && tail(lint.out, 4000),
+      conflicts && `Conflict markers are still in:\n${tail(conflicts, 2000)}`,
+    ]
       .filter(Boolean)
       .join("\n\n"),
   };
@@ -504,6 +520,7 @@ type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps; never merged
+      mergeParent?: string; // the main commit merged in (MERGE_MAIN)
     };
 
 const OUT_OF_TURNS = "I ran out of steps before finishing.";
@@ -636,6 +653,8 @@ async function main(): Promise<RunnerResult> {
   // The site commits the changes on top of this. For a follow-up it's the branch's head on
   // GitHub, and the route checks it still is.
   const base = must("git rev-parse HEAD");
+  if (MERGE_MAIN) await step("Merging in the latest changes to the site");
+  const mainSha = MERGE_MAIN ? mergeMain() : null;
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
   const resume = RESUMED_SANDBOX
@@ -684,6 +703,7 @@ async function main(): Promise<RunnerResult> {
       details: final.details,
       checksPassed: check.ok,
       unfinished: true,
+      mergeParent: mergedIn(mainSha),
     };
   return {
     outcome: "changes",
@@ -693,7 +713,32 @@ async function main(): Promise<RunnerResult> {
     summary: final.summary,
     details: final.details,
     checksPassed: check.ok,
+    mergeParent: mergedIn(mainSha),
   };
+}
+
+// Starts merging main into the branch, leaving any conflicts in the working tree for the
+// agent. Returns the main commit being merged.
+function mergeMain() {
+  if (!sh("git fetch -q origin main").ok)
+    throw new Error("Couldn’t fetch main.");
+  const sha = must("git rev-parse FETCH_HEAD");
+  // Exits non-zero when there are conflicts, which is the point.
+  sh(
+    `git -c user.name=Claude -c user.email=noreply@anthropic.com merge --no-commit --no-ff ${sha}`,
+  );
+  return sha;
+}
+
+// The main commit to record as the merge commit's second parent, if the merge is still in
+// progress (or the agent committed it anyway).
+function mergedIn(sha: string | null) {
+  if (!sha) return undefined;
+  const head = sh("git rev-parse -q --verify MERGE_HEAD", { quiet: true });
+  if (head.ok && head.out.trim() === sha) return sha;
+  return sh(`git merge-base --is-ancestor ${sha} HEAD`, { quiet: true }).ok
+    ? sha
+    : undefined;
 }
 
 // Hands the result to /api/improve, which pushes it, updates the card, and stops this sandbox.

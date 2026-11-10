@@ -24,6 +24,7 @@ import {
   compareWithMain,
   createPr,
   getPr,
+  isOnMain,
   mergePr,
   updatePr,
   type FileChange,
@@ -42,6 +43,7 @@ export type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps: open the PR, never merge it
+      mergeParent?: string; // the main commit merged into the branch (conflict fixes)
     };
 
 const UNFINISHED = "(unfinished)";
@@ -102,6 +104,10 @@ export function parseResult(x: unknown): RunnerResult | null {
     details: str(o.details, 20_000),
     checksPassed: o.checksPassed === true,
     unfinished: o.unfinished === true,
+    mergeParent:
+      typeof o.mergeParent === "string" && /^[0-9a-f]{40}$/.test(o.mergeParent)
+        ? o.mergeParent
+        : undefined,
   };
 }
 
@@ -135,14 +141,24 @@ export async function finishRun(
   if (!parent) throw new Error(`${branch} is gone from GitHub.`);
   if (parent !== result.base)
     throw new Error(`${branch} changed on GitHub while I was working.`);
+  // A conflict fix merges main in. The sandbox's word isn't enough that the commit is main's.
+  const { mergeParent } = result;
+  if (mergeParent && !(await isOnMain(token, mergeParent)))
+    throw new Error("The commit merged into the branch isn’t on main.");
   await commitFiles(token, {
     branch,
     parent,
+    mergeParent,
     message: `${title}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
     files: changes,
   });
 
-  const files = result.files.map((f) => f.path);
+  // After merging main in, the sandbox's list includes main's changes; GitHub's comparison
+  // has only what the PR changes.
+  const files = mergeParent
+    ? ((await compareWithMain(token, branch).catch(() => null))?.files ??
+      result.files.map((f) => f.path))
+    : result.files.map((f) => f.path);
   const touchesConvex = files.some((f) => f.startsWith("convex/"));
   const quoted = request.replace(/\n/g, "\n> ");
   let prNumber = run.prNumber;

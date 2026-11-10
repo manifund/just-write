@@ -40,6 +40,7 @@ type PR = {
   html_url: string;
   state: string;
   merged: boolean;
+  mergeable: boolean | null; // null while GitHub is still working it out
   node_id: string;
 };
 
@@ -139,13 +140,25 @@ export async function branchHead(token: string, branch: string) {
   }
 }
 
+// Whether `sha` is main's head or one of its earlier commits.
+export async function isOnMain(token: string, sha: string) {
+  const res = await gh<{ status: string }>(
+    token,
+    `/repos/${REPO}/compare/${sha}...main`,
+  ).catch(() => null);
+  return res?.status === "identical" || res?.status === "ahead";
+}
+
 // Makes one commit on top of `parent` with `files` changed, and points `branch` at it
-// (creating the branch if needed; never a force push). Returns the new commit's sha.
+// (creating the branch if needed; never a force push). Returns the new commit's sha. With
+// `mergeParent` (a commit on main) it's a merge commit of the two, and `files` are everything
+// the merged tree changes from `parent`.
 export async function commitFiles(
   token: string,
   args: {
     branch: string;
     parent: string;
+    mergeParent?: string;
     message: string;
     files: FileChange[];
   },
@@ -201,7 +214,9 @@ export async function commitFiles(
       body: {
         message: args.message,
         tree: newTree.sha,
-        parents: [args.parent],
+        parents: args.mergeParent
+          ? [args.parent, args.mergeParent]
+          : [args.parent],
         author: { name: "Claude", email: "noreply@anthropic.com" },
       },
     },
