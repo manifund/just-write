@@ -29,6 +29,7 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import {
   AGENT_MODEL,
+  BRIEF_IMAGE_BYTES,
   CHAT_DRAFT_MAX_CHARS,
   CHAT_POST_CHANNELS,
   LOG_BATCH_EVENTS,
@@ -61,7 +62,8 @@ type Brief = {
   requester: string;
   channel: string;
   threadUrl: string;
-  thread: { author: string; text: string; at: number }[];
+  // `images`: URLs of the images in that message (convex/server.ts#claimImprovement).
+  thread: { author: string; text: string; at: number; images?: string[] }[];
 };
 
 const env = process.env;
@@ -532,15 +534,89 @@ function dirtyFiles() {
 
 const FOLLOW_UP_POLL_MS = 4000;
 
+type ImageBlock = {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+    data: string;
+  };
+};
+
 const userMessage = (
   text: string,
   priority?: SDKUserMessage["priority"],
+  images: ImageBlock[] = [],
 ): SDKUserMessage => ({
   type: "user",
-  message: { role: "user", content: text },
+  message: {
+    role: "user",
+    content: images.length ? [{ type: "text", text }, ...images] : text,
+  },
   parent_tool_use_id: null,
   priority,
 });
+
+// The images posted in the thread, fetched once and attached to the agent's first message,
+// with a note saying whose message each came from. Ones that can't be read are listed too.
+type Attached = { blocks: ImageBlock[]; note: string };
+let attached: Promise<Attached> | null = null;
+function threadImages() {
+  return (attached ??= loadImages());
+}
+async function loadImages(): Promise<Attached> {
+  const wanted = brief.thread.flatMap((m) =>
+    (m.images ?? []).map((url) => ({ url, author: m.author })),
+  );
+  if (!wanted.length) return { blocks: [], note: "" };
+  await step(`Looking at ${wanted.length} image(s) from the thread`);
+  const results = await Promise.all(
+    wanted.map(async ({ url }) => {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+        if (!res.ok) return `it couldn't be downloaded (${res.status})`;
+        const type = (res.headers.get("content-type") ?? "")
+          .split(";")[0]
+          .trim()
+          .toLowerCase();
+        const media_type = (
+          ["image/jpeg", "image/png", "image/gif", "image/webp"] as const
+        ).find((t) => t === type);
+        if (!media_type)
+          return `its format (${type || "unknown"}) isn't supported`;
+        const bytes = Buffer.from(await res.arrayBuffer());
+        if (bytes.length > BRIEF_IMAGE_BYTES)
+          return `it's too large (${(bytes.length / 1e6).toFixed(1)} MB)`;
+        return {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type,
+            data: bytes.toString("base64"),
+          },
+        } satisfies ImageBlock;
+      } catch (err) {
+        return `it couldn't be downloaded (${err instanceof Error ? err.message : String(err)})`;
+      }
+    }),
+  );
+  const blocks: ImageBlock[] = [];
+  const lines: string[] = [];
+  results.forEach((r, i) => {
+    const from = `${wanted[i].author}'s message`;
+    if (typeof r === "string") {
+      lines.push(`- An image in ${from} isn't attached: ${r}.`);
+      log("error", `Skipped an image (${wanted[i].url}): ${r}`);
+    } else {
+      blocks.push(r);
+      lines.push(`- Image ${blocks.length}: from ${from}.`);
+    }
+  });
+  return {
+    blocks,
+    note: `The images posted in the thread ("(image)" in the text) are attached after this message, in order:\n${lines.join("\n")}`,
+  };
+}
 
 // The agent's input: the prompt, then any follow-ups from the thread while it works. They go
 // in at priority "next", so the agent reads them after its current tool call, like a message
@@ -548,10 +624,11 @@ const userMessage = (
 // later follow-ups wait and start as their own run (convex/improvements.ts#releaseWaiting).
 async function* agentInput(
   first: string,
+  images: ImageBlock[],
   isDone: () => boolean,
   waitForDone: Promise<void>,
 ) {
-  yield userMessage(first);
+  yield userMessage(first, undefined, images);
   while (!isDone()) {
     await Promise.race([
       new Promise((r) => setTimeout(r, FOLLOW_UP_POLL_MS)),
@@ -592,19 +669,26 @@ async function saveSession(id: string) {
 }
 
 // `outOfTurns`: the agent hit maxTurns before returning its result. Its edits are kept.
-async function runAgent(input: string, resume?: string) {
+// `withImages`: attach the thread's images (for the brief, not for later nudges).
+async function runAgent(input: string, resume?: string, withImages = false) {
+  const images = withImages ? await threadImages() : { blocks: [], note: "" };
+  if (images.note) input = `${input}\n\n${images.note}`;
   log(
     "info",
     `${resume ? "Resuming the agent session with" : "Starting the agent with"}:\n${input}`,
   );
   try {
-    return await runAgentSession(input, resume);
+    return await runAgentSession(input, resume, images.blocks);
   } finally {
     await clearActivity();
   }
 }
 
-async function runAgentSession(input: string, resume?: string) {
+async function runAgentSession(
+  input: string,
+  resume: string | undefined,
+  images: ImageBlock[],
+) {
   const { query } = await loadSdk();
   // A chat task has to finish before its sandbox stops.
   const abortController = new AbortController();
@@ -627,7 +711,7 @@ async function runAgentSession(input: string, resume?: string) {
   stopAgent = () => abortController.abort();
   if (stoppedBy) abortController.abort();
   const q = query({
-    prompt: agentInput(input, () => done, waitForDone),
+    prompt: agentInput(input, images, () => done, waitForDone),
     options: {
       cwd: ROOT,
       model: AGENT_MODEL,
@@ -992,7 +1076,7 @@ async function chatMain(): Promise<ChatResult> {
     throw new Error("The Agent SDK isn’t installed.");
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step("Reading the club’s data");
-  const first = await runAgent(prompt());
+  const first = await runAgent(prompt(), undefined, true);
   if (first.outOfTurns) throw new Error(OUT_OF_TURNS);
   let { final, sessionId } = first;
   const problem = postProblem(final.post);
@@ -1075,6 +1159,7 @@ async function main(): Promise<RunnerResult> {
   let { final, sessionId, outOfTurns } = await runAgent(
     prompt(mergeNote(merge)),
     resume,
+    true,
   ).catch((err) => {
     if (!resume) throw err;
     console.error("resume failed; starting a new session", err);
@@ -1082,7 +1167,7 @@ async function main(): Promise<RunnerResult> {
       "error",
       `Couldn’t resume the agent session, so starting a new one: ${err instanceof Error ? err.message : String(err)}`,
     );
-    return runAgent(prompt(mergeNote(merge)));
+    return runAgent(prompt(mergeNote(merge)), undefined, true);
   });
 
   if (changedFiles(base).length === 0) {
