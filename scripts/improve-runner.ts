@@ -1,25 +1,24 @@
 // Runs one @Claude improvement inside a Vercel Sandbox (started by app/api/improve/route.ts).
-// Installs deps, runs the Claude Agent SDK on the request, checks the result, pushes a branch,
-// opens a PR, and merges it if MERGE_POLICY allows. Every step is reported to Convex, where
-// Claude's card in the chat thread updates live.
+// Installs deps, runs the Claude Agent SDK on the request, and checks the result. Steps are
+// reported to Convex (convex/runner.ts), where Claude's card in the chat thread updates live.
+// When it's done it sends the list of changed files to /api/improve, which reads them out of
+// the sandbox, pushes them, opens the PR, and decides whether it merges.
 //
-// Only node built-ins and dependency-free repo files are imported statically: the Agent SDK
-// is loaded after `bun install` runs.
+// The sandbox has no GitHub token or server secret, only RUN_TOKEN: a key for this run that
+// stops working once it finishes. The agent can read anything this process can, so keep it
+// that way.
+//
+// The route copies this file and convex/lib/improve.ts out of the deployed commit into
+// /tmp/improve-runner and runs it from there, with the clone as the working directory. So
+// import only node built-ins and dependency-free files next to it statically; the Agent SDK is
+// loaded from the clone's node_modules after `bun install` runs.
 //
 // Local dry run (no Convex reports, no push): IMPROVE_DRY_RUN=1 bun scripts/improve-runner.ts
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import {
-  AGENT_MODEL,
-  CLASSIFIER_MODEL,
-  CONVEX_AUTODEPLOY,
-  MERGE_POLICY,
-  REPO,
-  SANDBOX_ROOT,
-  SENSITIVE_PATHS,
-  previewUrlFor,
-} from "../convex/lib/improve";
-import { comment, createPr, mergePr } from "../lib/github";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
+import { AGENT_MODEL, REPO, SANDBOX_ROOT } from "../convex/lib/improve";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 
 type Brief = {
@@ -43,7 +42,7 @@ const ROOT = env.IMPROVE_ROOT ?? SANDBOX_ROOT;
 const brief: Brief = JSON.parse(
   readFileSync(env.IMPROVE_BRIEF ?? "/tmp/brief.json", "utf8"),
 );
-const GITHUB_TOKEN = env.GITHUB_TOKEN ?? "";
+const RUN_TOKEN = env.RUN_TOKEN ?? "";
 
 // Members can pick the agent's effort level by writing e.g. "effort: high" in the request.
 // Without one, the SDK uses the model's default.
@@ -59,11 +58,11 @@ const OPENROUTER_API_KEY = env.OPENROUTER_API_KEY ?? "";
 type Report = {
   step?: string;
   fail?: boolean;
-  patch?: Record<string, unknown>;
+  sessionId?: string;
 };
 
-// Calls a convex/server.ts mutation for this run. Null if it failed; callers keep working.
-async function serverMutation(path: string, args: Record<string, unknown> = {}) {
+// Calls a convex/runner.ts mutation for this run. Null if it failed; callers keep working.
+async function runnerMutation(path: string, args: Record<string, unknown> = {}) {
   try {
     const res = await fetch(`${env.CONVEX_URL}/api/mutation`, {
       method: "POST",
@@ -71,7 +70,7 @@ async function serverMutation(path: string, args: Record<string, unknown> = {}) 
       body: JSON.stringify({
         path,
         format: "json",
-        args: { secret: env.CONVEX_SERVER_SECRET, id: env.IMPROVEMENT_ID, ...args },
+        args: { runToken: RUN_TOKEN, id: env.IMPROVEMENT_ID, ...args },
       }),
     });
     if (!res.ok) {
@@ -89,38 +88,34 @@ let lastStep = "";
 async function report(r: Report) {
   if (r.step) lastStep = r.step;
   if (DRY) return console.log("[report]", JSON.stringify(r));
-  await serverMutation("server:reportImprovement", r); // on failure the card just lags
+  await runnerMutation("runner:report", r); // on failure the card just lags
 }
 const step = (label: string) => report({ step: label });
 
-// Follow-ups members sent in the thread since the run started (server.claimFollowUps).
+// Follow-ups members sent in the thread since the run started (runner.followUps).
 async function claimFollowUps() {
   if (DRY) return [];
-  const rows = await serverMutation("server:claimFollowUps");
+  const rows = await runnerMutation("runner:followUps");
   return (Array.isArray(rows) ? rows : []) as { author: string; text: string }[];
 }
 
 // --- Shell ------------------------------------------------------------------------------
-
-// Keeps the GitHub token out of logs and of errors shown in chat.
-const redact = (s: string) =>
-  GITHUB_TOKEN ? s.split(GITHUB_TOKEN).join("***") : s;
 
 function sh(cmd: string, opts: { quiet?: boolean } = {}) {
   const r = spawnSync("bash", ["-c", cmd], {
     cwd: ROOT,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
-    env: { ...env, GITHUB_TOKEN: "", CONVEX_SERVER_SECRET: "" },
+    env: { ...env, RUN_TOKEN: "" },
   });
-  const out = redact(`${r.stdout ?? ""}${r.stderr ?? ""}`);
-  if (!opts.quiet) console.log(`$ ${redact(cmd)}\n${out.slice(-4000)}`);
+  const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+  if (!opts.quiet) console.log(`$ ${cmd}\n${out.slice(-4000)}`);
   return { ok: r.status === 0, out };
 }
 function must(cmd: string) {
   const r = sh(cmd);
   if (!r.ok)
-    throw new Error(`\`${redact(cmd)}\` failed:\n${r.out.slice(-1500)}`);
+    throw new Error(`\`${cmd}\` failed:\n${r.out.slice(-1500)}`);
   return r.out.trim();
 }
 const tail = (s: string, n = 6000) => (s.length > n ? `…${s.slice(-n)}` : s);
@@ -244,8 +239,14 @@ async function* agentInput(first: string, isDone: () => boolean, waitForDone: Pr
   }
 }
 
+// From the clone's node_modules: this file runs from /tmp/improve-runner (see the top).
+async function loadSdk() {
+  const path = createRequire(`${ROOT}/package.json`).resolve("@anthropic-ai/claude-agent-sdk");
+  return (await import(pathToFileURL(path).href)) as typeof import("@anthropic-ai/claude-agent-sdk");
+}
+
 async function runAgent(input: string, resume?: string) {
-  const { query } = await import("@anthropic-ai/claude-agent-sdk");
+  const { query } = await loadSdk();
   let done = false;
   let markDone = () => {};
   const waitForDone = new Promise<void>((r) => (markDone = r));
@@ -269,8 +270,7 @@ async function runAgent(input: string, resume?: string) {
       systemPrompt: { type: "preset", preset: "claude_code", append: RULES },
       env: {
         ...env,
-        GITHUB_TOKEN: "",
-        CONVEX_SERVER_SECRET: "",
+        RUN_TOKEN: "",
         ANTHROPIC_BASE_URL: "https://openrouter.ai/api",
         ANTHROPIC_AUTH_TOKEN: OPENROUTER_API_KEY,
         ANTHROPIC_API_KEY: "",
@@ -325,7 +325,7 @@ async function runAgent(input: string, resume?: string) {
   return { final, sessionId };
 }
 
-// --- Checks and merge decision ---------------------------------------------------------
+// --- Checks ----------------------------------------------------------------------------
 
 function checks() {
   const tsc = sh("bun check");
@@ -338,64 +338,49 @@ function checks() {
   };
 }
 
-async function classify(diff: string): Promise<{ merge: boolean; why: string }> {
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${OPENROUTER_API_KEY}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: CLASSIFIER_MODEL,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              'You review diffs to a small community website before they go live without human review. Answer with JSON {"decision": "auto" | "review", "reason": "<under 15 words>"}. ' +
-              '"auto" only if the change is small and clearly safe: UI, copy, styling, or self-contained features with no risk of losing or exposing data, no new dependencies, and no changes to auth, payments, terms, email, schema, permissions, or environment. Anything else, or anything you are unsure about, is "review".',
-          },
-          {
-            role: "user",
-            content: `Request: ${brief.request}\n\nDiff:\n${diff.slice(0, 60_000)}`,
-          },
-        ],
-      }),
-    });
-    const data = await res.json();
-    const out = JSON.parse(data.choices[0].message.content);
-    return {
-      merge: out.decision === "auto",
-      why: String(out.reason ?? "").slice(0, 200),
-    };
-  } catch (err) {
-    console.error("classifier failed", err);
-    return { merge: false, why: "the classifier didn’t answer" };
-  }
-}
-
-async function decide(files: string[], checksPassed: boolean, diff: string) {
-  if (!checksPassed) return { merge: false, why: "typecheck or lint failed" };
-  if (MERGE_POLICY === "review") return { merge: false, why: "every change gets reviewed for now" };
-  if (!CONVEX_AUTODEPLOY && files.some((f) => f.startsWith("convex/")))
-    return { merge: false, why: "it changes the backend" };
-  const sensitive = files.filter((f) => SENSITIVE_PATHS.some((re) => re.test(f)));
-  if (sensitive.length)
-    return { merge: false, why: `it touches ${sensitive.slice(0, 3).join(", ")}` };
-  if (MERGE_POLICY === "automerge") return { merge: true, why: "checks passed" };
-  return await classify(diff);
-}
-
 // --- Main -------------------------------------------------------------------------------
 
-async function main() {
+// What this sends to /api/improve when it's done (lib/improve-finish.ts#RunnerResult).
+type ChangedFile = { path: string; mode: "100644" | "100755" | null }; // null: deleted
+type RunnerResult =
+  | { outcome: "answered"; summary: string }
+  | { outcome: "failed"; error: string }
+  | {
+      outcome: "changes";
+      base: string;
+      files: ChangedFile[];
+      title: string | null;
+      summary: string;
+      details: string;
+      checksPassed: boolean;
+    };
+
+// Every file that differs from `base` (tracked, new, and deleted), with its git file mode.
+function changedFiles(base: string): ChangedFile[] {
+  must("git add -A");
+  const r = sh(`git diff --cached --raw -z --no-renames ${base}`, { quiet: true });
+  if (!r.ok) throw new Error(`Couldn’t list the changed files:\n${r.out.slice(-1500)}`);
+  // -z output: ":<old mode> <new mode> <old sha> <new sha> <status>" NUL "<path>" NUL ...
+  const parts = r.out.split("\0");
+  const files: ChangedFile[] = [];
+  for (let i = 0; i + 1 < parts.length; i += 2) {
+    const meta = parts[i].trim();
+    const path = parts[i + 1];
+    if (!meta.startsWith(":")) continue;
+    const [, mode] = meta.slice(1).split(" ");
+    if (meta.endsWith("D")) files.push({ path, mode: null });
+    else if (mode === "100644" || mode === "100755") files.push({ path, mode });
+    else throw new Error(`${path} is a symlink or submodule, which I can’t push.`);
+  }
+  return files;
+}
+
+async function main(): Promise<RunnerResult> {
   const { branch } = brief;
   await step("Installing dependencies");
   if (!sh("bun install --frozen-lockfile").ok) must("bun install");
   sh("bunx next typegen"); // the typecheck needs Next's generated route types
 
-  must(`git config user.name "Claude" && git config user.email "noreply@anthropic.com"`);
   if (brief.prNumber) {
     // A saved sandbox may already be on the branch; match GitHub either way.
     const fetched = sh(
@@ -403,13 +388,9 @@ async function main() {
     );
     if (!fetched.ok) throw new Error(`Couldn’t check out ${branch}.`);
   } else must(`git checkout -B ${branch}`);
+  // The site commits the changes on top of this. For a follow-up it's the branch's head on
+  // GitHub, and the route checks it still is.
   const base = must("git rev-parse HEAD");
-  // Where the whole PR starts. A follow-up's merge decision covers every commit on the
-  // branch, not just its own, so a small addition can't merge an earlier change that
-  // was held for review.
-  const prBase = brief.prNumber
-    ? must("git fetch -q origin main && git merge-base HEAD FETCH_HEAD")
-    : base;
 
   // Resume the earlier agent session if this is its saved sandbox; otherwise start fresh.
   const resume =
@@ -421,18 +402,10 @@ async function main() {
     console.error("resume failed; starting a new session", err);
     return runAgent(prompt());
   });
-  await report({ patch: { sessionId } });
+  await report({ sessionId });
 
-  const changed = () =>
-    must(`git add -A && git diff --cached --name-only ${base}`)
-      .split("\n")
-      .filter(Boolean);
-  let files = changed();
-  if (files.length === 0) {
-    const { summary } = final;
-    await report({ patch: { status: "answered", summary } });
-    return;
-  }
+  if (changedFiles(base).length === 0)
+    return { outcome: "answered", summary: final.summary };
 
   await step("Running the typecheck and linter");
   let check = checks();
@@ -445,89 +418,41 @@ async function main() {
     await step("Running the typecheck and linter again");
     check = checks();
   }
-  files = changed();
-  const { title, summary, details } = final;
-  const commitTitle = title ?? brief.request.slice(0, 60);
-  const touchesConvex = files.some((f) => f.startsWith("convex/"));
-
-  writeFileSync(
-    "/tmp/commit-msg",
-    `${commitTitle}\n\nAsked by ${brief.requester} in #${brief.channel}: ${brief.threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
-  );
-  must(`git commit -q -F /tmp/commit-msg`);
-  const diff = sh(`git diff ${base} HEAD`, { quiet: true }).out;
-
-  if (DRY) {
-    console.log(`[dry run] would push ${branch}:\n${files.join("\n")}\n\n${summary}`);
-    await report({ patch: { status: "pr", title: commitTitle, summary, files } });
-    return;
-  }
-
-  await step(`Pushing ${branch}`);
-  must(
-    `git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git" HEAD:refs/heads/${branch}`,
-  );
-
-  let prNumber = brief.prNumber;
-  let prUrl = prNumber ? `https://github.com/${REPO}/pull/${prNumber}` : "";
-  if (prNumber) {
-    await comment(GITHUB_TOKEN, prNumber, `Follow-up from ${brief.requester} ([thread](${brief.threadUrl})):\n\n> ${brief.request.replace(/\n/g, "\n> ")}\n\n${summary}${details ? `\n\n${details}` : ""}`);
-  } else {
-    await step("Opening a pull request");
-    const pr = await createPr(GITHUB_TOKEN, {
-      branch,
-      title: commitTitle,
-      body: `Asked by ${brief.requester} in #${brief.channel} ([thread](${brief.threadUrl})):\n\n> ${brief.request.replace(/\n/g, "\n> ")}\n\n${summary}${details ? `\n\n${details}` : ""}\n\nChecks: ${check.ok ? "typecheck and lint pass" : "**typecheck or lint failed**"}.${touchesConvex ? "\n\nChanges `convex/`: the production build deploys it on merge." : ""}\n\nOpened by @Claude from Just Write chat.`,
-    });
-    prNumber = pr.number;
-    prUrl = pr.html_url;
-  }
-
-  const prFiles = brief.prNumber
-    ? must(`git diff --name-only ${prBase} HEAD`).split("\n").filter(Boolean)
-    : files;
-  const prDiff = brief.prNumber ? sh(`git diff ${prBase} HEAD`, { quiet: true }).out : diff;
-  const verdict = await decide(prFiles, check.ok, prDiff);
-  const common = {
-    title: commitTitle,
-    summary,
+  const files = changedFiles(base);
+  if (files.length === 0) return { outcome: "answered", summary: final.summary };
+  return {
+    outcome: "changes",
+    base,
     files,
+    title: final.title,
+    summary: final.summary,
+    details: final.details,
     checksPassed: check.ok,
-    touchesConvex,
-    prNumber,
-    prUrl,
-    verdict: `${verdict.merge ? "merge" : "review"}: ${verdict.why}`,
   };
-  if (verdict.merge) {
-    await step("Merging");
-    await mergePr(GITHUB_TOKEN, prNumber!, branch);
-    await report({ patch: { ...common, status: "merged" } });
-  } else {
-    await report({
-      patch: { ...common, status: "pr", previewUrl: previewUrlFor(branch) },
-    });
-  }
 }
 
-async function stopSandbox() {
-  if (DRY || !env.IMPROVE_URL || !env.SANDBOX_NAME) return;
-  await fetch(env.IMPROVE_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ secret: env.CONVEX_SERVER_SECRET, stop: env.SANDBOX_NAME }),
-  }).catch(() => {});
+// Hands the result to /api/improve, which pushes it, updates the card, and stops this sandbox.
+async function finish(result: RunnerResult) {
+  if (DRY) return console.log("[dry run] would finish with", JSON.stringify(result, null, 2));
+  try {
+    const res = await fetch(env.IMPROVE_URL!, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: env.IMPROVEMENT_ID, runToken: RUN_TOKEN, finish: result }),
+    });
+    if (!res.ok) console.error("finish failed", res.status, await res.text());
+  } catch (err) {
+    console.error("finish failed", err); // the run is marked failed when it goes stale
+  }
 }
 
 main()
-  .catch(async (err) => {
+  .catch((err): RunnerResult => {
     console.error(err);
     const message = err instanceof Error ? err.message : String(err);
-    await report({
-      fail: true,
-      patch: {
-        status: "failed",
-        error: redact(`Failed while ${lastStep.charAt(0).toLowerCase()}${lastStep.slice(1) || "starting"}: ${message.slice(0, 300)}`),
-      },
-    });
+    return {
+      outcome: "failed",
+      error: `Failed while ${lastStep.charAt(0).toLowerCase()}${lastStep.slice(1) || "starting"}: ${message.slice(0, 300)}`,
+    };
   })
-  .finally(stopSandbox);
+  .then(finish);

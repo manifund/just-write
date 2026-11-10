@@ -27,12 +27,12 @@ export const CLAUDE_EMAIL = "claude@bot.invalid";
 export const SENSITIVE_PATHS = [
   /^convex\/schema\.ts$/,
   /^convex\/auth/,
-  /^convex\/server\.ts$/,
+  /^convex\/(server|runner)\.ts$/,
   /^convex\/lib\/viewer\.ts$/,
   /^convex\/lib\/improve\.ts$/,
   /^app\/api\//,
   /^app\/commit\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish)\.ts$/,
   /^scripts\//,
   /^\.github\//,
   /^package\.json$/,
@@ -44,6 +44,13 @@ export const SENSITIVE_PATHS = [
 // Sandboxes are saved when they stop and kept this long, so a follow-up in the same
 // thread resumes with the clone, node_modules, and the agent's session already there.
 export const SANDBOX_KEEP_MS = 24 * 60 * 60 * 1000;
+
+// The sandbox holds no site secrets. It gets a random key that only works for its own run
+// while it's going (convex/runner.ts, and finishing through /api/improve); Convex keeps its hash.
+export async function hashRunToken(token: string) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 // One sandbox per branch; follow-ups on the same PR reuse it.
 export function sandboxNameFor(branch: string) {
