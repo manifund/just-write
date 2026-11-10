@@ -512,6 +512,7 @@ export function cardOf(r: Doc<"improvements">) {
     prUrl: r.prUrl ?? null,
     previewUrl: r.previewUrl ?? null,
     revertPrUrl: r.revertPrUrl ?? null,
+    conflicts: r.status === "pr" && !!r.conflictsWithMain,
     error: r.error ?? null,
     startedAt: r.startedAt ?? null,
     finishedAt: r.finishedAt ?? null,

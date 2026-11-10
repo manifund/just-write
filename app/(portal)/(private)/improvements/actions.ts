@@ -4,8 +4,10 @@ import { ConvexHttpClient } from "convex/browser";
 import type { FunctionArgs } from "convex/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { after } from "next/server";
 import { fetchAuthQuery, serverSecret } from "@/lib/auth-server";
 import { closePr, getPr, mergePr, revertPr } from "@/lib/github";
+import { syncOpenPrsQuietly } from "@/lib/improve-sync";
 
 type Result = { ok: true } | { ok: false; error: string };
 type Patch = NonNullable<
@@ -84,6 +86,7 @@ export async function mergeImprovement(id: string) {
             : "This conflicts with newer changes and can’t merge.",
         );
       }
+      after(syncOpenPrsQuietly); // other open PRs are now behind main
       return { status: "merged" };
     },
     ["pr"],
