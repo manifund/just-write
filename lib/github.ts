@@ -121,6 +121,37 @@ export async function revertPr(token: string, number: number) {
   return url;
 }
 
+// --- Keeping open PRs up to date (lib/improve-sync.ts) ---
+
+// Open PRs into main whose branch starts with `prefix`, with their head commits.
+export async function openPrsFrom(token: string, prefix: string) {
+  const prs = await gh<{ number: number; head: { ref: string; sha: string } }[]>(
+    token,
+    `/repos/${REPO}/pulls?state=open&base=main&per_page=100`,
+  );
+  return prs
+    .filter((p) => p.head.ref.startsWith(prefix))
+    .map((p) => ({ number: p.number, head: p.head.sha }));
+}
+
+// How many of main's commits `sha` doesn't have yet.
+export async function behindMain(token: string, sha: string) {
+  const res = await gh<{ behind_by: number }>(
+    token,
+    `/repos/${REPO}/compare/main...${sha}`,
+  );
+  return res.behind_by;
+}
+
+// Merges main into a PR's branch on GitHub (the "Update branch" button): a real merge commit.
+// Fails with 422 if it conflicts, or if the head is no longer `head`.
+export async function updateBranch(token: string, number: number, head: string) {
+  await gh(token, `/repos/${REPO}/pulls/${number}/update-branch`, {
+    method: "PUT",
+    body: { expected_head_sha: head },
+  });
+}
+
 // --- Commits without git (lib/improve-finish.ts pushes the sandbox's changes this way) ---
 
 export type FileChange =

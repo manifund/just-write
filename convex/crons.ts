@@ -10,6 +10,10 @@ crons.interval(
   internal.improvements.reapStale,
 );
 
+// Merges main into open @Claude PRs that GitHub can update cleanly (convex/prSync.ts). Our
+// own merges do this right away; this catches merges done on GitHub.
+crons.interval("sync open PRs", { minutes: 30 }, internal.prSync.sweep);
+
 // Emails the 24h reminders for calendar sessions.
 crons.interval(
   "session reminders",

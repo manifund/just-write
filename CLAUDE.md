@@ -101,6 +101,7 @@ How a run goes:
 - `lib/improve-finish.ts` reads those files out of the sandbox, commits them to `claude/<n>` through GitHub's API, and opens a PR.
 - It merges the PR if `MERGE_POLICY` allows, judged on GitHub's diff of the branch, not on what the sandbox says.
 - Settings (merge policy, models, rate limits, paths that always need review) are in `convex/lib/improve.ts`.
+- `server.reportImprovement`'s `patch` validator is built from the `improvements` table in `convex/schema.ts` (minus fields set at creation or owned elsewhere), so a new field only needs the schema.
 - Merges are announced in `#site`; `/improvements` lists every run.
 - Smoke-test the sandbox side with `bun scripts/improve-try.ts "<request>"` (dry run: nothing is pushed or reported).
 
@@ -110,6 +111,8 @@ Secrets and the sandbox:
 - It gets only the OpenRouter key and a random per-run key (Convex keeps its hash in `runTokenHash`).
 - The per-run key works for that run's card while it's going and is retired when it finishes.
 - The route runs the runner from the deployed commit (copied to `/tmp/improve-runner`), not the clone's copy.
+- `RUNNER_FILES` in the route lists what gets copied: `scripts/improve-runner.ts` (the entry), `scripts/improve-runner/`, and `convex/lib/improve.ts`. Runner modules import each other with relative paths, and only dependency-free files.
+- Runner modules: `context.ts` (brief, env), `report.ts` (steps, log, heartbeat to Convex), `shell.ts`, `prompt.ts` (rules, prompt, result), `agent.ts` (SDK session, follow-ups, Stop, images), `git.ts` (`mergeMain`, changed files), `checks.ts`.
 
 Hangs and timeouts:
 
@@ -124,6 +127,14 @@ Admin actions:
 
 - Admins get Merge/Close/Revert on the card (`app/(portal)/(private)/improvements/actions.ts`, via `lib/github.ts`).
 - If an admin's Merge fails because the PR conflicts with main, `server.fixConflicts` starts a follow-up in the PR's thread on its own (its card then has the Merge button).
+
+Keeping open PRs current:
+
+- `lib/improve-sync.ts#syncOpenPrs` merges main into every open `claude/*` PR that's behind, with GitHub's update-branch (a real merge commit).
+- It runs after each of our merges (`lib/improve-finish.ts`, the admin Merge button, via `after()`), and every 30 minutes from the `sync open PRs` cron (`convex/prSync.ts#sweep` → `IMPROVE_URL` + `/sync`, `app/api/improve/sync/route.ts`), for merges done on GitHub.
+- It skips a PR while any code run in its thread is queued or running (`prSync.prState`), since `finishRun` refuses to push to a branch that moved.
+- A PR whose update fails because it conflicts gets `conflictsWithMain` on its card ("conflicts with newer changes"); the next clean check clears it.
+- It doesn't start runs on its own: an admin's Merge on that card starts `server.fixConflicts` as usual.
 
 Follow-ups:
 

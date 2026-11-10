@@ -64,7 +64,10 @@ const MIN_ATTEMPT_MS = 90_000;
 
 // The runner is always the one from the commit this site was deployed from, not whatever is
 // in the sandbox's clone (a saved sandbox is on a PR's branch, which can have an older one).
+// RUNNER_FILES is everything it imports at runtime, copied into RUNNER_DIR with their paths.
 const RUNNER_DIR = "/tmp/improve-runner";
+const RUNNER_FILES =
+  "scripts/improve-runner.ts scripts/improve-runner convex/lib/improve.ts";
 const RUNNER_REF = /^[0-9a-f]{40}$/.test(
   process.env.VERCEL_GIT_COMMIT_SHA ?? "",
 )
@@ -323,7 +326,7 @@ export async function POST(req: Request) {
           cmd: "bash",
           args: [
             "-c",
-            `set -eo pipefail; ${SETUP}; cd ${SANDBOX_ROOT}; rm -rf ${RUNNER_DIR}; mkdir -p ${RUNNER_DIR}; git fetch -q --depth=1 origin ${RUNNER_REF}; git archive FETCH_HEAD scripts/improve-runner.ts convex/lib/improve.ts | tar -x -C ${RUNNER_DIR}`,
+            `set -eo pipefail; ${SETUP}; cd ${SANDBOX_ROOT}; rm -rf ${RUNNER_DIR}; mkdir -p ${RUNNER_DIR}; git fetch -q --depth=1 origin ${RUNNER_REF}; git archive FETCH_HEAD ${RUNNER_FILES} | tar -x -C ${RUNNER_DIR}`,
           ],
           cwd: SANDBOX_ROOT,
           signal,
@@ -469,7 +472,7 @@ export async function POST(req: Request) {
           cmd: "bash",
           args: [
             "-c",
-            `set -e; rm -rf ${RUNNER_DIR}; mkdir -p ${RUNNER_DIR}; git fetch -q --depth=1 origin ${RUNNER_REF}; git archive FETCH_HEAD scripts/improve-runner.ts convex/lib/improve.ts | tar -x -C ${RUNNER_DIR}`,
+            `set -e; rm -rf ${RUNNER_DIR}; mkdir -p ${RUNNER_DIR}; git fetch -q --depth=1 origin ${RUNNER_REF}; git archive FETCH_HEAD ${RUNNER_FILES} | tar -x -C ${RUNNER_DIR}`,
           ],
           cwd: SANDBOX_ROOT,
           signal,
