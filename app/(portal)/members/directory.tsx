@@ -3,38 +3,24 @@
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { Avatar } from "@/components/portal/avatar";
-import { hostOf, useNow } from "@/components/portal/util";
+import { hostOf } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
-import { DEADLINES, PROGRAM_START } from "@/convex/lib/program";
-import { ptParts, ptToUtc } from "@/convex/lib/time";
+import { PROGRAM_START } from "@/convex/lib/program";
 
 type Row = (typeof api.members.directory._returnType)[number];
 
 const GOAL = 4;
 
-// The current Pacific week (Sunday to Saturday) and how many of its days have started,
-// or null outside November (and during SSR, since it depends on the clock).
-function currentWeek(now: number | null) {
-  if (
-    now === null ||
-    now < PROGRAM_START ||
-    now > DEADLINES[DEADLINES.length - 1]
-  )
-    return null;
-  const p = ptParts(now);
-  return {
-    since: ptToUtc(p.year, p.month, p.day - p.weekday),
-    days: p.weekday + 1,
-  };
-}
-
 // Server-rendered first, then live. Sized so the whole roster fits on one screen.
 export function Directory({ initial }: { initial: Row[] }) {
-  const members = useQuery(api.members.directory) ?? initial;
-  const week = currentWeek(useNow(60_000));
-  const checkIns = useQuery(
-    api.members.checkInDays,
-    week ? { since: week.since } : "skip",
+  const rows = useQuery(api.members.directory) ?? initial;
+  const checkIns = useQuery(api.members.checkInDays, { since: PROGRAM_START });
+  // Most essays first, then most check-in days, then by name.
+  const members = rows.toSorted(
+    (a, b) =>
+      b.essayCount - a.essayCount ||
+      (checkIns?.[b._id]?.length ?? 0) - (checkIns?.[a._id]?.length ?? 0) ||
+      a.name.localeCompare(b.name),
   );
   const published = members.reduce(
     (n, m) => n + Math.min(m.weeksDone, GOAL),
@@ -65,12 +51,6 @@ export function Directory({ initial }: { initial: Row[] }) {
                   {m.name}
                 </span>
                 <span className="flex items-center gap-2 text-[13px] text-ink-muted">
-                  {week && checkIns && (
-                    <CheckIns
-                      done={Math.min(checkIns[m._id]?.length ?? 0, week.days)}
-                      days={week.days}
-                    />
-                  )}
                   <Pips
                     filled={m.weeksDone}
                     label={`${Math.min(m.weeksDone, GOAL)} of ${GOAL} weeks done`}
@@ -83,17 +63,6 @@ export function Directory({ initial }: { initial: Row[] }) {
         ))}
       </ul>
     </main>
-  );
-}
-
-function CheckIns({ done, days }: { done: number; days: number }) {
-  return (
-    <span
-      className="shrink-0 tabular-nums"
-      title={`Checked in on ${done} of ${days} days this week`}
-    >
-      {done}/{days} check-ins this week
-    </span>
   );
 }
 
