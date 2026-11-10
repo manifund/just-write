@@ -12,6 +12,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalAction,
   internalMutation,
+  mutation,
   query,
   type MutationCtx,
   type QueryCtx,
@@ -156,11 +157,11 @@ export async function startFromMessage(
   const kind = args.continues
     ? undefined
     : isChatTask(
-    args.text,
-    earlier.map((r) => r.kind),
-  )
-    ? ("chat" as const)
-    : undefined;
+          args.text,
+          earlier.map((r) => r.kind),
+        )
+      ? ("chat" as const)
+      : undefined;
 
   // Whether this continues one of the thread's open PRs or starts a new one is decided
   // when the run starts (app/api/improve/route.ts, lib/improve-target.ts), from what was asked.
@@ -319,8 +320,10 @@ async function failRun(
   ctx: MutationCtx,
   r: Doc<"improvements">,
   error: string,
+  extra: Partial<WithoutSystemFields<Doc<"improvements">>> = {},
 ) {
   await endRun(ctx, r, {
+    ...extra,
     status: "failed",
     error,
     steps: r.steps.map((s) =>
@@ -336,6 +339,68 @@ export const markFailed = internalMutation({
     const r = await ctx.db.get(id);
     if (!r || (r.status !== "queued" && r.status !== "running")) return;
     await failRun(ctx, r, error);
+  },
+});
+
+// The Stop button on a running card, for the member who asked and for admins. A run that
+// hasn't started, or a chat task, ends here. A code run's runner sees the request on its next
+// poll (runner.followUps), stops the agent, and pushes any edits as an unfinished PR, which
+// never merges on its own; its sandbox and agent session are kept, so "@Claude continue"
+// picks it up. If the runner doesn't wrap up in time, forceStop ends the run anyway.
+const STOP_GRACE_MS = 90_000;
+
+export const stop = mutation({
+  args: { id: v.id("improvements") },
+  handler: async (ctx, { id }) => {
+    const viewer = await requireMember(ctx);
+    const r = await ctx.db.get(id);
+    if (!r) throw new ConvexError("That request is gone.");
+    if (r.requesterId !== viewer.member._id && !viewer.isAdmin)
+      throw new ConvexError(
+        "Only the person who asked, or an admin, can stop this.",
+      );
+    if ((r.status !== "queued" && r.status !== "running") || r.stopRequestedAt)
+      return;
+    const now = Date.now();
+    const stopped = { stoppedBy: viewer.member._id, stopRequestedAt: now };
+    if (r.status === "queued" || r.kind === "chat")
+      return await failRun(ctx, r, `Stopped by ${viewer.member.name}.`, {
+        ...stopped,
+        waitingOn: undefined,
+      });
+    await ctx.db.patch(id, {
+      ...stopped,
+      steps: [
+        ...r.steps.map((s) =>
+          s.state === "active" ? { ...s, state: "done" as const } : s,
+        ),
+        {
+          label: `Stopping, as ${viewer.member.name} asked`,
+          state: "active" as const,
+        },
+      ].slice(-40),
+    });
+    await ctx.scheduler.runAfter(
+      STOP_GRACE_MS,
+      internal.improvements.forceStop,
+      { id },
+    );
+  },
+});
+
+// The runner didn't wrap up after a stop (stuck in a tool call, or never polled): end the run
+// and stop its sandbox, which keeps its edits in the saved snapshot for a follow-up.
+export const forceStop = internalMutation({
+  args: { id: v.id("improvements") },
+  handler: async (ctx, { id }) => {
+    const r = await ctx.db.get(id);
+    if (!r || r.status !== "running" || !r.stopRequestedAt) return;
+    const by = r.stoppedBy && (await ctx.db.get(r.stoppedBy));
+    await failRun(ctx, r, `Stopped by ${by?.name ?? "a member"}.`);
+    if (r.kind !== "chat" && r.sandboxId)
+      await ctx.scheduler.runAfter(0, internal.chatTasks.stopSandbox, {
+        name: r.sandboxId,
+      });
   },
 });
 
@@ -371,6 +436,10 @@ export function cardOf(r: Doc<"improvements">) {
     kind: r.kind ?? ("code" as const),
     status: r.status,
     waiting: !!r.waitingOn,
+    requesterId: r.requesterId,
+    stopping:
+      !!r.stopRequestedAt && (r.status === "queued" || r.status === "running"),
+    stopped: !!r.stoppedBy,
     steps: r.steps,
     branch: r.branch,
     title: r.title ?? null,

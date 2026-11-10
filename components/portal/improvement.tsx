@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
@@ -63,6 +64,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
         <Steps steps={card.steps} />
+        <StopButton card={card} isAdmin={isAdmin} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
         )}
@@ -79,7 +81,9 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
       )}
       {card.status === "failed" && (
         <p className="text-[15px] text-ink-muted">
-          Something went wrong. {card.error ?? ""}
+          {card.stopped
+            ? card.error
+            : `Something went wrong. ${card.error ?? ""}`}
         </p>
       )}
       {result &&
@@ -204,6 +208,7 @@ export function ImprovementCard({
           {elapsed && <span className="tabular-nums"> · {elapsed}</span>}
         </p>
         <Steps steps={card.steps} />
+        <StopButton card={card} isAdmin={isAdmin} />
         {card.activity && now && (
           <Activity activity={card.activity} now={now} />
         )}
@@ -246,6 +251,44 @@ export function ImprovementCard({
           {card.startedAt && showLog && <LogLink id={card._id} />}
         </div>
       </details>
+    </div>
+  );
+}
+
+// Stops a run that's going (improvements.stop). Only the member who asked and admins see it.
+function StopButton({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
+  const { me } = usePortal();
+  const stop = useMutation(api.improvements.stop);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (me._id !== card.requesterId && !isAdmin) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        disabled={pending || card.stopping}
+        onClick={async () => {
+          setPending(true);
+          setError(null);
+          try {
+            await stop({ id: card._id });
+          } catch (err) {
+            setError(
+              err instanceof ConvexError
+                ? String(err.data)
+                : "That didn’t work.",
+            );
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        {card.stopping ? "Stopping…" : "Stop"}
+      </Button>
+      {error && (
+        <p role="alert" className="text-[14px] text-brass-text">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -418,7 +461,9 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
       note = "Updated in a later reply.";
       break;
     case "failed":
-      note = `Something went wrong. ${card.error ?? ""}`;
+      note = card.stopped
+        ? `${card.error ?? "Stopped."} Reply @Claude continue to pick it up again.`
+        : `Something went wrong. ${card.error ?? ""}`;
       break;
   }
 

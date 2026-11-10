@@ -145,15 +145,26 @@ async function report(r: Report) {
 }
 const step = (label: string) => report({ step: label });
 
-// Follow-ups members sent in the thread since the run started (runner.followUps).
-// Chat tasks don't take any: those start as their own run when this one ends.
+// Follow-ups members sent in the thread since the run started (runner.followUps), and
+// whether someone pressed Stop on the card (then `stoppedBy` is their name and the running
+// agent is stopped). Chat tasks don't take any: Convex ends those itself when stopped, and
+// follow-ups start as their own run when this one ends.
+let stoppedBy: string | null = null;
+let stopAgent = () => {};
 async function claimFollowUps() {
   if (DRY || CHAT) return [];
-  const rows = await runnerMutation("runner:followUps");
-  return (Array.isArray(rows) ? rows : []) as {
-    author: string;
-    text: string;
-  }[];
+  const res = await runnerMutation("runner:followUps");
+  if (Array.isArray(res)) return res as { author: string; text: string }[]; // older Convex
+  const { followUps, stop } = (res ?? {}) as {
+    followUps?: { author: string; text: string }[];
+    stop?: string | null;
+  };
+  if (stop && !stoppedBy) {
+    stoppedBy = stop;
+    console.log("[stop] asked by", stop);
+    stopAgent();
+  }
+  return followUps ?? [];
 }
 
 // --- Log -------------------------------------------------------------------------------
@@ -438,7 +449,7 @@ function prompt(extra = "") {
     `"""\n${brief.request}\n"""`,
     brief.thread.length > 1 ? `The thread so far:\n"""\n${thread}\n"""` : "",
     brief.resumesFailedRun && RESUMES_WORK
-      ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing (it ran out of steps or time). Its edits are still in the working tree and haven't been committed; check them with \`git status\` and \`git diff\`, then finish the job.`
+      ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing (it ran out of steps or time, or someone stopped it). Its edits are still in the working tree and haven't been committed; check them with \`git status\` and \`git diff\`, then finish the job.`
       : "",
     brief.resumesFailedRun && !RESUMES_WORK
       ? `Run #${brief.resumesFailedRun} on this branch stopped before finishing, and its edits weren't saved. Start the work again.`
@@ -602,6 +613,8 @@ async function runAgentSession(input: string, resume?: string) {
   let final: Final = { title: null, summary: "", details: "" };
   let sessionId = resume ?? "";
   let outOfTurns = false;
+  stopAgent = () => abortController.abort();
+  if (stoppedBy) abortController.abort();
   const q = query({
     prompt: agentInput(input, () => done, waitForDone),
     options: {
@@ -796,10 +809,16 @@ async function runAgentSession(input: string, resume?: string) {
         if (msg.subtype === "success")
           final = parseFinal(msg.structured_output, msg.result);
         else if (msg.subtype === "error_max_turns") outOfTurns = true;
-        else throw new Error(`The agent stopped early (${msg.subtype}).`);
+        else if (!stoppedBy)
+          throw new Error(`The agent stopped early (${msg.subtype}).`);
       }
     }
+  } catch (err) {
+    // Stopped from the card: the abort ends the query. Its edits and session are kept.
+    if (!stoppedBy) throw err;
+    log("info", `Agent stopped (asked by ${stoppedBy})`);
   } finally {
+    stopAgent = () => {};
     done = true;
     markDone();
     if (timer) clearTimeout(timer);
@@ -1056,6 +1075,8 @@ async function main(): Promise<RunnerResult> {
   });
 
   if (changedFiles(base).length === 0) {
+    if (stoppedBy)
+      return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
     return { outcome: "answered", summary: final.summary };
   }
@@ -1064,7 +1085,12 @@ async function main(): Promise<RunnerResult> {
   let check = checks(merge);
   // Out of steps: push what's there as an unfinished PR for a follow-up to finish, without
   // spending more turns on fixes.
-  for (let attempt = 0; !outOfTurns && !check.ok && attempt < 2; attempt++) {
+  // Stopped: the same, without asking the agent for anything more.
+  for (
+    let attempt = 0;
+    !outOfTurns && !stoppedBy && !check.ok && attempt < 2;
+    attempt++
+  ) {
     await step("Fixing typecheck and lint errors");
     ({ final, sessionId, outOfTurns } = await runAgent(
       `The harness's checks failed:\n\n${check.output}\n\nFix these, run the checks again, and return the structured result again, covering the whole change.`,
@@ -1075,16 +1101,18 @@ async function main(): Promise<RunnerResult> {
   }
   const files = changedFiles(base);
   if (files.length === 0) {
+    if (stoppedBy)
+      return { outcome: "failed", error: `Stopped by ${stoppedBy}.` };
     if (outOfTurns) throw new Error(OUT_OF_TURNS);
     return { outcome: "answered", summary: final.summary };
   }
-  if (outOfTurns)
+  if (outOfTurns || stoppedBy)
     return {
       outcome: "changes",
       base,
       files,
       title: final.title,
-      summary: `${OUT_OF_TURNS} Reply @Claude continue to keep going.`,
+      summary: `${stoppedBy ? `Stopped by ${stoppedBy} before I finished.` : OUT_OF_TURNS} Reply @Claude continue to keep going.`,
       details: final.details,
       checksPassed: check.ok,
       unfinished: true,
