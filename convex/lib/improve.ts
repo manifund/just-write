@@ -115,6 +115,11 @@ export const CHAT_POST_CHANNELS = [
 export const CHAT_POSTS_PER_MEMBER = 5;
 export const CHAT_POSTS_PER_DAY = 20;
 
+// Images posted in the request's thread are passed to the agent (the newest ones, up to
+// this many). Bigger files are skipped: the model API takes about 5 MB once base64-encoded.
+export const BRIEF_IMAGES_MAX = 8;
+export const BRIEF_IMAGE_BYTES = 3_750_000;
+
 const CHAT_TASK = /\bchat[- ]task\b/i;
 // "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
 export const NEW_PR =
