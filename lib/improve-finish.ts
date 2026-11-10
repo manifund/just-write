@@ -24,6 +24,7 @@ import {
   compareWithMain,
   createPr,
   getPr,
+  isOnMain,
   mergePr,
   updatePr,
   type FileChange,
@@ -42,6 +43,7 @@ export type RunnerResult =
       details: string;
       checksPassed: boolean;
       unfinished?: boolean; // the agent ran out of steps: open the PR, never merge it
+      merged?: string; // main's commit, merged into the branch: becomes the commit's second parent
     };
 
 const UNFINISHED = "(unfinished)";
@@ -102,6 +104,10 @@ export function parseResult(x: unknown): RunnerResult | null {
     details: str(o.details, 20_000),
     checksPassed: o.checksPassed === true,
     unfinished: o.unfinished === true,
+    merged:
+      typeof o.merged === "string" && /^[0-9a-f]{40}$/.test(o.merged)
+        ? o.merged
+        : undefined,
   };
 }
 
@@ -135,14 +141,23 @@ export async function finishRun(
   if (!parent) throw new Error(`${branch} is gone from GitHub.`);
   if (parent !== result.base)
     throw new Error(`${branch} changed on GitHub while I was working.`);
+  // A merge of main only counts if the commit really is on main (the sandbox says which).
+  if (result.merged && !(await isOnMain(token, result.merged)))
+    throw new Error("The commit I merged isn’t on main.");
   await commitFiles(token, {
     branch,
-    parent,
-    message: `${title}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
+    parents: result.merged ? [parent, result.merged] : [parent],
+    message: `${title}${result.merged ? "\n\nMerges main." : ""}\n\nAsked by ${requester} in #${channel}: ${threadUrl}\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n`,
     files: changes,
   });
 
-  const files = result.files.map((f) => f.path);
+  // After a merge the pushed files include main's changes, so list what the PR itself changes.
+  const files = result.merged
+    ? await compareWithMain(token, branch).then(
+        (c) => c.files,
+        () => result.files.map((f) => f.path),
+      )
+    : result.files.map((f) => f.path);
   const touchesConvex = files.some((f) => f.startsWith("convex/"));
   const quoted = request.replace(/\n/g, "\n> ");
   let prNumber = run.prNumber;
