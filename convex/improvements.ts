@@ -23,7 +23,7 @@ import {
   MEMBER_DAILY_LIMIT,
   branchFor,
   isChatTask,
-  muteCommand,
+  claudeCommand,
   staleAfterMs,
 } from "./lib/improve";
 import { checkInGate, veil } from "./chat";
@@ -102,6 +102,36 @@ export const mention = (m: Doc<"members">): RichNode => ({
   attrs: { id: m._id, label: m.name },
 });
 
+const HELP_TEXT = [
+  "Mention me with a request and I’ll change the site and open a PR.",
+  "Write “chat task” to have me read the club’s data and answer or post a message instead.",
+  "“new PR” starts a fresh PR; “#40” or “continue #40” works on that PR.",
+  "“effort: high” (low, medium, high, xhigh, max) sets how hard I think.",
+  "“in parallel” splits a list of changes into separate runs and PRs.",
+  "Replies in a thread reach me without a tag while I’m working and for a day after.",
+  "Commands, on their own: !status, !help, !mute (only tagged messages reach me here), !unmute.",
+].join(" ");
+
+const STATUS_WORDS: Record<Doc<"improvements">["status"], string> = {
+  queued: "is waiting to start",
+  running: "is running",
+  answered: "answered",
+  pr: "opened a PR",
+  merged: "was merged",
+  closed: "was closed",
+  failed: "failed",
+  superseded: "was followed by a newer run",
+};
+
+function statusText(r: Doc<"improvements">) {
+  const step =
+    r.status === "running" || r.status === "queued"
+      ? r.steps.findLast((s) => s.state === "active")?.label
+      : undefined;
+  const pr = r.prNumber ? ` (PR #${r.prNumber})` : "";
+  return `Run #${r.number}${pr} ${STATUS_WORDS[r.status]}${step ? `: ${step}` : ""}.`;
+}
+
 // Called from chat.send when a message mentions Claude.
 export async function startFromMessage(
   ctx: MutationCtx,
@@ -131,8 +161,20 @@ export async function startFromMessage(
         });
 
   // "@Claude !mute" / "!unmute": whether untagged replies in this thread reach Claude.
+  // "!status" / "!help": a short reply, no run (convex/lib/improve.ts#claudeCommand).
   const command =
-    args.untagged || args.continues ? null : muteCommand(args.text);
+    args.untagged || args.continues ? null : claudeCommand(args.text);
+  if (command === "help") return await reply(HELP_TEXT);
+  if (command === "status") {
+    const latest = await ctx.db
+      .query("improvements")
+      .withIndex("by_thread", (q) => q.eq("threadId", threadId))
+      .order("desc")
+      .first();
+    return await reply(
+      latest ? statusText(latest) : "I haven’t run in this thread yet.",
+    );
+  }
   if (command) {
     if (command === "unmute") {
       await setMuted(ctx, threadId, false);
