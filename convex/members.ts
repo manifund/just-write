@@ -19,6 +19,7 @@ import {
 import { getClaude } from "./lib/claude";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import {
+  fillSlots,
   PROGRAM_START,
   COMMITMENTS_CLOSED_MESSAGE,
   commitmentsClosed,
@@ -200,6 +201,8 @@ export const directory = query({
         return {
           ...publicMember(m),
           essayCount: visible.length,
+          // Weeks covered, so several short posts toward one week count once.
+          weeksDone: fillSlots(visible).filter((s) => s.essayId).length,
           latestEssay: latest ? { title: latest.title, url: latest.url } : null,
         };
       }),
@@ -261,6 +264,7 @@ export const profile = query({
         url: e.url,
         wordCount: e.wordCount ?? null,
         submittedAt: e.submittedAt,
+        week: e.week,
       }));
     return { member: publicMember(m), essays };
   },

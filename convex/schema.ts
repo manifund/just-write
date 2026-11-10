@@ -72,6 +72,9 @@ export default defineSchema({
     title: v.string(),
     wordCount: v.optional(v.number()),
     submittedAt: v.number(),
+    // The week (1–4) the writer put this essay toward, e.g. two short posts that
+    // together make one week's essay. Unset means the earliest open week.
+    week: v.optional(v.number()),
     review: v.union(
       v.literal("pending"),
       v.literal("verified"),
