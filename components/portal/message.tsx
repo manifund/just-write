@@ -617,7 +617,7 @@ function ReactionChip({
       {memberIds.length}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-max max-w-[16rem] -translate-x-1/2 bg-ink px-2 py-1 text-left text-[13px] leading-snug text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] group-hover/chip:block group-focus-visible/chip:block"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 hidden w-max max-w-[16rem] bg-ink px-2 py-1 text-left text-[13px] leading-snug text-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.4)] group-hover/chip:block group-focus-visible/chip:block"
       >
         {names.join(", ")} reacted {emoji}
       </span>
