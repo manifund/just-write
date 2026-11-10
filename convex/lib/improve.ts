@@ -77,6 +77,22 @@ export const SENSITIVE_PATHS = [
 // thread resumes with the clone, node_modules, and the agent's session already there.
 export const SANDBOX_KEEP_MS = 24 * 60 * 60 * 1000;
 
+// How long a code run's sandbox (agent and checks) and a chat task's sandbox may run. The
+// runner gives a chat task's agent 15 minutes (scripts/improve-runner.ts).
+export const RUN_TIMEOUT_MS = 40 * 60 * 1000;
+export const CHAT_TIMEOUT_MS = 25 * 60 * 1000;
+// /api/improve's maxDuration: a code run's finish request can take this long after its
+// sandbox is done.
+export const ROUTE_MAX_MS = 5 * 60 * 1000;
+
+// When improvements.reapStale gives up on a run that's still queued or running: its sandbox
+// has stopped by then, and so has any request that could still report for it.
+export function staleAfterMs(kind: "chat" | undefined) {
+  return kind === "chat"
+    ? CHAT_TIMEOUT_MS + ROUTE_MAX_MS
+    : RUN_TIMEOUT_MS + ROUTE_MAX_MS + 2 * 60 * 1000;
+}
+
 // Chat tasks (convex/chatTasks.ts): runs that read the club's data instead of changing
 // code, to answer a question or post something for the member who asked. A request is one
 // if it says "chat task", or if every earlier run in its thread was one and it doesn't ask
