@@ -54,7 +54,7 @@ const brief: Brief = JSON.parse(
 const GITHUB_TOKEN = env.GITHUB_TOKEN ?? "";
 const CHAT = brief.kind === "chat";
 const RUN_TOKEN = env.RUN_TOKEN ?? "";
-// Chat tasks install only the Agent SDK, here, rather than the whole repo's dependencies.
+// Chat tasks load only the Agent SDK, installed here by the route (lib/chat-task-sandbox.ts).
 const AGENT_DIR = "/tmp/agent";
 const CLUB_DIR = "/tmp/club";
 // A chat task's sandbox stops 25 minutes after it starts (app/api/improve/route.ts).
@@ -496,17 +496,6 @@ async function decide(files: string[], checksPassed: boolean, diff: string) {
 
 // --- Chat tasks ---------------------------------------------------------------------------
 
-// Installs just the Agent SDK, at the version the repo's lockfile pins, into AGENT_DIR.
-function installAgentSdk() {
-  const version = readFileSync(`${ROOT}/bun.lock`, "utf8").match(
-    /"@anthropic-ai\/claude-agent-sdk@(\d[\w.+-]*)"/,
-  )?.[1];
-  if (!version) throw new Error("Couldn’t find the Agent SDK’s version in bun.lock.");
-  must(
-    `mkdir -p ${AGENT_DIR} && cd ${AGENT_DIR} && echo '{"private":true}' > package.json && bun add @anthropic-ai/claude-agent-sdk@${version}`,
-  );
-}
-
 // Why the agent's draft can't be used as is, or null. The server checks again and drops a
 // bad draft rather than failing the run; this gives the agent one chance to fix it first.
 function draftProblem(draft: Final["draft"]) {
@@ -529,8 +518,9 @@ function draftProblem(draft: Final["draft"]) {
 }
 
 async function chatMain() {
-  await step("Getting ready");
-  installAgentSdk();
+  // The route installed the Agent SDK in AGENT_DIR before the firewall went on.
+  if (!existsSync(`${AGENT_DIR}/node_modules/@anthropic-ai/claude-agent-sdk`))
+    throw new Error("The Agent SDK isn’t installed.");
   if (EFFORT) await step(`Using ${EFFORT} effort`);
   await step("Reading the club’s data");
   let { final, sessionId } = await runAgent(prompt());
@@ -538,10 +528,15 @@ async function chatMain() {
   const problem = draftProblem(final.draft);
   if (problem && Date.now() < startedAt + CHAT_AGENT_MS - 3 * 60 * 1000) {
     await step("Fixing the draft");
-    ({ final, sessionId } = await runAgent(
+    // If this fails, keep the first answer; the server drops a draft it can't use.
+    const fixed = await runAgent(
       `The draft can't be used: ${problem}. Fix it and return the structured result again.`,
       sessionId,
-    ));
+    ).catch((err) => {
+      console.error("fixing the draft failed", err);
+      return null;
+    });
+    if (fixed) ({ final, sessionId } = fixed);
   }
   const { summary, draft } = final;
   if (DRY) console.log("[dry run] draft:", JSON.stringify(draft, null, 1));

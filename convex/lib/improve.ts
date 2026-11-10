@@ -29,6 +29,9 @@ export const SENSITIVE_PATHS = [
   /^convex\/auth/,
   /^convex\/server\.ts$/,
   /^convex\/chatTasks\.ts$/,
+  // What keeps chat tasks' results and #check-ins text members-only.
+  /^convex\/(improvements|chat|activity)\.ts$/,
+  /^convex\/lib\/(markdown|richtext|channels)\.ts$/,
   /^convex\/lib\/viewer\.ts$/,
   /^convex\/lib\/improve\.ts$/,
   /^app\/api\//,
@@ -51,9 +54,10 @@ export const CHAT_TASKS_ENABLED = true;
 export const CHAT_DRAFT_MAX_CHARS = 6000;
 export const CHAT_MENTION_LIMIT = 10;
 const CHAT_TASK = /\bchat[- ]task\b/i;
-// "new PR", "#40", "PR 40": the member wants code, even in a chat task's thread.
+// "new PR", "PR 40", "continue #40": the member wants code, even in a chat task's thread.
 export const NEW_PR = /\b(new|separate|fresh|another|different)\s+(pr|pull request|branch)\b/i;
-const NAMES_PR = /(?:#|\b(?:pr|pull request)\s*#?)\d+\b/i;
+// Not a bare "#2": in a chat thread that's usually "week #2" or "#1 on the board".
+const NAMES_PR = /\b(?:pr|pull request|continue)\s*#?\d+\b/i;
 
 // `earlier`: the kinds of the thread's earlier runs. A thread that has only had chat
 // tasks keeps going as one; any code run in it means a request needs the keyword.

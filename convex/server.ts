@@ -218,9 +218,10 @@ export const claimImprovement = mutation({
       .collect();
     const names = new Map<string, string>();
     const thread = [];
-    // In #check-ins the agent only learns who wrote what length, apart from the asker's
-    // own posts: each member unlocks check-ins by posting, while what Claude writes back
-    // is seen by every member (and, for code runs, in public PRs and /improvements).
+    // In #check-ins the agent only learns who wrote what length, apart from the request
+    // itself (and, for code runs, the asker's own posts): each member unlocks check-ins by
+    // posting, while what Claude writes back is seen by every member, ungated (and, for
+    // code runs, in public PRs and /improvements).
     const inCheckIns = channel?.slug === CHECK_IN_SLUG;
     for (const m of [root, ...replies]) {
       if (!m || (!m.improvementId && !m.text)) continue;
@@ -243,7 +244,11 @@ export const claimImprovement = mutation({
             text += `\n\nDraft for #${to?.slug ?? "chat"}:\n${earlier.draft.markdown}`;
           }
         }
-      } else if (inCheckIns && m.authorId !== r.requesterId) {
+      } else if (
+        inCheckIns &&
+        m._id !== r.requestMessageId &&
+        (m.authorId !== r.requesterId || r.kind === "chat")
+      ) {
         text = `[a check-in by ${author}, ${m.text.split(/\s+/).filter(Boolean).length} words]`;
       }
       thread.push({ author, text, at: m._creationTime });
@@ -333,7 +338,7 @@ export const claimFollowUps = mutation({
   },
 });
 
-// Shared with chatTasks.claimFollowUps.
+// Code runs only: chat tasks don't take follow-ups mid-run.
 export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
   const id = r._id;
   const rows = await ctx.db

@@ -2,10 +2,23 @@
 // scripts/improve-try.ts --chat). The sandbox may reach: the model API, only its messages
 // endpoint, with our key added by the firewall (the sandbox only has a placeholder); this
 // site's Convex backend, where every public function checks who's calling and none fetch
-// other sites for anonymous callers; and the hosts bun and its packages install from.
+// other sites for anonymous callers. Nothing else: bun and the Agent SDK are installed
+// (SETUP) before the policy goes on and before any club data is written.
 import type { NetworkPolicy } from "@vercel/sandbox";
 
 export const KEY_PLACEHOLDER = "added-by-the-sandbox-firewall";
+
+export const AGENT_DIR = "/tmp/agent";
+
+// Run in the repo's directory before the firewall goes on: installs bun, then just the
+// Agent SDK (at the version bun.lock pins) into AGENT_DIR, where the runner loads it from.
+export const SETUP = [
+  "command -v bun >/dev/null || [ -x ~/.bun/bin/bun ] || curl -fsSL https://bun.sh/install | bash",
+  'export PATH="$HOME/.bun/bin:$PATH"',
+  `v=$(grep -o '"@anthropic-ai/claude-agent-sdk@[0-9][^"]*"' bun.lock | head -1 | sed 's/.*@//; s/"//')`,
+  '[ -n "$v" ] || { echo "no Agent SDK version in bun.lock" >&2; exit 1; }',
+  `mkdir -p ${AGENT_DIR} && cd ${AGENT_DIR} && echo '{"private":true}' > package.json && bun add "@anthropic-ai/claude-agent-sdk@$v"`,
+].join(" && ");
 
 export function chatTaskPolicy(openRouterKey: string, convexHost: string): NetworkPolicy {
   return {
@@ -18,10 +31,6 @@ export function chatTaskPolicy(openRouterKey: string, convexHost: string): Netwo
         { response: { statusCode: 403 } },
       ],
       [convexHost]: [],
-      "registry.npmjs.org": [],
-      "bun.sh": [],
-      "github.com": [],
-      "*.githubusercontent.com": [],
     },
   };
 }

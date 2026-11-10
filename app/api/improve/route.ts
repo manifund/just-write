@@ -17,7 +17,7 @@ import {
   sandboxNameFor,
 } from "@/convex/lib/improve";
 import { serverSecret } from "@/lib/auth-server";
-import { KEY_PLACEHOLDER, chatTaskPolicy } from "@/lib/chat-task-sandbox";
+import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "@/lib/chat-task-sandbox";
 import { readClub } from "@/lib/club-snapshot";
 import { pickTarget } from "@/lib/improve-target";
 
@@ -119,7 +119,7 @@ export async function POST(req: Request) {
   // throwaway sandbox that gets the data, a token good only for this run, and no server
   // secret, GitHub token, or OpenRouter key. A firewall cuts it off from the internet
   // before anything is written to it, apart from the model API (the firewall adds the
-  // key to those requests), the Convex backend, and the hosts bun installs from.
+  // key to those requests) and the Convex backend.
   async function runChatTask(token: string) {
     let files;
     try {
@@ -137,8 +137,11 @@ export async function POST(req: Request) {
     }
     await report({ step: "Starting a sandbox" }).catch(() => {});
     let lastError: unknown;
+    const began = Date.now();
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt > 0) {
+        // A second try that can't finish within this function's 300s would leave the run stuck.
+        if (Date.now() - began > 140_000) break;
         await report({
           step: "Couldn’t start the sandbox, trying again (2 of 2)",
         }).catch(() => {});
@@ -174,6 +177,17 @@ export async function POST(req: Request) {
         persistent: false,
       });
       await report({ patch: { sandboxId: sandbox.name } });
+      // Installed while the sandbox holds nothing but the public repo, so the firewall
+      // doesn't need to let package hosts through.
+      await report({ step: "Getting ready" }).catch(() => {});
+      const setup = await sandbox.runCommand({
+        cmd: "bash",
+        args: ["-c", SETUP],
+        cwd: SANDBOX_ROOT,
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (setup.exitCode !== 0)
+        throw new Error(`setup failed: ${(await setup.stderr()).slice(-500)}`);
       // Throws if it can't be applied, which fails this attempt before any data is written.
       await sandbox.update({
         networkPolicy: chatTaskPolicy(key, new URL(process.env.NEXT_PUBLIC_CONVEX_URL!).host),
@@ -182,8 +196,6 @@ export async function POST(req: Request) {
         { path: "/tmp/brief.json", content: Buffer.from(JSON.stringify(brief)) },
         ...files,
       ]);
-      const bun = await sandbox.runCommand("bash", ["-c", INSTALL_BUN]);
-      if (bun.exitCode !== 0) throw new Error(`bun install failed: ${await bun.stderr()}`);
       await sandbox.runCommand({
         cmd: "bash",
         args: [

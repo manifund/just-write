@@ -9,7 +9,7 @@
 import { readFileSync } from "node:fs";
 import { Sandbox } from "@vercel/sandbox";
 import { REPO, SANDBOX_ROOT } from "../convex/lib/improve";
-import { KEY_PLACEHOLDER, chatTaskPolicy } from "../lib/chat-task-sandbox";
+import { KEY_PLACEHOLDER, SETUP, chatTaskPolicy } from "../lib/chat-task-sandbox";
 import { CLUB_DIR, CLUB_README } from "../lib/club-snapshot";
 
 const chat = process.argv[2] === "--chat";
@@ -64,6 +64,8 @@ const sandbox = await Sandbox.create({
 console.log("sandbox", sandbox.name);
 try {
   if (chat) {
+    const setup = await sandbox.runCommand({ cmd: "bash", args: ["-c", SETUP], cwd: SANDBOX_ROOT });
+    if (setup.exitCode !== 0) throw new Error(await setup.stderr());
     const convexHost = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://example.convex.cloud").host;
     await sandbox.update({
       networkPolicy: chatTaskPolicy(process.env.OPENROUTER_API_KEY!, convexHost),

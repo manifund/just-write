@@ -262,6 +262,8 @@ export async function endRun(
   await ctx.db.patch(r._id, {
     ...patch,
     ...(first ? { finishedAt: Date.now() } : {}),
+    // A chat task's sandbox token stops working when the run does.
+    ...(r.kind === "chat" ? { runToken: undefined } : {}),
   });
   if (!first) return;
   const after = { ...r, ...patch };

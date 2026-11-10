@@ -309,6 +309,8 @@ export const stopSandbox = internalAction({
 // late report is a no-op.
 async function ownRun(ctx: MutationCtx, id: Id<"improvements">, token: string) {
   const r = await ctx.db.get(id);
+  // The token is cleared when the run ends (endRun); a retried final report is a no-op.
+  if (r?.kind === "chat" && r.finishedAt && !r.runToken) return null;
   if (!r || r.kind !== "chat" || !r.runToken || r.runToken !== token)
     throw new ConvexError("Bad run token.");
   return r.status === "running" ? r : null;
