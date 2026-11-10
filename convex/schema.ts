@@ -100,6 +100,13 @@ export default defineSchema({
     .index("by_idea", ["ideaId"])
     .index("by_idea_member", ["ideaId", "memberId"]),
 
+  // Comments on someone's idea, oldest first.
+  ideaComments: defineTable({
+    ideaId: v.id("ideas"),
+    memberId: v.id("members"),
+    body: v.string(),
+  }).index("by_idea", ["ideaId"]),
+
   // Chat
   channels: defineTable({
     slug: v.string(),
