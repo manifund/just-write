@@ -29,6 +29,7 @@ import {
   updatePr,
   type FileChange,
 } from "@/lib/github";
+import { withTimeLimit } from "@/lib/time-limit";
 
 // What the runner sends back (scripts/improve-runner.ts#RunnerResult).
 export type RunnerResult =
@@ -58,6 +59,9 @@ type Report = (
 
 const MAX_FILES = 300;
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
+// Limits for each Sandbox call (lib/time-limit.ts): its API can hang without answering.
+const LOOKUP_MS = 20_000;
+const READ_MS = 30_000;
 
 const str = (x: unknown, max: number) =>
   typeof x === "string" ? x.trim().slice(0, max) : "";
@@ -225,16 +229,21 @@ async function readChanges(
   files: Extract<RunnerResult, { outcome: "changes" }>["files"],
 ): Promise<FileChange[]> {
   if (!sandboxId) throw new Error("The run has no sandbox.");
-  const sandbox = await Sandbox.get({ name: sandboxId });
+  const sandbox = await withTimeLimit("get", LOOKUP_MS, (signal) =>
+    Sandbox.get({ name: sandboxId, signal }),
+  );
   const out: FileChange[] = [];
   for (const f of files) {
     if (f.mode === null) {
       out.push({ path: f.path, deleted: true });
       continue;
     }
-    const content = await sandbox.readFileToBuffer({
-      path: `${SANDBOX_ROOT}/${f.path}`,
-    });
+    const content = await withTimeLimit("readFile", READ_MS, (signal) =>
+      sandbox.readFileToBuffer(
+        { path: `${SANDBOX_ROOT}/${f.path}` },
+        { signal },
+      ),
+    );
     if (!content) throw new Error(`Couldn’t read ${f.path} from the sandbox.`);
     if (content.length > MAX_FILE_BYTES)
       throw new Error(`${f.path} is too big to push.`);

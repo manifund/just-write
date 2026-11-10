@@ -18,6 +18,7 @@ import {
   MEMBER_DAILY_LIMIT,
   branchFor,
   isChatTask,
+  staleAfterMs,
 } from "./lib/improve";
 import { recordActivity } from "./lib/activity";
 import { getClaude } from "./lib/claude";
@@ -315,25 +316,27 @@ export const markFailed = internalMutation({
   },
 });
 
-// Runs that never reported back (the sandbox died or timed out) are marked failed.
+// Runs that never reported back are marked failed: the sandbox died or timed out, or
+// /api/improve was killed before it could say so. failRun releases follow-ups waiting on them.
 export const reapStale = internalMutation({
   args: {},
   handler: async (ctx) => {
-    // Chat tasks' sandboxes stop after 25 minutes; code runs' after 40.
-    const cutoff = (r: Doc<"improvements">) =>
-      Date.now() - (r.kind === "chat" ? 30 : 45) * 60 * 1000;
+    const now = Date.now();
     const rows = await ctx.db
       .query("improvements")
       .withIndex("by_number")
       .order("desc")
       .take(50);
-    for (const r of rows)
-      if (
-        (r.status === "queued" || r.status === "running") &&
-        !r.waitingOn && // waiting its turn, not stuck
-        (r.startedAt ?? r._creationTime) < cutoff(r)
-      )
+    for (const r of rows) {
+      if (r.status !== "queued" && r.status !== "running") continue;
+      if (r.waitingOn) {
+        // Waiting its turn, not stuck, unless the run it waits on has already ended.
+        const on = await ctx.db.get(r.waitingOn);
+        if (on && on.status !== "queued" && on.status !== "running")
+          await releaseWaiting(ctx, on);
+      } else if ((r.startedAt ?? r._creationTime) < now - staleAfterMs(r.kind))
         await failRun(ctx, r, "The sandbox stopped before finishing.");
+    }
   },
 });
 
