@@ -40,27 +40,36 @@ export const GLOBAL_DAILY_LIMIT = 200;
 // The bot's member row. The .invalid domain can never receive a sign-in link.
 export const CLAUDE_EMAIL = "claude@bot.invalid";
 
-// Paths a change can't touch and still merge without review, whatever the policy.
+// Paths a change can't touch and still merge without review, whatever the policy. This is a
+// denylist: other server code (pages, server actions, Convex functions) can still read env and
+// is left to the classifier. Set MERGE_POLICY to "review" to take the classifier out of it.
 export const SENSITIVE_PATHS = [
   /^convex\/schema\.ts$/,
   /^convex\/auth/,
-  /^convex\/(server|runner|chatTasks)\.ts$/,
+  /^convex\/(server|runner|chatTasks|http|crons|previewAccess|convex\.config)\.ts$/,
   // What keeps chat tasks' data and #check-ins text members-only.
   /^convex\/(improvements|chat|activity)\.ts$/,
   /^convex\/lib\/(markdown|richtext|channels)\.ts$/,
-  /^convex\/lib\/viewer\.ts$/,
-  /^convex\/lib\/improve\.ts$/,
+  /^convex\/lib\/(viewer|improve|messages|email|claude)\.ts$/,
+  /^convex\/(gcal|pushAction|similarAction)\.ts$/,
   /^app\/api\//,
-  /^app\/commit\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|chat-task-sandbox|club-snapshot)\.ts$/,
+  /^app\/\(site\)\/commit\//,
+  /^app\/\(portal\)\/\(private\)\/(improvements|admin)\//,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
-  // Instructions every agent run loads, chat tasks included.
+  // Instructions and hooks every agent run loads, chat tasks included.
   /^(CLAUDE|AGENTS)\.md$/,
   /^\.claude\//,
+  /^public\/sw\.js$/, // the service worker runs in every member's browser
   /^package\.json$/,
   /^bun\.lock$/,
-  /^(next\.config\.ts|vercel\.json|convex\.json)$/,
+  // Config that runs at build time or changes how code resolves, in any of its spellings.
+  /^(next|postcss|tailwind)\.config\.[cm]?[jt]s$/,
+  /^(src\/)?(instrumentation|middleware|proxy)(-client)?\.[cm]?[jt]sx?$/,
+  /^(vercel|convex|tsconfig|convex\/tsconfig)\.json$/,
+  /^(bunfig\.toml|\.npmrc|\.gitmodules)$/,
+  /(^|\/)\.gitattributes$/,
   /(^|\/)\.env/,
 ];
 

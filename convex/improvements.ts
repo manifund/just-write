@@ -441,8 +441,21 @@ export const forAdmin = query({
       );
     const r = await ctx.db.get(id);
     if (!r) return null;
+    // Another run in the thread may be about to push to this PR (a queued follow-up only moves
+    // onto the PR's branch once it starts), so merging now could ship commits nobody saw.
+    const others = await ctx.db
+      .query("improvements")
+      .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
+      .collect();
+    const busy = others.some(
+      (o) =>
+        o._id !== r._id &&
+        o.kind !== "chat" && // chat tasks never push code
+        (o.status === "queued" || o.status === "running"),
+    );
     return {
       status: r.status,
+      busy,
       branch: r.branch,
       prNumber: r.prNumber ?? null,
       revertPrUrl: r.revertPrUrl ?? null,

@@ -19,6 +19,7 @@ async function act(
   run: (r: {
     prNumber: number;
     branch: string;
+    busy: boolean;
     token: string;
     adminId: Id<"members"> | null;
   }) => Promise<Patch>,
@@ -35,6 +36,7 @@ async function act(
     const patch = await run({
       prNumber: r.prNumber,
       branch: r.branch,
+      busy: r.busy,
       token,
       adminId: r.adminId,
     });
@@ -57,7 +59,11 @@ async function act(
 export async function mergeImprovement(id: string) {
   return act(
     id,
-    async ({ prNumber, branch, token, adminId }) => {
+    async ({ prNumber, branch, busy, token, adminId }) => {
+      if (busy)
+        throw new Error(
+          "A follow-up is still working on this PR. Merge once it’s done.",
+        );
       try {
         await mergePr(token, prNumber, branch);
       } catch (err) {
