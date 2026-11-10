@@ -504,7 +504,7 @@ export function Composer({
   const words = useEditorState({
     editor,
     selector: (s) =>
-      wordCount && s.editor
+      wordCount && s.editor && !s.editor.isDestroyed
         ? countWords(s.editor.getText({ blockSeparator: " " }))
         : 0,
   });
