@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { logKind, taskState } from "./lib/improveLogs";
 
 // Which chat messages send a member a push notification (convex/push.ts).
 export const notifyLevel = v.union(v.literal("mentions"), v.literal("all"));
@@ -227,6 +228,21 @@ export default defineSchema({
     // stops when its runner next polls; one that doesn't is ended a little later anyway.
     stoppedBy: v.optional(v.id("members")),
     stopRequestedAt: v.optional(v.number()),
+    // What the agent is doing between checklist lines, shown on the card while it runs
+    // (convex/runner.ts#activity). Times are server times. Cleared when the sandbox finishes.
+    activity: v.optional(
+      v.object({
+        lastAt: v.number(), // the agent's or a subagent's latest event
+        tool: v.optional(v.object({ name: v.string(), since: v.number() })), // the main agent's open tool call
+        tasks: v.array(
+          v.object({
+            label: v.string(),
+            state: taskState,
+            summary: v.optional(v.string()), // the SDK's one-line progress summary
+          }),
+        ),
+      }),
+    ),
     // Chat tasks (convex/chatTasks.ts): runs that read the club's data and may post one
     // message. Unset means a code run. Set when the run is created.
     kind: v.optional(v.literal("chat")),
@@ -242,6 +258,17 @@ export default defineSchema({
     .index("by_number", ["number"])
     .index("by_thread", ["threadId"])
     .index("by_requester", ["requesterId"]),
+
+  // The detailed log of each @Claude run, for members (convex/lib/improveLogs.ts).
+  improvementLogs: defineTable({
+    improvementId: v.id("improvements"),
+    seq: v.number(), // 1, 2, 3… within the run
+    at: v.number(),
+    kind: logKind,
+    text: v.string(),
+    agent: v.optional(v.string()), // the subagent it came from
+    chars: v.number(), // running total of text in this run's log, for the size cap
+  }).index("by_improvement", ["improvementId", "seq"]),
 
   // Calendar events (/calendar). Times are UTC ms; the UI shows them in Pacific time.
   events: defineTable({

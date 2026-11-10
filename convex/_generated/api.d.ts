@@ -25,6 +25,7 @@ import type * as lib_channels from "../lib/channels.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_ics from "../lib/ics.js";
 import type * as lib_improve from "../lib/improve.js";
+import type * as lib_improveLogs from "../lib/improveLogs.js";
 import type * as lib_markdown from "../lib/markdown.js";
 import type * as lib_messages from "../lib/messages.js";
 import type * as lib_program from "../lib/program.js";
@@ -69,6 +70,7 @@ declare const fullApi: ApiFromModules<{
   "lib/email": typeof lib_email;
   "lib/ics": typeof lib_ics;
   "lib/improve": typeof lib_improve;
+  "lib/improveLogs": typeof lib_improveLogs;
   "lib/markdown": typeof lib_markdown;
   "lib/messages": typeof lib_messages;
   "lib/program": typeof lib_program;

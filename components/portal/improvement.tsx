@@ -40,7 +40,8 @@ export function LiveImprovementCard({
 }
 
 // Claude's reply to a chat task (convex/chatTasks.ts): the checklist and answer, then what
-// it posted, or the draft it left when it couldn't post (chatTasks.result).
+// it posted, or the draft it left when it couldn't post (chatTasks.result). Its log quotes the
+// club's data, so only admins get the link (improvements.ts#canReadLog).
 function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
   const result = useQuery(api.chatTasks.result, { id: card._id });
   const working = card.status === "queued" || card.status === "running";
@@ -64,6 +65,10 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
         </p>
         <Steps steps={card.steps} />
         <StopButton card={card} isAdmin={isAdmin} />
+        {card.activity && now && (
+          <Activity activity={card.activity} now={now} />
+        )}
+        {isAdmin && card.status === "running" && <LogLink id={card._id} />}
       </div>
     );
 
@@ -100,6 +105,7 @@ function ChatTaskCard({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
             I read the club’s data and don’t change the site in a chat task. For
             a change to the site, mention me with “new PR”.
           </p>
+          {isAdmin && card.startedAt && <LogLink id={card._id} />}
         </div>
       </details>
     </div>
@@ -180,6 +186,8 @@ export function ImprovementCard({
   card: Card;
   isAdmin: boolean;
 }) {
+  // /improvements lists chat tasks with this card too; their logs are admin-only.
+  const showLog = card.kind !== "chat" || isAdmin;
   const working = card.status === "queued" || card.status === "running";
   const now = useNow(working ? 1000 : 60_000);
   const started = card.startedAt;
@@ -201,6 +209,10 @@ export function ImprovementCard({
         </p>
         <Steps steps={card.steps} />
         <StopButton card={card} isAdmin={isAdmin} />
+        {card.activity && now && (
+          <Activity activity={card.activity} now={now} />
+        )}
+        {card.status === "running" && showLog && <LogLink id={card._id} />}
       </div>
     );
 
@@ -236,6 +248,7 @@ export function ImprovementCard({
             </ul>
           )}
           {card.verdict && isAdmin && <p>Decision: {card.verdict}</p>}
+          {card.startedAt && showLog && <LogLink id={card._id} />}
         </div>
       </details>
     </div>
@@ -304,6 +317,75 @@ function Steps({ steps }: { steps: Card["steps"] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+// What the agent is doing between checklist lines: subagents it's waiting on, or a long tool
+// call (scripts/improve-runner.ts sends this at most every ~12s; times are computed here).
+const LONG_TOOL_MS = 20_000;
+
+function Activity({
+  activity,
+  now,
+}: {
+  activity: NonNullable<Card["activity"]>;
+  now: number;
+}) {
+  const running = activity.tasks.filter((t) => t.state === "running").length;
+  const finished = activity.tasks.length - running;
+  const toolFor = activity.tool ? now - activity.tool.since : 0;
+  const parts: string[] = [];
+  if (running) parts.push(`${running} task${running === 1 ? "" : "s"} running`);
+  if (finished) parts.push(`${finished} finished`);
+  if (activity.tool && toolFor > LONG_TOOL_MS)
+    parts.push(
+      `${activity.tool.name === "Bash" ? "running a command" : `using ${activity.tool.name}`} for ${duration(toolFor)}`,
+    );
+  if (parts.length === 0) return null;
+  const idle = now - activity.lastAt;
+  parts.push(
+    idle < 5000 ? "active just now" : `last activity ${duration(idle)} ago`,
+  );
+  const line = parts.join(" · ");
+
+  return (
+    <div className="flex flex-col gap-0.5 text-[14px] text-ink-muted">
+      <p className="tabular-nums">
+        {line.charAt(0).toUpperCase() + line.slice(1)}
+      </p>
+      {activity.tasks.length > 0 && (
+        <ul className="flex flex-col gap-0.5 pl-6">
+          {activity.tasks.map((t, i) => (
+            <li key={i} className="min-w-0 break-words">
+              <span aria-hidden="true">
+                {t.state === "running"
+                  ? "· "
+                  : t.state === "done"
+                    ? "✓ "
+                    : "✕ "}
+              </span>
+              {t.label}
+              {t.state === "running" && t.summary ? `: ${t.summary}` : ""}
+              <span className="sr-only">
+                {t.state === "running" ? " (running)" : ` (${t.state})`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// The run's detailed log, for members (app/(portal)/(private)/improvements/[id]/log).
+function LogLink({ id }: { id: string }) {
+  return (
+    <Link
+      href={`/improvements/${id}/log`}
+      className="w-fit text-[14px] text-ink-muted underline-offset-2 hover:text-ink hover:underline"
+    >
+      Log
+    </Link>
   );
 }
 
