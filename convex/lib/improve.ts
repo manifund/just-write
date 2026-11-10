@@ -91,3 +91,15 @@ export type ImprovementStatus =
   | "closed"
   | "failed"
   | "superseded"; // a follow-up in the same thread took over the PR
+
+// Run logs (convex/lib/improveLogs.ts). Here so the runner, which can only import this file,
+// clips events the same way.
+export const LOG_EVENT_CHARS = 4000;
+export const LOG_BATCH_EVENTS = 100;
+
+// Cuts `s` to at most `n` characters, saying how much was left out.
+export function clip(s: string, n: number) {
+  if (s.length <= n) return s;
+  const keep = Math.max(0, n - 40); // room for the note
+  return `${s.slice(0, keep)}… [${s.length - keep} more characters]`;
+}

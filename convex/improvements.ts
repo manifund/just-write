@@ -14,6 +14,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import { CLAUDE_EMAIL, GLOBAL_DAILY_LIMIT, MEMBER_DAILY_LIMIT, branchFor } from "./lib/improve";
+import { checkInGate, veil } from "./chat";
 import { recordActivity } from "./lib/activity";
 import { appendLogs } from "./lib/improveLogs";
 import { getClaude } from "./lib/claude";
@@ -391,22 +392,29 @@ export const forAdmin = query({
 
 // /improvements/<id>/log. Members only, like /improvements: the coding agent has no live site
 // data (no GitHub token or server secret in the sandbox, only public queries), so the member
-// content a log can hold is the chat thread it was asked in and its follow-ups, which every
-// member can already read. Runs that read club data (e.g. read-only chat tasks, PR #87) should
-// get admin-only logs: gate them in `canReadLog`.
-async function canReadLog(ctx: QueryCtx) {
-  await requireMember(ctx, { allowReadonly: true });
+// content a log can hold is the chat thread it was asked in and its follow-ups. Members can
+// read those in chat, except in #check-ins, where others' posts stay previews until you've
+// checked in (chat.ts#checkInGate): there the log is hidden while the thread's first post
+// would be. That's enough, since replies show whenever their root does (chat.ts#veil).
+// Runs that read club data (e.g. read-only chat tasks, PR #87) should get admin-only logs:
+// gate them here.
+async function canReadLog(ctx: QueryCtx, r: Doc<"improvements">) {
+  const viewer = await requireMember(ctx, { allowReadonly: true });
+  if (viewer.isAdmin) return true;
+  const [channel, root] = await Promise.all([ctx.db.get(r.channelId), ctx.db.get(r.threadId)]);
+  if (!channel || !root) return false; // a deleted thread's log isn't shown either
+  return !veil(root, await checkInGate(ctx, channel, viewer.member)).hidden;
 }
 
 // `id` comes from the URL, so it's checked here rather than by the validator.
 export const logRun = query({
   args: { id: v.string() },
   handler: async (ctx, args) => {
-    await canReadLog(ctx);
+    await requireMember(ctx, { allowReadonly: true });
     const id = ctx.db.normalizeId("improvements", args.id);
     const r = id && (await ctx.db.get(id));
     if (!r) return null;
-    const [channel, previous, next] = await Promise.all([
+    const [channel, previous, next, readable] = await Promise.all([
       ctx.db.get(r.channelId),
       r.previousId ? ctx.db.get(r.previousId) : null,
       // A later run that continued this one, if any.
@@ -415,14 +423,17 @@ export const logRun = query({
         .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
         .filter((q) => q.eq(q.field("previousId"), r._id))
         .first(),
+      canReadLog(ctx, r),
     ]);
     return {
+      // What /improvements already shows, plus whether the log itself is readable.
       ...cardOf(r),
       request: r.request,
       effort: r.effort ?? null,
       threadHref: `/chat/${channel?.slug ?? "general"}/${r.threadId}`,
       previous: previous ? { id: previous._id, number: previous.number } : null,
       next: next ? { id: next._id, number: next.number } : null,
+      readable,
     };
   },
 });
@@ -430,7 +441,9 @@ export const logRun = query({
 export const logs = query({
   args: { id: v.id("improvements"), paginationOpts: paginationOptsValidator },
   handler: async (ctx, { id, paginationOpts }) => {
-    await canReadLog(ctx);
+    const r = await ctx.db.get(id);
+    if (!r || !(await canReadLog(ctx, r)))
+      return { page: [], isDone: true, continueCursor: "" };
     return await ctx.db
       .query("improvementLogs")
       .withIndex("by_improvement", (q) => q.eq("improvementId", id))

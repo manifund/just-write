@@ -305,7 +305,8 @@ export const startFinish = mutation({
   handler: async (ctx, { secret, id, runToken }) => {
     checkServerSecret(secret);
     const r = await checkRunToken(ctx, id, runToken);
-    await ctx.db.patch(id, { runTokenHash: undefined });
+    // The sandbox is done: its key stops working, and the card stops showing its activity.
+    await ctx.db.patch(id, { runTokenHash: undefined, activity: undefined });
     return {
       number: r.number,
       branch: r.branch,

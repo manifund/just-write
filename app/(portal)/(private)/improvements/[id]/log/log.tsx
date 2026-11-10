@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { TZ } from "@/convex/lib/time";
 
 // The detailed log of one @Claude run, for members (convex/improvements.ts#logs). Live while
-// the run is going: new events land at the end of the last loaded page.
-const PAGE_SIZE = 300;
+// the run is going: new events land at the end of the last loaded page, which re-sends that
+// whole page, so pages stay small.
+const PAGE_SIZE = 100;
 // Results longer than this start folded.
 const FOLD_CHARS = 400;
 
@@ -16,12 +18,12 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
   second: "2-digit",
-  timeZone: "America/Los_Angeles",
+  timeZone: TZ,
 });
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: "America/Los_Angeles",
+  timeZone: TZ,
 });
 
 const KIND: Record<Doc<"improvementLogs">["kind"], string> = {
@@ -40,7 +42,7 @@ export function RunLog() {
   const run = useQuery(api.improvements.logRun, { id });
   const paged = usePaginatedQuery(
     api.improvements.logs,
-    run ? { id: run._id } : "skip",
+    run?.readable ? { id: run._id } : "skip",
     { initialNumItems: PAGE_SIZE },
   );
 
@@ -96,7 +98,11 @@ export function RunLog() {
         {run.error && <p className="text-[15px] text-brass-text">{run.error}</p>}
       </header>
 
-      {paged.status === "LoadingFirstPage" ? (
+      {!run.readable ? (
+        <p className="text-[15px] text-ink-muted">
+          This log quotes #check-ins posts, so it shows once you’ve checked in today.
+        </p>
+      ) : paged.status === "LoadingFirstPage" ? (
         <p className="text-ink-muted">Loading…</p>
       ) : events.length === 0 ? (
         <p className="text-[15px] text-ink-muted">

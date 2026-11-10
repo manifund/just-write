@@ -4,6 +4,7 @@
 import { v, type Infer } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { LOG_BATCH_EVENTS, LOG_EVENT_CHARS, clip } from "./improve";
 
 export const logKind = v.union(
   v.literal("step"), // a checklist line
@@ -23,19 +24,32 @@ export const logEvent = v.object({
   agent: v.optional(v.string()), // the subagent it came from, if not the main agent
   ago: v.optional(v.number()), // ms before it was sent, so the sandbox's clock doesn't matter
 });
-export type LogEvent = Infer<typeof logEvent>;
+type LogEvent = Infer<typeof logEvent>;
 
-// Caps, so a long run can't fill the table: each event's text, events per batch, and the whole
-// run. Past the run cap one note is written and the rest is dropped.
-export const LOG_EVENT_CHARS = 4000;
-export const LOG_BATCH_EVENTS = 200;
-export const LOG_RUN_EVENTS = 5000;
-export const LOG_RUN_CHARS = 2_000_000;
+// A subagent or background command the agent started (the card's activity line).
+export const taskState = v.union(
+  v.literal("running"),
+  v.literal("done"),
+  v.literal("failed"),
+  v.literal("stopped"),
+);
+export type TaskState = Infer<typeof taskState>;
+
+// Caps, so a long run can't fill the table: each event's text (LOG_EVENT_CHARS), events per
+// batch (LOG_BATCH_EVENTS), and the whole run. When the runner's events reach the run cap,
+// one note is written and the rest of them are dropped. Steps and the final status, added on
+// the server, get some room past it, so a long run's log still shows how it ended.
+const LOG_RUN_EVENTS = 5000;
+const LOG_RUN_CHARS = 2_000_000;
+const SERVER_HEADROOM_EVENTS = 200;
+const SERVER_HEADROOM_CHARS = 200_000;
+const FULL = "The log reached its size limit, so the rest of this run isn’t recorded.";
 
 export async function appendLogs(
   ctx: MutationCtx,
   improvementId: Id<"improvements">,
   events: LogEvent[],
+  { fromRunner = false }: { fromRunner?: boolean } = {},
 ) {
   if (events.length === 0) return;
   // The last row carries the running totals (`seq` is the count so far).
@@ -46,28 +60,24 @@ export async function appendLogs(
     .first();
   let seq = last?.seq ?? 0;
   let chars = last?.chars ?? 0;
-  if (last?.kind === "info" && last.text === FULL) return;
+  const maxEvents = LOG_RUN_EVENTS + (fromRunner ? 0 : SERVER_HEADROOM_EVENTS);
+  const maxChars = LOG_RUN_CHARS + (fromRunner ? 0 : SERVER_HEADROOM_CHARS);
   const now = Date.now();
+  const insert = (e: Omit<LogEvent, "ago">, at: number) =>
+    ctx.db.insert("improvementLogs", { improvementId, seq, at, chars, ...e });
   for (const e of events.slice(0, LOG_BATCH_EVENTS)) {
+    if (seq >= maxEvents || chars >= maxChars) return; // already full
     const text = clip(e.text, LOG_EVENT_CHARS);
-    const full = seq + 1 >= LOG_RUN_EVENTS || chars + text.length > LOG_RUN_CHARS;
     seq++;
-    chars += full ? FULL.length : text.length;
-    await ctx.db.insert("improvementLogs", {
-      improvementId,
-      seq,
-      at: now - Math.min(Math.max(e.ago ?? 0, 0), 10 * 60_000),
-      kind: full ? "info" : e.kind,
-      text: full ? FULL : text,
-      agent: full ? undefined : e.agent?.slice(0, 120),
-      chars,
-    });
-    if (full) return;
+    if (seq >= maxEvents || chars + text.length > maxChars) {
+      chars = maxChars; // marks the log full
+      await insert({ kind: "info", text: FULL }, now);
+      return;
+    }
+    chars += text.length;
+    await insert(
+      { kind: e.kind, text, ...(e.agent ? { agent: e.agent.slice(0, 120) } : {}) },
+      now - Math.min(Math.max(e.ago ?? 0, 0), 10 * 60_000),
+    );
   }
-}
-
-const FULL = "The log reached its size limit, so the rest of this run isn’t recorded.";
-
-export function clip(s: string, n: number) {
-  return s.length > n ? `${s.slice(0, n)}… [${s.length - n} more characters]` : s;
 }

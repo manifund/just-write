@@ -7,7 +7,7 @@
 // /api/improve, which holds the real secrets.
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { appendLogs, logEvent, LOG_BATCH_EVENTS } from "./lib/improveLogs";
+import { appendLogs, logEvent, taskState } from "./lib/improveLogs";
 import { applyReport, checkRunToken, takeFollowUps } from "./server";
 
 export const report = mutation({
@@ -39,7 +39,7 @@ export const log = mutation({
   args: { id: v.id("improvements"), runToken: v.string(), events: v.array(logEvent) },
   handler: async (ctx, { id, runToken, events }) => {
     await checkRunToken(ctx, id, runToken);
-    await appendLogs(ctx, id, events.slice(0, LOG_BATCH_EVENTS));
+    await appendLogs(ctx, id, events, { fromRunner: true });
   },
 });
 
@@ -52,17 +52,7 @@ export const activity = mutation({
     idleMs: v.number(),
     tool: v.optional(v.object({ name: v.string(), forMs: v.number() })),
     tasks: v.array(
-      v.object({
-        label: v.string(),
-        state: v.union(
-          v.literal("running"),
-          v.literal("done"),
-          v.literal("failed"),
-          v.literal("stopped"),
-        ),
-        idleMs: v.number(),
-        summary: v.optional(v.string()),
-      }),
+      v.object({ label: v.string(), state: taskState, summary: v.optional(v.string()) }),
     ),
   },
   handler: async (ctx, { id, runToken, idleMs, tool, tasks }) => {
@@ -74,13 +64,11 @@ export const activity = mutation({
         !tool && tasks.length === 0
           ? undefined
           : {
-              at: now,
               lastAt: ago(idleMs),
               tool: tool ? { name: tool.name.slice(0, 60), since: ago(tool.forMs) } : undefined,
               tasks: tasks.slice(-8).map((t) => ({
                 label: t.label.slice(0, 120),
                 state: t.state,
-                lastAt: ago(t.idleMs),
                 summary: t.summary?.slice(0, 160),
               })),
             },
