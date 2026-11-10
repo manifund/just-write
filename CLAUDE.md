@@ -127,6 +127,7 @@ Admin actions:
 
 - Admins get Merge/Close/Revert on the card (`app/(portal)/(private)/improvements/actions.ts`, via `lib/github.ts`).
 - If an admin's Merge fails because the PR conflicts with main, `server.fixConflicts` starts a follow-up in the PR's thread on its own (its card then has the Merge button).
+- If another code run in that thread is going, the fix waits for it; `server.takeFollowUps` never hands a run tied to another PR's branch to the running agent.
 
 Keeping open PRs current:
 
@@ -164,7 +165,13 @@ Replies without @Claude:
 - `untagged.check` runs at most `UNTAGGED_CHECKS_PER_DAY` times per thread, counted in `claudeThreads.checks`.
 - If it is a request, `untagged.pickUp` calls `startFromMessage` with `untagged`, which stays silent if limits stop it.
 - Such a run is marked (`untagged`, shown on the card), and the agent is told to stay out of it if it was really a conversation.
-- `@Claude !mute` / `!unmute` (the whole message, `convex/lib/improve.ts#muteCommand`) turns this off or on per thread (`claudeThreads.muted`).
+- `@Claude !mute` / `!unmute` (the whole message, `convex/lib/improve.ts#claudeCommand`) turns this off or on per thread (`claudeThreads.muted`).
+
+Commands:
+
+- `convex/lib/improve.ts#claudeCommand` recognizes a message that's only `@Claude !mute`, `!unmute`, `!status`, or `!help`; `startFromMessage` replies right away and starts no run.
+- `!status` replies with the thread's latest run, its status, and its current step.
+- `!help` lists what @Claude understands (`HELP_TEXT` in `convex/improvements.ts`); update it when adding a keyword or command.
 
 Stopping a run:
 

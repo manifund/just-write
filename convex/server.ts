@@ -688,6 +688,9 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     // split needs its own runs, so those wait for this run to end (releaseWaiting).
     // A restart wants a fresh session, so it never joins the one it's restarting.
     if (r.split || w.restart || PARALLEL.test(w.request)) continue;
+    // A run already tied to another PR's branch (server.fixConflicts) can't be done here,
+    // since this run only pushes to its own branch; it starts on its own when this one ends.
+    if (w.previousId && w.branch !== r.branch) continue;
     await endRun(ctx, w, {
       status: "answered",
       waitingOn: undefined,
