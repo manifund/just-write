@@ -603,6 +603,10 @@ function Board() {
         <h2 id="board" className={h2}>
           Everyone’s progress
         </h2>
+        <p className="text-ink-muted">
+          See <Link href="/themes">what we’re writing about</Link>: a word cloud
+          and themes from everyone’s essays.
+        </p>
       </div>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-x-6 gap-y-1">
         {sorted.map((r) => (

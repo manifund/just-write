@@ -23,6 +23,7 @@ import type * as improvements from "../improvements.js";
 import type * as lib_activity from "../lib/activity.js";
 import type * as lib_channels from "../lib/channels.js";
 import type * as lib_email from "../lib/email.js";
+import type * as lib_essayText from "../lib/essayText.js";
 import type * as lib_ics from "../lib/ics.js";
 import type * as lib_improve from "../lib/improve.js";
 import type * as lib_improveLogs from "../lib/improveLogs.js";
@@ -46,6 +47,8 @@ import type * as runner from "../runner.js";
 import type * as server from "../server.js";
 import type * as similar from "../similar.js";
 import type * as similarAction from "../similarAction.js";
+import type * as themes from "../themes.js";
+import type * as themesAction from "../themesAction.js";
 import type * as untagged from "../untagged.js";
 
 import type {
@@ -70,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activity": typeof lib_activity;
   "lib/channels": typeof lib_channels;
   "lib/email": typeof lib_email;
+  "lib/essayText": typeof lib_essayText;
   "lib/ics": typeof lib_ics;
   "lib/improve": typeof lib_improve;
   "lib/improveLogs": typeof lib_improveLogs;
@@ -93,6 +97,8 @@ declare const fullApi: ApiFromModules<{
   server: typeof server;
   similar: typeof similar;
   similarAction: typeof similarAction;
+  themes: typeof themes;
+  themesAction: typeof themesAction;
   untagged: typeof untagged;
 }>;
 
