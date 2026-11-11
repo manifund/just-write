@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { isSafeSrc, type RichNode } from "@/convex/lib/richtext";
 import { chatLinkClick } from "@/lib/chat-url";
+import { ChatImage } from "./image-viewer";
 
 // Renders a (server-cleaned) Tiptap JSON document as React elements, without raw HTML.
 export function RichText({ body }: { body: string }) {
@@ -61,26 +62,7 @@ function renderImage(n: RichNode, key: number): ReactNode {
   if (!isSafeSrc(src)) return null;
   const w = Number(n.attrs?.width) || undefined;
   const h = Number(n.attrs?.height) || undefined;
-  return (
-    <a
-      key={key}
-      href={src}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block max-w-full"
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element -- user uploads from Convex storage */}
-      <img
-        src={src}
-        alt=""
-        width={w}
-        height={h}
-        loading="lazy"
-        className="block h-auto max-h-80 w-auto max-w-full border border-ink/15 bg-cream-deep object-contain"
-        style={w && h ? { aspectRatio: `${w} / ${h}` } : undefined}
-      />
-    </a>
-  );
+  return <ChatImage key={key} src={src} width={w} height={h} />;
 }
 
 function splitOnDoubleBreaks(inline: RichNode[]): RichNode[][] {
