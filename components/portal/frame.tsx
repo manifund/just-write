@@ -19,6 +19,7 @@ import { deviceSubscription, setAppBadge } from "@/lib/push";
 import { Avatar } from "./avatar";
 import { PortalProvider, usePortal } from "./context";
 import { useRoom } from "./presence";
+import { profilePath, READER_LABEL } from "./util";
 
 // Wraps portal pages. With `membersOnly`, signed-out visitors go to /sign-in and
 // non-members see how to join; otherwise (public pages like /members) they get a simple header.
@@ -32,6 +33,15 @@ export function PortalFrame({
   const { isLoading, isAuthenticated } = useConvexAuth();
   const viewer = useQuery(api.members.viewer, isAuthenticated ? {} : "skip");
   const router = useRouter();
+  const sync = useMutation(api.members.syncProfile);
+
+  // Admins can enter without a member row, and people signing in from Manifund enter as
+  // readers. syncProfile sets either up; the viewer query then updates and lets them in.
+  const settingUp =
+    !!viewer && (viewer.joinsAsReader || (viewer.canEnter && !viewer.member));
+  useEffect(() => {
+    if (settingUp) void sync();
+  }, [settingUp, sync]);
 
   useEffect(() => {
     if (membersOnly && !isLoading && !isAuthenticated) {
@@ -57,8 +67,7 @@ export function PortalFrame({
   if (!membersOnly)
     return <PublicFrame signedIn={!!viewer}>{children}</PublicFrame>;
   if (!viewer) return <Loading />; // redirecting to sign-in
-  // Admins can enter without a member row; syncProfile creates one.
-  if (viewer.canEnter) return <CreateAdminRow />;
+  if (settingUp) return <Loading />;
   return (
     <NotYet status={viewer.member?.status ?? null} email={viewer.user.email} />
   );
@@ -75,14 +84,6 @@ export function Loading() {
       </span>
     </div>
   );
-}
-
-function CreateAdminRow() {
-  const sync = useMutation(api.members.syncProfile);
-  useEffect(() => {
-    void sync();
-  }, [sync]);
-  return <Loading />;
 }
 
 function NotYet({ status, email }: { status: string | null; email: string }) {
@@ -541,8 +542,8 @@ function Sidebar() {
               {online.slice(0, 14).map((m) => (
                 <Link
                   key={m._id}
-                  href={m.handle ? `/members/${m.handle}` : "/members"}
-                  title={m.name}
+                  href={profilePath(m) ?? "/members"}
+                  title={m.reader ? `${m.name} (${READER_LABEL})` : m.name}
                 >
                   <Avatar member={m} size={30} online />
                 </Link>

@@ -34,7 +34,7 @@ import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
-import { checkServerSecret, isAdminEmail } from "./lib/viewer";
+import { canEnter, checkServerSecret, isAdminEmail } from "./lib/viewer";
 
 // client_reference_id is a Convex member id, or a numeric id from the old Neon table.
 async function findByReference(
@@ -188,9 +188,10 @@ export const importLegacy = mutation({
         .withIndex("by_email", (q) => q.eq("email", fields.email))
         .unique();
       if (existing) {
-        // Never downgrade someone who already committed in Convex.
-        const keepStatus =
-          existing.status === "committed" ? "committed" : fields.status;
+        // Never downgrade someone who already committed in Convex, or a reader.
+        const keepStatus = canEnter(existing, false)
+          ? existing.status
+          : fields.status;
         await ctx.db.patch(existing._id, { ...fields, status: keepStatus });
         updated++;
       } else {

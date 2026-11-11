@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
+import { READER_LABEL } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
 import { signOut } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/convex";
@@ -331,6 +332,9 @@ export function Settings() {
   const [bio, setBio] = useState(me.bio ?? "");
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
+  // Readers have no profile page (so no website or bio), and check-in reminders only go
+  // to writers.
+  const reader = me.status === "reader";
 
   return (
     <main className="mx-auto flex max-w-[44rem] flex-col gap-8 px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
@@ -340,13 +344,20 @@ export function Settings() {
           <h1 className="font-display text-[clamp(34px,4.5vw,52px)] leading-none font-[340] tracking-[-0.025em]">
             Your <em className="wonk text-brass-numeral">profile</em>
           </h1>
-          {me.handle && (
-            <Link
-              href={`/members/${me.handle}`}
-              className="text-[16px] text-ink-muted"
-            >
-              justwrite.club/members/{me.handle}
-            </Link>
+          {reader ? (
+            <p className="text-[16px] text-ink-muted">
+              You’re here as a {READER_LABEL}: you can take part in chat, ideas,
+              and the calendar.
+            </p>
+          ) : (
+            me.handle && (
+              <Link
+                href={`/members/${me.handle}`}
+                className="text-[16px] text-ink-muted"
+              >
+                justwrite.club/members/{me.handle}
+              </Link>
+            )
           )}
         </div>
       </header>
@@ -390,32 +401,36 @@ export function Settings() {
             />
           </label>
         </div>
-        <label className="flex flex-col gap-1.5">
-          <span className={label}>Website</span>
-          <input
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            inputMode="url"
-            autoCapitalize="none"
-            spellCheck={false}
-            placeholder="kitwhen.com or x.com/kitwhen"
-            className={input}
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className={label}>Bio</span>
-          <textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            rows={4}
-            maxLength={600}
-            placeholder="What do you do, and what do you want to write about this month?"
-            className={`${input} resize-y leading-[1.45]`}
-          />
-          <span className="text-[14px] text-ink-muted">
-            Shown on your public profile.
-          </span>
-        </label>
+        {!reader && (
+          <>
+            <label className="flex flex-col gap-1.5">
+              <span className={label}>Website</span>
+              <input
+                value={link}
+                onChange={(e) => setLink(e.target.value)}
+                inputMode="url"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="kitwhen.com or x.com/kitwhen"
+                className={input}
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className={label}>Bio</span>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                rows={4}
+                maxLength={600}
+                placeholder="What do you do, and what do you want to write about this month?"
+                className={`${input} resize-y leading-[1.45]`}
+              />
+              <span className="text-[14px] text-ink-muted">
+                Shown on your public profile.
+              </span>
+            </label>
+          </>
+        )}
         <div className="flex items-center gap-4">
           <button
             type="submit"
@@ -441,7 +456,7 @@ export function Settings() {
       </form>
 
       <Appearance />
-      <Reminders />
+      {!reader && <Reminders />}
       <Notifications />
 
       <div className="border-t border-ink/15 pt-6">

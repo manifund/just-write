@@ -6,7 +6,7 @@ import { postMessage } from "./lib/messages";
 import { emptyDoc } from "./lib/richtext";
 import { canCountFor, DEADLINES, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
-import { publicMember, requireMember } from "./lib/viewer";
+import { publicMember, requireMember, requireWriter } from "./lib/viewer";
 
 // Fetches an essay URL to suggest a title and estimate its word count. Members only, so it
 // can't be used by anyone on the internet (or a chat task's sandbox) to fetch arbitrary URLs.
@@ -85,7 +85,7 @@ export const submit = mutation({
     week: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const { member } = await requireMember(ctx);
+    const { member } = await requireWriter(ctx);
     const submittedAt = Date.now();
     if (args.week !== undefined && !canCountFor(args.week, submittedAt))
       throw new ConvexError("That week’s deadline has passed.");

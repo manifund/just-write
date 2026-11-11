@@ -32,7 +32,7 @@ import {
   UNTAGGED_PER_RUN,
   UNTAGGED_WINDOW_MS,
 } from "./lib/improve";
-import { isAdminEmail } from "./lib/viewer";
+import { canEnter, isAdminEmail } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
 const CONTEXT_MESSAGES = 12; // thread messages the classifier sees, newest last
@@ -271,7 +271,7 @@ export const pickUp = internalMutation({
     const isAdmin =
       isAdminEmail(member.email) ||
       (!!member.altEmail && isAdminEmail(member.altEmail));
-    if (!isAdmin && member.status !== "committed") return;
+    if (!canEnter(member, isAdmin)) return;
     await startFromMessage(ctx, {
       member,
       isAdmin,

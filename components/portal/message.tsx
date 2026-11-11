@@ -21,7 +21,7 @@ import {
 } from "./optimistic";
 import { MessageLinkPreviews } from "./message-link-preview";
 import { RichText } from "./rich-text";
-import { clockTime, hostOf, PENDING, timeAgo } from "./util";
+import { clockTime, hostOf, PENDING, READER_LABEL, timeAgo } from "./util";
 
 export function Message({
   m,
@@ -115,11 +115,14 @@ export function Message({
   const mine = m.authorId === me._id;
   // Sent but not yet saved (an optimistic update); it has no real id to act on yet.
   const pending = m._id.startsWith(PENDING);
+  // Readers have no profile page, so their name and photo aren't links.
   const profileHref = author?.bot
     ? "/improvements"
-    : author?.handle
-      ? `/members/${author.handle}`
-      : "/members";
+    : author?.reader
+      ? null
+      : author?.handle
+        ? `/members/${author.handle}`
+        : "/members";
 
   return (
     <article
@@ -176,24 +179,30 @@ export function Message({
             <Timestamp m={m} copied={copied} onCopy={copyLink} />
             {m.editedAt && <span className="block">edited</span>}
           </span>
-        ) : (
+        ) : profileHref ? (
           <Link href={profileHref} aria-label={author?.name}>
             <Avatar member={author} size={40} />
           </Link>
+        ) : (
+          <Avatar member={author} size={40} />
         )}
       </div>
       <div className="min-w-0">
         {!compact && (
           <div className="flex items-baseline gap-2">
-            <Link
-              href={profileHref}
-              className="font-[700] no-underline hover:underline"
-            >
-              {author?.name ?? "Someone"}
-            </Link>
-            {author?.bot && (
+            {profileHref ? (
+              <Link
+                href={profileHref}
+                className="font-[700] no-underline hover:underline"
+              >
+                {author?.name ?? "Someone"}
+              </Link>
+            ) : (
+              <span className="font-[700]">{author?.name ?? "Someone"}</span>
+            )}
+            {(author?.bot || author?.reader) && (
               <span className="bg-wash-light px-1.5 py-px text-[11px] tracking-[0.08em] text-ink-muted uppercase">
-                bot
+                {author.bot ? "bot" : READER_LABEL}
               </span>
             )}
             <span className="text-[13px] text-ink-muted">
@@ -242,9 +251,7 @@ export function Message({
         ) : m.event ? (
           <EventPost event={m.event} />
         ) : m.kind === "joined" ? (
-          <p className="py-1 text-[16px] text-ink-muted">
-            joined Just Write 👋
-          </p>
+          <p className="py-1 text-[16px] text-ink-muted">{m.text} 👋</p>
         ) : m.hidden ? (
           <HiddenPost preview={m.text} />
         ) : (

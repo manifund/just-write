@@ -5,11 +5,14 @@ import { logKind, taskState } from "./lib/improveLogs";
 // Which chat messages send a member a push notification (convex/push.ts).
 export const notifyLevel = v.union(v.literal("mentions"), v.literal("all"));
 
-// interested → signed (agreed to terms, sent to Stripe) → committed (deposit paid)
+// interested → signed (agreed to terms, sent to Stripe) → committed (deposit paid).
+// "reader" is separate: people at Manifund who take part in the portal without writing
+// (convex/lib/viewer.ts#joinsAsReader).
 export const status = v.union(
   v.literal("interested"),
   v.literal("signed"),
   v.literal("committed"),
+  v.literal("reader"),
 );
 
 export const improvementStatus = v.union(

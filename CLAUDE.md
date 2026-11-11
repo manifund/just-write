@@ -28,7 +28,18 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Data lives in Convex** (`convex/schema.ts`). `members` (keyed by lowercase `email`) replaces the old Neon `interest` table; its `status` moves `interested → signed → committed`. Other tables: `essays`, `ideas`/`ideaVotes`, chat (`channels`, `messages`, `reactions`, `typing`, `reads`), and `similar` (cached LLM matches). Schema changes deploy with the Convex functions; no migrations needed for new optional fields. `scripts/import-neon.ts` is the one-time copy from Neon.
 
-**Auth:** Better Auth runs inside Convex (`convex/auth.ts`, Google + email magic link); `app/api/auth/[...all]` proxies to it so cookies stay on our domain. A signed-in user is matched to their `members` row by email (`convex/lib/viewer.ts#getViewer`), or by the row's optional `altEmail` (a second sign-in address, set with `bunx convex run members:setAltEmail`). Committed members and `ADMIN_EMAILS` can use the portal; every Convex function checks this itself (`requireMember`, `requireAdmin`), so the client-side gate in `components/portal/frame.tsx` is only UX. Next.js server code calls Convex as the user with `fetchAuthMutation` (`lib/auth-server.ts`), or calls `convex/server.ts` functions with the shared `CONVEX_SERVER_SECRET`.
+**Auth:** Better Auth runs inside Convex (`convex/auth.ts`, Google + email magic link); `app/api/auth/[...all]` proxies to it so cookies stay on our domain. A signed-in user is matched to their `members` row by email (`convex/lib/viewer.ts#getViewer`), or by the row's optional `altEmail` (a second sign-in address, set with `bunx convex run members:setAltEmail`). Committed members, readers (below), and `ADMIN_EMAILS` can use the portal; every Convex function checks this itself (`requireMember`, `requireAdmin`), so the client-side gate in `components/portal/frame.tsx` is only UX. Next.js server code calls Convex as the user with `fetchAuthMutation` (`lib/auth-server.ts`), or calls `convex/server.ts` functions with the shared `CONVEX_SERVER_SECRET`.
+
+**Readers ("Just Readers")** are people at Manifund who take part without writing:
+
+- A member row with `status: "reader"`, outside the `interested → signed → committed` path.
+- Anyone who signs in with a verified `@manifund.org` address (`READER_DOMAIN` in `convex/lib/viewer.ts`) becomes one the first time they open the portal: `getViewer` sets `joinsAsReader`, and `members.syncProfile` creates or updates the row and posts "joined as a Just Reader" in `#general`.
+- Committed writers and admins with that domain stay as they are.
+- Readers pass `requireMember`, so chat (with the same #check-ins gate), idea votes and comments, the calendar, and @Claude work for them.
+- `requireWriter` refuses them: registering essays, posting ideas, similar writers.
+- They have no profile page and aren't in `/members`, the landing page lists, the progress board, or check-in reminders, since those all read `status: "committed"`.
+- `members.roster` and the shared Google calendar include them (`portalMembers`); chat shows "Just Reader" next to their name.
+- A reader who pays the deposit becomes committed like anyone else (`server.markCommitted`).
 
 **Flow:**
 

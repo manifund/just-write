@@ -18,6 +18,7 @@ import { parseWebsite, slugify } from "./lib/util";
 import {
   canEnter,
   getViewer,
+  portalMembers,
   publicMember,
   requireAdmin,
   requireMember,
@@ -192,10 +193,11 @@ const fieldArgs = {
   end: v.number(),
 };
 
-async function committedMember(ctx: QueryCtx, id: Id<"members">) {
+// Hosts are committed members or readers.
+async function hostMember(ctx: QueryCtx, id: Id<"members">) {
   const m = await ctx.db.get(id);
-  if (!m || m.bot || m.status !== "committed")
-    throw new ConvexError("Hosts have to be committed members.");
+  if (!m || m.bot || !canEnter(m, false))
+    throw new ConvexError("Hosts have to be members.");
   return m;
 }
 
@@ -236,7 +238,7 @@ export const create = mutation({
     if (fields.start < Date.now() - 3600_000)
       throw new ConvexError("That time has already passed.");
     const cohosts = [...new Set(cohostIds)].filter((id) => id !== member._id);
-    for (const id of cohosts) await committedMember(ctx, id);
+    for (const id of cohosts) await hostMember(ctx, id);
     const eventId = await ctx.db.insert("events", {
       ...fields,
       slug: await uniqueSlug(ctx, fields.title),
@@ -282,7 +284,7 @@ export const setCohosts = mutation({
   handler: async (ctx, { eventId, cohostIds }) => {
     const { event } = await editable(ctx, eventId);
     const ids = [...new Set(cohostIds)].filter((id) => id !== event.ownerId);
-    for (const id of ids) await committedMember(ctx, id);
+    for (const id of ids) await hostMember(ctx, id);
     await ctx.db.patch(eventId, { cohostIds: ids });
     await syncLater(ctx, eventId);
   },
@@ -296,7 +298,7 @@ export const transfer = mutation({
     if (!viewer.isAdmin && event.ownerId !== viewer.member._id)
       throw new ConvexError("Only the main host can hand this session off.");
     if (toId === event.ownerId) return;
-    const to = await committedMember(ctx, toId);
+    const to = await hostMember(ctx, toId);
     const keepPrevious = event.ownerId === viewer.member._id;
     await ctx.db.patch(eventId, {
       ownerId: toId,
@@ -632,17 +634,11 @@ export const markShared = internalMutation({
   },
 });
 
-export const committedIds = internalQuery({
+// Everyone the Google calendar is shared with: committed members and readers.
+export const portalMemberIds = internalQuery({
   args: {},
   handler: async (ctx) =>
-    (
-      await ctx.db
-        .query("members")
-        .withIndex("by_status", (q) => q.eq("status", "committed"))
-        .collect()
-    )
-      .filter((m) => !m.bot)
-      .map((m) => m._id),
+    (await portalMembers(ctx)).filter((m) => !m.bot).map((m) => m._id),
 });
 
 // The iCal feed (convex/http.ts): everything on the calendar, for one member's secret token.

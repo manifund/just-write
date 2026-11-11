@@ -452,7 +452,7 @@ export const linkPreview = query({
         : event
           ? `scheduled a session: ${event.title}`
           : m.kind === "joined"
-            ? "joined Just Write"
+            ? m.text
             : shown.text
     )
       .replace(/\s+/g, " ")
