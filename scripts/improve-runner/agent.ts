@@ -2,7 +2,12 @@
 // reach it while it works, and the thread's images on its first message.
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { AGENT_MODEL, BRIEF_IMAGE_BYTES } from "../../convex/lib/improve";
+import {
+  AGENT_MODEL,
+  BRIEF_IMAGE_BYTES,
+  isEffort,
+  type Effort,
+} from "../../convex/lib/improve";
 // Type-only imports are erased, so these don't need their modules at runtime.
 import type { TaskState } from "../../convex/lib/improveLogs";
 import type { SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -53,6 +58,7 @@ type FollowUp = {
   text: string;
   tagged?: boolean; // false: a reply that didn't mention @Claude
   edited?: boolean; // the new text of the request, edited while the run was going
+  effort?: string; // "!effort high" in the follow-up: switch the running agent's effort
 };
 let stoppedBy: string | null = null;
 let stopAgent = () => {};
@@ -82,6 +88,26 @@ function dirtyFiles() {
 }
 
 const FOLLOW_UP_POLL_MS = 4000;
+
+// The agent's effort: the brief's, until a follow-up switches it. Later sessions in this run
+// (fixing failed checks) keep the switched level. `applyEffort` sets it on the live session.
+let effort: Effort | undefined = EFFORT;
+let applyEffort: (e: Effort) => Promise<void> = async () => {};
+async function switchEffort(f: FollowUp) {
+  if (!isEffort(f.effort) || f.effort === effort) return "";
+  effort = f.effort;
+  await step(`Switching to ${f.effort} effort`);
+  try {
+    await applyEffort(f.effort);
+    log("info", `Effort switched to ${f.effort} by ${f.author}`);
+  } catch (err) {
+    log(
+      "error",
+      `Couldn't switch the effort: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return `\n(That message switched your effort level to ${f.effort}; nothing else to do for that part.)`;
+}
 
 type ImageBlock = {
   type: "image";
@@ -185,6 +211,7 @@ async function* agentInput(
     ]);
     if (isDone()) return;
     for (const f of await claimFollowUps()) {
+      const effortNote = await switchEffort(f);
       await step(
         f.edited
           ? `Reading ${f.author}'s edited request`
@@ -199,7 +226,7 @@ async function* agentInput(
           ? `${f.author} edited the request while you were working. It now reads:\n"""\n${f.text}\n"""\nTreat the changes as a follow-up note: take them into account, then carry on. When you're done, return the structured result covering the whole change.`
           : f.tagged === false
           ? `${f.author} replied in the thread while you were working, without mentioning @Claude:\n"""\n${f.text}\n"""\nThis may be members talking to each other ("looks good", "it works"). If it asks for something about this change, take it into account; otherwise ignore it. Then carry on. When you're done, return the structured result covering the whole change.`
-          : `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
+          : `${f.author} added this in the thread while you were working:\n"""\n${f.text}\n"""${effortNote}\nTake it into account, then carry on. When you're done, return the structured result covering the whole change.`,
         "next",
       );
     }
@@ -275,7 +302,7 @@ async function runAgentSession(
       cwd: ROOT,
       model: AGENT_MODEL,
       resume,
-      effort: EFFORT,
+      effort,
       maxTurns: CHAT ? 100 : 150,
       abortController,
       // Subagents' own text and periodic summaries, for the log and the card's heartbeat.
@@ -306,6 +333,8 @@ async function runAgentSession(
       },
     },
   });
+
+  applyEffort = (e) => q.applyFlagSettings({ effortLevel: e });
 
   // However the session ends (a result, or the stream throwing), stop polling for follow-ups.
   try {
@@ -473,6 +502,7 @@ async function runAgentSession(
     log("info", `Agent stopped (asked by ${stoppedBy})`);
   } finally {
     stopAgent = () => {};
+    applyEffort = async () => {};
     done = true;
     markDone();
     if (timer) clearTimeout(timer);

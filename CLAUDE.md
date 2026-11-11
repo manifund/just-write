@@ -179,6 +179,7 @@ Follow-ups:
 - That PR opens marked "(unfinished)" and never merges on its own; the title loses the mark once a follow-up finishes.
 - A follow-up sent while a run is still going waits (`waitingOn`).
 - While the agent is working, the runner polls `server.claimFollowUps` and passes those to it at priority `next` (read after its current tool call).
+- `server.takeFollowUps` doesn't hand over a follow-up that asks for `!new` or `!pr` of another PR; it waits and picks its PR when the run ends.
 - Follow-ups that arrive after the agent has finished start as their own run when that run ends (`improvements.releaseWaiting`).
 
 Replies without @Claude:
@@ -228,6 +229,7 @@ Effort:
 - The resolved effort is saved on the run (`effort`).
 - A follow-up that continues a run (`server.continuePr`) keeps that run's effort unless it sets its own.
 - Any other run that doesn't set one (a reply to a chat answer, a new PR in the same thread) keeps the effort of the thread's latest earlier run that had one (`server.ts#threadEffort`).
+- A follow-up handed to a running agent that sets an effort switches it live: `server.takeFollowUps` passes the `effort` and saves it on the run, and the runner calls the SDK's `applyFlagSettings` (`agent.ts#switchEffort`); later sessions in that run keep it.
 
 Parallel requests:
 
