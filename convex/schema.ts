@@ -366,4 +366,36 @@ export default defineSchema({
     inputHash: v.string(),
     computedAt: v.number(),
   }).index("by_member", ["memberId"]),
+
+  // Text read from each essay's page, for /themes (convex/themes.ts).
+  essayTexts: defineTable({
+    essayId: v.id("essays"),
+    url: v.string(),
+    text: v.optional(v.string()), // unset when the page had no readable text
+    fetchedAt: v.number(),
+  }).index("by_essay", ["essayId"]),
+
+  // The word cloud and Claude's themes across everyone's essays, for /themes. One row.
+  themes: defineTable({
+    cloud: v.array(
+      v.object({
+        word: v.string(),
+        weight: v.number(),
+        uses: v.number(),
+        essays: v.number(),
+      }),
+    ),
+    overview: v.optional(v.string()),
+    themes: v.array(
+      v.object({
+        name: v.string(),
+        summary: v.string(),
+        essayIds: v.array(v.id("essays")),
+      }),
+    ),
+    read: v.number(), // essays whose text could be read
+    inputHash: v.string(), // the essays the themes were made from
+    computedAt: v.number(),
+    requestedAt: v.number(),
+  }),
 });

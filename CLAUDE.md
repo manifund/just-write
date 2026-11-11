@@ -81,6 +81,14 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Similar writers:** `convex/similarAction.ts` asks Claude (via OpenRouter) to pick 3 matches from bios, essay titles, and shared ideas; results are cached in `similar` and recomputed when the inputs' hash changes or after 24h.
 
+**Themes** (`/themes`, members only; `convex/themes.ts`, `convex/themesAction.ts`):
+
+- A word cloud and Claude's themes across every essay that isn't rejected, linked from "Everyone's progress" on `/home`.
+- Opening the page asks for an update (`themes.request`) when the set of essays changed, at most once an hour for everyone.
+- `themesAction.compute` reads each essay's page once into `essayTexts` (`convex/lib/essayText.ts#essayText`; public Google Docs through their text export) and retries pages with no readable text after 12h.
+- The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
+- Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
+
 **@Claude improvements:** mentioning `@Claude` in chat asks an agent to change this site.
 
 - How to edit these @Claude sections: one fact per line. Add new facts as new bullets, and change a line only when the behavior it describes changes.
