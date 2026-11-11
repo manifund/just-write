@@ -44,7 +44,7 @@ export const compute = internalAction({
       if (essays.length === 0 || !process.env.OPENROUTER_API_KEY) {
         if (!process.env.OPENROUTER_API_KEY)
           console.warn("OPENROUTER_API_KEY is not set; skipping essay themes");
-        themes = { overview: undefined, themes: [] };
+        themes = { overview: undefined, themes: [], summaries: [] };
       } else {
         try {
           themes = await findThemes(essays);
@@ -144,12 +144,25 @@ async function findThemes(essays: Essay[]) {
             }),
           )
           .max(8),
+        summaries: z
+          .array(
+            z.object({
+              essay: z.string().describe("The essay's id, e.g. “e3”"),
+              summary: z
+                .string()
+                .describe(
+                  "One plain sentence, under 25 words, on what this essay is about, without its title or author",
+                ),
+            }),
+          )
+          .describe("One for every essay that has text"),
       }),
     }),
     system:
       "You read the essays published by members of a small online writing club (4 essays each in November) and sort them into themes, for a page that shows what the club is writing about. " +
       "Make 4 to 8 themes. Put each essay in the one or two themes it fits best, and every essay in at least one. " +
       "Name themes in plain words a member would use, not clever phrases. Describe what the essays actually say, specifically. " +
+      "Also write one plain sentence on what each essay with text is about, shown on its card in the club chat. " +
       "Write in a neutral, simple style: no praise for the essays or writers, no flowery words. Never invent anything that isn't in the text. " +
       "Some essays are cut off partway; a few may only have a title.",
     prompt: `${essays.length} essays:\n\n${prompt}`,
@@ -168,5 +181,10 @@ async function findThemes(essays: Essay[]) {
       }))
       .filter((t) => t.name && t.essayIds.length > 0)
       .slice(0, 8),
+    summaries: (output?.summaries ?? []).flatMap((s) => {
+      const essayId = byKey.get(s.essay.trim());
+      const summary = s.summary.trim().slice(0, 300);
+      return essayId && summary ? [{ essayId, summary }] : [];
+    }),
   };
 }

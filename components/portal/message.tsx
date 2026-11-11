@@ -19,9 +19,10 @@ import {
   useRemoveMessage,
   useToggleReaction,
 } from "./optimistic";
+import { EssayCard, LinkPreviews } from "./link-preview";
 import { MessageLinkPreviews } from "./message-link-preview";
 import { RichText } from "./rich-text";
-import { clockTime, hostOf, PENDING, READER_LABEL, timeAgo } from "./util";
+import { clockTime, PENDING, READER_LABEL, timeAgo } from "./util";
 
 export function Message({
   m,
@@ -247,7 +248,7 @@ export function Message({
         ) : m.improvementId ? (
           <LiveImprovementCard id={m.improvementId} isAdmin={viewer.isAdmin} />
         ) : m.essay ? (
-          <EssayPost essay={m.essay} />
+          <EssayPost messageId={m._id} essay={m.essay} />
         ) : m.event ? (
           <EventPost event={m.event} />
         ) : m.kind === "joined" ? (
@@ -258,6 +259,7 @@ export function Message({
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
             <MessageLinkPreviews body={m.body} />
+            <LinkPreviews messageId={m._id} body={m.body} />
             {m.postedFor && (
               <p className="mt-1 text-[13px] text-ink-muted">
                 Posted for {m.postedFor.name} ·{" "}
@@ -758,26 +760,17 @@ function EventPost({ event }: { event: NonNullable<ChatMessage["event"]> }) {
   );
 }
 
-function EssayPost({ essay }: { essay: NonNullable<ChatMessage["essay"]> }) {
+function EssayPost({
+  messageId,
+  essay,
+}: {
+  messageId: string;
+  essay: NonNullable<ChatMessage["essay"]>;
+}) {
   return (
     <div className="flex flex-col gap-2 py-1">
       <p className="text-[16px] text-ink-muted">published an essay ✍️</p>
-      <a
-        href={essay.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex max-w-[34rem] flex-col gap-1 border-l-4 border-brass bg-cream-deep px-4 py-3 no-underline transition-colors hover:bg-cream-hover"
-      >
-        <span className="font-display text-[21px] leading-[1.2] font-[450] text-pretty">
-          {essay.title}
-        </span>
-        <span className="text-[14px] text-ink-muted">
-          {hostOf(essay.url)}
-          {essay.wordCount
-            ? ` · ~${essay.wordCount.toLocaleString()} words`
-            : ""}
-        </span>
-      </a>
+      <EssayCard messageId={messageId} essay={essay} />
     </div>
   );
 }

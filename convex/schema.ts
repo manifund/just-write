@@ -381,6 +381,17 @@ export default defineSchema({
     fetchedAt: v.number(),
   }).index("by_essay", ["essayId"]),
 
+  // Preview cards for links posted in chat (convex/linkPreviews.ts), one per URL.
+  linkPreviews: defineTable({
+    url: v.string(),
+    fetchedAt: v.number(), // when it was last read, or asked for while pending
+    ok: v.optional(v.boolean()), // unset while pending, false if the page couldn't be read
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    image: v.optional(v.string()),
+    siteName: v.optional(v.string()),
+  }).index("by_url", ["url"]),
+
   // The word cloud and Claude's themes across everyone's essays, for /themes. One row.
   themes: defineTable({
     cloud: v.array(
@@ -398,6 +409,10 @@ export default defineSchema({
         summary: v.string(),
         essayIds: v.array(v.id("essays")),
       }),
+    ),
+    // One plain sentence per essay, for its card in chat.
+    summaries: v.optional(
+      v.array(v.object({ essayId: v.id("essays"), summary: v.string() })),
     ),
     read: v.number(), // essays whose text could be read
     inputHash: v.string(), // the essays the themes were made from

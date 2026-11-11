@@ -195,6 +195,9 @@ export const save = internalMutation({
             essayIds: v.array(v.id("essays")),
           }),
         ),
+        summaries: v.optional(
+          v.array(v.object({ essayId: v.id("essays"), summary: v.string() })),
+        ),
         inputHash: v.string(),
       }),
     ),
