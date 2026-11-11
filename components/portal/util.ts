@@ -107,3 +107,14 @@ export function confetti(from: Element | null) {
     ).onfinish = () => el.remove();
   }
 }
+
+// Shown next to a reader's name (convex/lib/viewer.ts#READER_LABEL).
+export const READER_LABEL = "Just Reader";
+
+// A member's profile page, or null if they have none: readers aren't in the directory.
+export function profilePath(m: {
+  handle: string | null;
+  reader?: boolean;
+}): string | null {
+  return m.handle && !m.reader ? `/members/${m.handle}` : null;
+}

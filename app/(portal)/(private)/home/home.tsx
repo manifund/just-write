@@ -44,7 +44,9 @@ function until(t: number, now: number) {
 export function Home() {
   const { me } = usePortal();
   const now = useNow();
-  const mine = useQuery(api.essays.mine);
+  // Readers don't write essays, so they see everyone's progress but no slots of their own.
+  const reader = me.status === "reader";
+  const mine = useQuery(api.essays.mine, reader ? "skip" : {});
   const firstName = me.name.split(/\s+/)[0];
 
   const nextIdx = now === null ? -1 : DEADLINES.findIndex((d) => d > now);
@@ -81,29 +83,31 @@ export function Home() {
 
       <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-[clamp(32px,5vh,48px)]">
-          <section
-            aria-labelledby="progress"
-            className="@container flex flex-col gap-5"
-          >
-            <div className="flex items-baseline justify-between gap-4">
-              <h2 id="progress" className={h2}>
-                Your four essays
-              </h2>
-              {mine && (
-                <span className="text-[15px] text-ink-muted tabular-nums">
-                  {mine.slots.filter((s) => s.essayId).length} of 4
-                </span>
-              )}
-            </div>
-            <Slots mine={mine} now={now} />
-            <RegisterEssay now={now} />
-            {mine && mine.essays.length > 0 && <MyEssays mine={mine} />}
-          </section>
+          {!reader && (
+            <section
+              aria-labelledby="progress"
+              className="@container flex flex-col gap-5"
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 id="progress" className={h2}>
+                  Your four essays
+                </h2>
+                {mine && (
+                  <span className="text-[15px] text-ink-muted tabular-nums">
+                    {mine.slots.filter((s) => s.essayId).length} of 4
+                  </span>
+                )}
+              </div>
+              <Slots mine={mine} now={now} />
+              <RegisterEssay now={now} />
+              {mine && mine.essays.length > 0 && <MyEssays mine={mine} />}
+            </section>
+          )}
           <Board />
         </div>
 
         <div className="flex flex-col gap-[clamp(32px,5vh,48px)]">
-          {SHOW_SIMILAR && <SimilarWriters />}
+          {SHOW_SIMILAR && !reader && <SimilarWriters />}
           <RecentEssays now={now} />
         </div>
       </div>

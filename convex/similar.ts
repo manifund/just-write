@@ -8,7 +8,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { publicMember, requireMember } from "./lib/viewer";
+import { publicMember, requireMember, requireWriter } from "./lib/viewer";
 
 const TTL = 24 * 60 * 60 * 1000;
 
@@ -85,7 +85,7 @@ export const forViewer = query({
 export const request = mutation({
   args: {},
   handler: async (ctx) => {
-    const { member } = await requireMember(ctx);
+    const { member } = await requireWriter(ctx);
     const row = await ctx.db
       .query("similar")
       .withIndex("by_member", (q) => q.eq("memberId", member._id))

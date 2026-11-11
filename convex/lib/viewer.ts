@@ -46,6 +46,16 @@ export async function memberByEmail(ctx: Ctx, email: string) {
     .unique();
 }
 
+// Readers ("Just Readers") are people at Manifund who use the portal without writing:
+// chat, ideas (votes and comments), and the calendar, but no essays, and they aren't in
+// the member directory. Anyone who signs in with a verified address at this domain
+// becomes one the first time they open the portal (members.syncProfile).
+export const READER_DOMAIN = "manifund.org";
+export const READER_LABEL = "Just Reader";
+
+export const isReader = (member: Doc<"members"> | null) =>
+  member?.status === "reader";
+
 // The signed-in Better Auth user and their member row (matched by email), if any.
 export async function getViewer(ctx: Ctx) {
   const user = await authComponent.safeGetAuthUser(ctx);
@@ -55,16 +65,44 @@ export async function getViewer(ctx: Ctx) {
   const member = await memberByEmail(ctx, email);
   // Nobody signs in as the bot (its address can't receive mail), but never let them act as it.
   if (member?.bot)
-    return { user, email, member: null, isAdmin: false, readonly };
-  return { user, email, member, isAdmin: isAdminEmail(email), readonly };
+    return {
+      user,
+      email,
+      member: null,
+      isAdmin: false,
+      readonly,
+      joinsAsReader: false,
+    };
+  const isAdmin = isAdminEmail(email);
+  // Whether syncProfile should make them a reader. Committed writers and admins stay as
+  // they are, and a read-only session can't write the change.
+  const joinsAsReader =
+    user.emailVerified &&
+    email.endsWith(`@${READER_DOMAIN}`) &&
+    !isAdmin &&
+    !readonly &&
+    member?.status !== "committed" &&
+    member?.status !== "reader";
+  return { user, email, member, isAdmin, readonly, joinsAsReader };
 }
 
-// Committed members (and admins) can use the portal.
+// Committed members, readers, and admins can use the portal.
 export function canEnter(member: Doc<"members"> | null, isAdmin: boolean) {
-  return isAdmin || member?.status === "committed";
+  return isAdmin || member?.status === "committed" || isReader(member);
 }
 
-// Throws unless the viewer is a committed member (or an admin with a member row).
+// Everyone with a member row who can use the portal through it: committed writers and
+// readers. (Admins who aren't either are looked up by email where they matter.)
+export async function portalMembers(ctx: Ctx) {
+  const byStatus = (status: "committed" | "reader") =>
+    ctx.db
+      .query("members")
+      .withIndex("by_status", (q) => q.eq("status", status))
+      .collect();
+  return [...(await byStatus("committed")), ...(await byStatus("reader"))];
+}
+
+// Throws unless the viewer is a committed member or a reader (or an admin with a member row).
 // In mutations it also refuses read-only sessions, unless `allowReadonly` (for harmless
 // background writes like presence).
 export async function requireMember(
@@ -78,6 +116,17 @@ export async function requireMember(
     throw new ConvexError("Only committed members can do that.");
   }
   return { ...viewer, member: viewer.member };
+}
+
+// For what belongs to writers (registering essays, posting essay ideas): members who
+// aren't readers.
+export async function requireWriter(ctx: Ctx) {
+  const viewer = await requireMember(ctx);
+  if (isReader(viewer.member))
+    throw new ConvexError(
+      `That’s for writers. You’re here as a ${READER_LABEL}.`,
+    );
+  return viewer;
 }
 
 export async function requireAdmin(ctx: Ctx) {
@@ -105,6 +154,7 @@ export function publicMember(m: Doc<"members">) {
     image: m.image ?? null,
     committedAt: m.committedAt ?? null,
     bot: m.bot ?? false,
+    reader: isReader(m),
   };
 }
 export type PublicMember = ReturnType<typeof publicMember>;

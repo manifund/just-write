@@ -5,6 +5,7 @@ import { ConvexError } from "convex/values";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { Avatar } from "@/components/portal/avatar";
+import { profilePath } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import type { CalendarEvent } from "@/convex/events";
@@ -248,11 +249,9 @@ function Person({
     </>
   );
   const cls = "flex min-w-0 items-center gap-2.5";
-  return member.handle ? (
-    <Link
-      href={`/members/${member.handle}`}
-      className={`${cls} no-underline hover:underline`}
-    >
+  const href = profilePath(member);
+  return href ? (
+    <Link href={href} className={`${cls} no-underline hover:underline`}>
       {inner}
     </Link>
   ) : (

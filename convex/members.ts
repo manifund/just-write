@@ -12,10 +12,15 @@ import {
   canEnter,
   getViewer,
   isAdminEmail,
+  isReader,
   memberByEmail,
+  portalMembers,
   publicMember,
+  READER_LABEL,
   requireMember,
 } from "./lib/viewer";
+import { postMessage } from "./lib/messages";
+import { emptyDoc } from "./lib/richtext";
 import { getClaude } from "./lib/claude";
 import { CHECK_IN_SLUG } from "./lib/channels";
 import {
@@ -65,13 +70,16 @@ export const viewer = query({
         : null,
       isAdmin,
       canEnter: canEnter(member, isAdmin),
+      // True until syncProfile has made this @manifund.org sign-in a reader.
+      joinsAsReader: viewer.joinsAsReader,
       readonly: viewer.readonly,
     };
   },
 });
 
 // Called when a signed-in viewer opens the portal: fills in their avatar and handle.
-// Admins without a row get one, so they can post in chat.
+// Admins without a row get one, so they can post in chat. People signing in from Manifund
+// become readers here (getViewer's joinsAsReader), with or without an earlier row.
 export const syncProfile = mutation({
   args: {},
   handler: async (ctx) => {
@@ -79,13 +87,33 @@ export const syncProfile = mutation({
     if (!viewer || viewer.readonly) return null;
     let member = viewer.member;
     if (!member) {
-      if (!viewer.isAdmin) return null;
+      if (!viewer.isAdmin && !viewer.joinsAsReader) return null;
       const id = await ctx.db.insert("members", {
         name: viewer.user.name || viewer.email.split("@")[0],
         email: viewer.email,
-        status: "interested",
+        status: viewer.joinsAsReader ? "reader" : "interested",
       });
       member = (await ctx.db.get(id))!;
+    } else if (viewer.joinsAsReader) {
+      await ctx.db.patch(member._id, { status: "reader" });
+    }
+    if (viewer.joinsAsReader) {
+      // Say so in #general, like the welcome for a new writer (server.markCommitted).
+      const general = await ctx.db
+        .query("channels")
+        .withIndex("by_slug", (q) => q.eq("slug", "general"))
+        .unique();
+      if (general)
+        await postMessage(ctx, {
+          channelId: general._id,
+          authorId: member._id,
+          body: JSON.stringify(emptyDoc),
+          text: `joined as a ${READER_LABEL}`,
+          kind: "joined",
+        });
+      await ctx.scheduler.runAfter(0, internal.gcal.shareWith, {
+        memberId: member._id,
+      });
     }
     const patch: { image?: string; handle?: string } = {};
     if (!member.image && viewer.user.image) patch.image = viewer.user.image;
@@ -127,13 +155,14 @@ export const expressInterest = mutation({
   },
 });
 
-// The landing page's "Committed" / "Interested" rows.
+// The landing page's "Committed" / "Interested" rows. Readers aren't writers, so they're
+// in neither.
 export const interestedList = query({
   args: {},
   handler: async (ctx) => {
     const rows = await ctx.db.query("members").collect();
     return rows
-      .filter((m) => !m.bot)
+      .filter((m) => !m.bot && !isReader(m))
       .map((m) => ({
         _id: m._id,
         name: m.name,
@@ -170,7 +199,8 @@ export const signTerms = mutation({
       await ctx.db.patch(member._id, {
         signedName: signature,
         signedAt: now,
-        status: "signed",
+        // A reader who signs keeps their access while they pay.
+        status: isReader(member) ? "reader" : "signed",
       });
       return { memberId: member._id, email, alreadyCommitted: false };
     }
@@ -361,7 +391,7 @@ export const merge = internalMutation({
     if (!into || !from) throw new ConvexError("Both emails must be members.");
     if (into._id === from._id) throw new ConvexError("Those are the same row.");
     if (
-      from.status === "committed" ||
+      canEnter(from, false) ||
       isAdminEmail(from.email) ||
       from.stripeSessionId
     )
@@ -385,24 +415,22 @@ export const merge = internalMutation({
   },
 });
 
-// Every committed member's public card, for resolving chat authors and presence avatars.
+// The public card of every committed member and reader, for resolving chat authors and
+// presence avatars.
 export const roster = query({
   args: {},
   handler: async (ctx) => {
     await requireMember(ctx);
-    const rows = await ctx.db
-      .query("members")
-      .withIndex("by_status", (q) => q.eq("status", "committed"))
-      .collect();
-    // Admins may not be committed but still post, and Claude (the bot) posts too. Looked
+    const rows = await portalMembers(ctx);
+    // Admins may be neither but still post, and Claude (the bot) posts too. Looked
     // up by email so this never reads the whole table (every member subscribes to it).
     const others = [];
     for (const email of adminEmails()) {
       const m = await memberByEmail(ctx, email);
-      if (m && m.status !== "committed") others.push(m);
+      if (m && !canEnter(m, false)) others.push(m);
     }
     const claude = await getClaude(ctx);
-    if (claude && claude.status !== "committed") others.push(claude);
+    if (claude && !canEnter(claude, false)) others.push(claude);
     return [...rows, ...others].map(publicMember);
   },
 });

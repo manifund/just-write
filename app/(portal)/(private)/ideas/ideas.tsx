@@ -17,6 +17,9 @@ const input =
   "w-full rounded-none border border-ink/28 bg-cream px-3.5 py-2.5 font-body text-[18px] text-inherit";
 
 export function Ideas() {
+  const { me } = usePortal();
+  // Readers vote and comment, but the notebook is for writers' own essay ideas.
+  const reader = me.status === "reader";
   return (
     <main className="mx-auto flex max-w-[76rem] flex-col gap-[clamp(28px,5vh,48px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
       <header className="flex flex-col gap-3">
@@ -24,14 +27,19 @@ export function Ideas() {
           Drafts & <em className="wonk text-brass-numeral">ideas</em>
         </h1>
         <p className="max-w-[36em] text-[clamp(17px,2.2vw,20px)] leading-[1.45] text-pretty text-ink-muted">
-          Not sure what to focus on? Share essay titles and outlines here, and
-          see what others vote for.
+          {reader
+            ? "Essay titles and outlines from the writers. Vote for the ones you’d read, and leave comments."
+            : "Not sure what to focus on? Share essay titles and outlines here, and see what others vote for."}
         </p>
       </header>
-      <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-        <Notebook />
+      {reader ? (
         <Board />
-      </div>
+      ) : (
+        <div className="grid gap-[clamp(32px,5vh,48px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+          <Notebook />
+          <Board />
+        </div>
+      )}
     </main>
   );
 }

@@ -41,7 +41,13 @@ const GROUPS = [
     key: "interested",
     label: "Interested",
     title: "Not yet committed (includes signed, unpaid)",
-    match: (r: Row) => r.status !== "committed",
+    match: (r: Row) => r.status !== "committed" && r.status !== "reader",
+  },
+  {
+    key: "reader",
+    label: "Readers",
+    title: "Just Readers (Manifund sign-ins who aren’t writing)",
+    match: (r: Row) => r.status === "reader",
   },
 ] as const;
 
@@ -125,7 +131,7 @@ function Overview() {
   const rows = useQuery(api.admin.overview);
   const review = useMutation(api.admin.setEssayReview);
   const [filter, setFilter] = useState<
-    "all" | "committed" | "signed" | "interested"
+    "all" | "committed" | "signed" | "interested" | "reader"
   >("all");
   if (!rows) return <p className="p-10 text-ink-muted">Loading…</p>;
 
@@ -138,16 +144,18 @@ function Overview() {
       <h1 className="font-display text-[36px] font-[340]">Admin</h1>
       <CopyEmails rows={rows} />
       <div className="flex flex-wrap items-center gap-2 text-[15px]">
-        {(["all", "committed", "signed", "interested"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className={`cursor-pointer border px-3 py-1 capitalize ${filter === f ? "border-ink bg-ink text-cream" : "border-ink/25"}`}
-          >
-            {f} ({f === "all" ? rows.length : count(f)})
-          </button>
-        ))}
+        {(["all", "committed", "signed", "interested", "reader"] as const).map(
+          (f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`cursor-pointer border px-3 py-1 capitalize ${filter === f ? "border-ink bg-ink text-cream" : "border-ink/25"}`}
+            >
+              {f} ({f === "all" ? rows.length : count(f)})
+            </button>
+          ),
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left text-[16px]">
@@ -216,6 +224,8 @@ function Overview() {
                       >
                         Signed, unpaid
                       </span>
+                    ) : r.status === "reader" ? (
+                      <span className="text-ink-muted">Just Reader</span>
                     ) : (
                       <span className="text-ink-muted">Interested</span>
                     )}

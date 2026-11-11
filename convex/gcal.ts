@@ -2,7 +2,7 @@
 
 // Mirrors the calendar into one shared Google calendar, so changes reach members' Google
 // Calendars within seconds (a subscribed iCal feed can take a day). A service account writes
-// to it through the Calendar API and shares it with each committed member's sign-in emails.
+// to it through the Calendar API and shares it with each committed member's and reader's sign-in emails.
 //
 // Convex env: GOOGLE_SERVICE_ACCOUNT_KEY (the service account's JSON key) and
 // GOOGLE_CALENDAR_ID (made once with `bunx convex run gcal:createCalendar`). Until both are
@@ -160,14 +160,14 @@ export const shareWith = internalAction({
   },
 });
 
-// Shares with every committed member. Run after setting up, or any time:
+// Shares with every committed member and reader. Run after setting up, or any time:
 //   bunx convex run gcal:shareAll
 export const shareAll = internalAction({
   args: {},
   handler: async (ctx): Promise<string> => {
     if (!configured()) return "Google Calendar isn’t set up.";
     const ids: Id<"members">[] = await ctx.runQuery(
-      internal.events.committedIds,
+      internal.events.portalMemberIds,
       {},
     );
     for (const memberId of ids)

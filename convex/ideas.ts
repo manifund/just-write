@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
-import { publicMember, requireMember } from "./lib/viewer";
+import { publicMember, requireMember, requireWriter } from "./lib/viewer";
 
 async function votesFor(
   ctx: QueryCtx,
@@ -95,7 +95,8 @@ function clean(title: string, notes: string) {
 export const create = mutation({
   args: { title: v.string(), notes: v.string() },
   handler: async (ctx, args) => {
-    const { member } = await requireMember(ctx);
+    // Ideas are for essays, so readers vote and comment but don't post their own.
+    const { member } = await requireWriter(ctx);
     return await ctx.db.insert("ideas", {
       memberId: member._id,
       ...clean(args.title, args.notes),
