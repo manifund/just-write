@@ -269,7 +269,8 @@ export async function commitFiles(
 
 // What a branch (or commit) changes compared with main (from where they split, like the PR
 // page shows): the changed paths and the diff, both straight from GitHub. `hidden` lists files
-// whose changes GitHub leaves out of the diff (binary, or too big to show).
+// whose changes GitHub leaves out of the diff (binary, or too big to show). `modified` has the
+// diff of each file that was changed in place (not added, removed, or renamed).
 export async function compareWithMain(token: string, ref: string) {
   const path = `/repos/${REPO}/compare/main...${ref}`;
   const [info, diff] = await Promise.all([
@@ -286,9 +287,11 @@ export async function compareWithMain(token: string, ref: string) {
   ]);
   const files = new Set<string>();
   const hidden: string[] = [];
+  const modified = new Map<string, string>();
   for (const f of info.files ?? []) {
     files.add(f.filename);
     if (f.previous_filename) files.add(f.previous_filename);
+    if (f.status === "modified" && f.patch) modified.set(f.filename, f.patch);
     // Git calls any file with a NUL byte binary, so "binary" alone doesn't mean harmless.
     const shown =
       f.patch ||
@@ -297,5 +300,20 @@ export async function compareWithMain(token: string, ref: string) {
       /\.(png|jpe?g|gif|webp|avif|ico|woff2?|ttf|otf|pdf)$/i.test(f.filename);
     if (!shown) hidden.push(f.filename);
   }
-  return { files: [...files], hidden, diff };
+  return { files: [...files], hidden, modified, diff };
+}
+
+// A file's text at a commit, or null if it doesn't exist there.
+export async function fileAt(token: string, path: string, ref: string) {
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  try {
+    return await ghText(
+      token,
+      `/repos/${REPO}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
+      { accept: "application/vnd.github.raw" },
+    );
+  } catch (err) {
+    if (String(err).includes(": 404 ")) return null;
+    throw err;
+  }
 }

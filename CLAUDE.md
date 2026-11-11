@@ -109,6 +109,11 @@ How a run goes:
 - Then the runner sends its list of changed files back to the route.
 - `lib/improve-finish.ts` reads those files out of the sandbox, commits them to `claude/<n>` through GitHub's API, and opens a PR.
 - It merges the PR if `MERGE_POLICY` allows, judged on GitHub's diff of the branch, not on what the sandbox says.
+- Changes to `SENSITIVE_PATHS` always wait for an admin.
+- `convex/schema.ts` and `CLAUDE.md` (`ADDITIVE_ONLY_PATHS`) only merge on their own when their diff adds lines and removes none; a new `@` import in CLAUDE.md waits too.
+- Everything else is read by `MERGE_REVIEW_MODEL` (Opus) with the request, the diff, and every changed server file in full, against a fixed checklist (`lib/improve-finish.ts#CHECKLIST`); any yes means review.
+- The review's answers are posted as a comment on the PR.
+- At most `BACKEND_AUTOMERGES_PER_DAY` changes under `convex/` merge without an admin in 24 hours (`server.ts#backendAutoMerges`).
 - Settings (merge policy, models, rate limits, paths that always need review) are in `convex/lib/improve.ts`.
 - `server.reportImprovement`'s `patch` validator is built from the `improvements` table in `convex/schema.ts` (minus fields set at creation or owned elsewhere), so a new field only needs the schema.
 - Merges are announced in `#site`; `/improvements` lists every run.

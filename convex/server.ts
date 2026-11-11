@@ -684,10 +684,29 @@ export const startFinish = mutation({
       branch: r.branch,
       prNumber: r.prNumber ?? null,
       sandboxId: r.sandboxId ?? null,
+      backendAutoMerges: await backendAutoMerges(ctx),
       ...(await whoAndWhere(ctx, r)),
     };
   },
 });
+
+// Changes under convex/ that merged without an admin in the last 24 hours, for
+// BACKEND_AUTOMERGES_PER_DAY (lib/improve-finish.ts#decide). An admin's merge sets decidedBy.
+async function backendAutoMerges(ctx: MutationCtx) {
+  const since = Date.now() - 24 * 60 * 60 * 1000;
+  const merged = await ctx.db
+    .query("improvements")
+    .withIndex("by_status", (q) => q.eq("status", "merged"))
+    .order("desc")
+    .take(GLOBAL_DAILY_LIMIT);
+  return merged.filter(
+    (r) =>
+      r.touchesConvex &&
+      !r.decidedBy &&
+      r.verdict?.startsWith("merge:") &&
+      (r.finishedAt ?? 0) >= since,
+  ).length;
+}
 
 // The run, if `runToken` is the key for it and it's still going.
 export async function checkRunToken(
