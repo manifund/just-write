@@ -71,6 +71,14 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Chat messages** are Tiptap JSON. `convex/lib/richtext.ts#cleanBody` whitelists node and mark types on the server; `components/portal/rich-text.tsx` renders them to React (no raw HTML). The composer is `components/portal/composer.tsx` (Enter sends, @mentions). Switching channels and opening threads change the URL through `lib/chat-url.ts` (the browser's own History methods, read back with `useChatUrl`), never `history.pushState` or the router: Next.js turns pushState into a cache-only restore that can hang for good.
 
+**Link cards** (`convex/linkPreviews.ts`, `components/portal/link-preview.tsx`):
+
+- Outside links in a chat message (up to 3) get a card with the page's Open Graph title, description, and image, saved once per URL in `linkPreviews`.
+- The client asks for missing cards with `linkPreviews.request`, which only fetches URLs found in that message (or its essay), and never local or private hosts (`convex/lib/linkMeta.ts#previewableUrl`).
+- Cards are refreshed after 7 days; pages that couldn't be read are retried after a day.
+- Essay posts in #published, and links to registered essays, show the essay card: cover image, Claude's one-sentence summary, its themes (linking to `/themes`), and length.
+- The summaries come from the same `themesAction.compute` call as the themes (`themes.summaries`), so a new essay gets one when themes next update.
+
 **Installed app and push:**
 
 - `app/manifest.ts` makes the site installable. It opens on `/home`, its icons are in `public/icons` (rendered from `app/icon.svg`), and links shared to it prefill the essay form.

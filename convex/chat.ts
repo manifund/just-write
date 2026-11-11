@@ -16,6 +16,7 @@ import {
   RECENT_SIZE,
 } from "./lib/channels";
 import { forgetActivity } from "./lib/activity";
+import { essayExtras, themesRow } from "./lib/essayCard";
 import { postMessage } from "./lib/messages";
 import { nextPtMidnight } from "./lib/time";
 import { DEADLINES, fillSlots } from "./lib/program";
@@ -301,6 +302,7 @@ async function hydrate(
   gate: Gate | null,
   parent?: Doc<"messages"> | null,
 ) {
+  const themes = msgs.some((m) => m.essayId) ? await themesRow(ctx) : null;
   return await Promise.all(
     msgs
       .map((m) => veil(m, gate, m.parentId ? parent : null))
@@ -326,6 +328,7 @@ async function hydrate(
                 title: essay.title,
                 url: essay.url,
                 wordCount: essay.wordCount ?? null,
+                ...essayExtras(themes, essay._id),
               }
             : null,
           // Claude's status card (improvementId) loads itself: see improvements.card.
