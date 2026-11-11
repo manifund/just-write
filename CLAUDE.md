@@ -50,6 +50,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
    - Its layout is a second root layout that turns the session cookie into a Convex token server-side and hands it to `PortalProviders` in `app/providers.tsx`, so the browser connects already signed in.
    - Member-only pages are in `app/(portal)/(private)/`; `/members` and `/calendar` are public but sit in the same root layout so sidebar navigation stays client-side.
    - The landing page, `/sign-in`, `/commit`, and `/tweaks` live under `app/(site)/` with a static root layout and Better Auth's own provider; crossing between the two groups is a full page load.
+   - Keyboard: Cmd/Ctrl+K opens the "Jump to" palette (sections, channels, members), Cmd/Ctrl+1–9 (or Alt+1–9 outside text fields) open the sidebar's sections in order, and Alt+↑/↓ (with Shift: unread only) move between channels (`components/portal/command-palette.tsx`, whose `portalSections` the sidebar also renders).
    - Pages: `/home` (deadline countdown, essay slots, registering essays, similar writers, everyone's progress), `/chat/[slug]` (channels with threads, reactions, typing, presence, unread dots), `/ideas`, `/settings` (profile), `/admin` (admins only; essay review), `/improvements` (every @Claude run).
 5. `/members` and `/members/[handle]` — public, server-rendered from Convex then live (`app/(portal)/members`); members see them inside the portal shell.
 
