@@ -5,6 +5,8 @@
 // - While a code run in the thread is going, the reply is queued on it (`untaggedReplies`)
 //   and server.takeFollowUps hands it to the agent, which is told it may be members talking
 //   to each other.
+// - Replies the agent never took (sent after it finished, or after Stop) are checked when the
+//   run ends (checkLeftovers), like replies sent after it.
 // - While a run is queued, nothing happens: its brief is read from the thread when it starts.
 // - Otherwise, for a day after Claude's last run in the thread, a quick model call (check)
 //   decides whether the reply asks Claude for something. If it does, pickUp starts a run as
@@ -79,21 +81,63 @@ export async function handleUntaggedReply(
 
   const running = runs.find((r) => !r.kind && r.status === "running");
   if (running) {
-    // A run someone stopped takes no more follow-ups (runner.followUps), and the parts of a
-    // split request can't tell which part a reply is about (server.takeFollowUps).
-    if (running.stopRequestedAt || running.split) return;
+    // The parts of a split request can't tell which part a reply is about
+    // (server.takeFollowUps). A run someone stopped takes no more follow-ups
+    // (runner.followUps), so its replies wait to be checked when it ends (checkLeftovers).
+    if (running.split) return;
     const pending = running.untaggedReplies ?? [];
     if (pending.length >= UNTAGGED_PER_RUN) return;
     await ctx.db.patch(running._id, {
       untaggedReplies: [
         ...pending,
-        { authorId: args.authorId, text: args.text.slice(0, 4000) },
+        {
+          authorId: args.authorId,
+          text: args.text.slice(0, 4000),
+          messageId: args.messageId,
+        },
       ],
     });
     return;
   }
   if (runs.some((r) => r.status === "queued")) return;
+  await scheduleCheck(ctx, args.threadId, args.messageId, runs, settings);
+}
 
+// Called from improvements.releaseWaiting when a code run ends. Replies queued on it that the
+// agent never took (it had already finished, or someone pressed Stop) get the same check as a
+// reply sent after the run: a run picked up from one of them reads the thread, so it sees the
+// rest too, and pickUp starts at most one.
+export async function checkLeftovers(
+  ctx: MutationCtx,
+  finished: Doc<"improvements">,
+) {
+  const left = (finished.untaggedReplies ?? []).filter(
+    (u) => !u.edited && u.messageId,
+  );
+  if (!finished.untaggedReplies?.length) return;
+  await ctx.db.patch(finished._id, { untaggedReplies: undefined });
+  if (!left.length) return;
+  if ((await threadSettings(ctx, finished.threadId))?.muted) return;
+  const runs = await threadRuns(ctx, finished.threadId);
+  // A follow-up that starts now reads the thread, replies included.
+  if (runs.some((r) => r.status === "queued")) return;
+  for (const u of left)
+    await scheduleCheck(
+      ctx,
+      finished.threadId,
+      u.messageId!,
+      runs,
+      await threadSettings(ctx, finished.threadId),
+    );
+}
+
+async function scheduleCheck(
+  ctx: MutationCtx,
+  threadId: Id<"messages">,
+  messageId: Id<"messages">,
+  runs: Doc<"improvements">[],
+  settings: Doc<"claudeThreads"> | null,
+) {
   // A running chat task falls through: if the reply is a request, it waits for that task
   // like a tagged one would.
   const latest = runs[0];
@@ -107,14 +151,8 @@ export async function handleUntaggedReply(
   const checks = (settings?.checks ?? []).filter((t) => t > now - DAY);
   if (checks.length >= UNTAGGED_CHECKS_PER_DAY) return;
   if (settings) await ctx.db.patch(settings._id, { checks: [...checks, now] });
-  else
-    await ctx.db.insert("claudeThreads", {
-      threadId: args.threadId,
-      checks: [now],
-    });
-  await ctx.scheduler.runAfter(0, internal.untagged.check, {
-    messageId: args.messageId,
-  });
+  else await ctx.db.insert("claudeThreads", { threadId, checks: [now] });
+  await ctx.scheduler.runAfter(0, internal.untagged.check, { messageId });
 }
 
 // The thread as the classifier sees it: the last few messages, with Claude's cards as what

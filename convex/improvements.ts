@@ -35,7 +35,7 @@ import { getClaude } from "./lib/claude";
 import { postMessage } from "./lib/messages";
 import { emptyDoc, type RichNode } from "./lib/richtext";
 import { publicMember, requireAdmin, requireMember } from "./lib/viewer";
-import { setMuted } from "./untagged";
+import { checkLeftovers, setMuted } from "./untagged";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -388,6 +388,7 @@ export async function releaseWaiting(
   ctx: MutationCtx,
   finished: Doc<"improvements">,
 ) {
+  if (!finished.kind) await checkLeftovers(ctx, finished);
   const waiters = await ctx.db
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", finished.threadId))
