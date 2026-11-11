@@ -133,6 +133,7 @@ How a run goes:
 - `convex/schema.ts` (`ADDITIVE_ONLY_PATHS`) only merges on its own when its diff adds lines and removes none.
 - `CLAUDE.md` goes to the merge review like other files, which asks what the change tells agents to do; a new `@` import in it always waits, since the review wouldn't see the imported file.
 - Everything else is read by `MERGE_REVIEW_MODEL` (Opus) with the request, the diff, and every changed server file in full, against a fixed checklist (`lib/improve-finish.ts#CHECKLIST`); any yes means review.
+- Checklist questions marked `judged` (calling outside sites, scheduled jobs and rate limits, doing more than asked) can also be answered "safe" with a one-line reason, which passes; the others (caller checks, private data, data loss, secrets and email, sign-in/payments/@Claude, schema, CLAUDE.md instructions, load, obscure code) only pass on "no".
 - The review's answers are posted as a comment on the PR.
 - At most `BACKEND_AUTOMERGES_PER_DAY` changes under `convex/` merge without an admin in 24 hours (`server.ts#backendAutoMerges`).
 - Settings (merge policy, models, rate limits, paths that always need review) are in `convex/lib/improve.ts`.
@@ -198,7 +199,8 @@ Replies without @Claude:
 - Replies the agent never took (sent after it finished, or after Stop) are checked like later replies when the run ends (`untagged.ts#checkLeftovers`, from `releaseWaiting`), unless a follow-up is about to start.
 - If the member who asked edits their request message while the code run is going, `chat.edit` queues the new text the same way (`untagged.ts#noteEditedRequest`, marked `edited`), and the agent reads it as a follow-up note.
 - Editing a request that's still queued just updates it.
-- After that, for a day after Claude's last run in the thread, `untagged.check` asks `CLASSIFIER_MODEL` whether the reply is a request for Claude.
+- After that, for a day after Claude's last run in the thread, `untagged.check` asks `CLASSIFIER_MODEL` whether the reply is meant for Claude.
+- It answers yes for requests, questions to Claude, and feedback, and when unsure; no only when the reply is clearly for someone else (it @mentions another member, say) or is only thanks or a reaction.
 - `untagged.check` runs at most `UNTAGGED_CHECKS_PER_DAY` times per thread, counted in `claudeThreads.checks`.
 - If it is a request, `untagged.pickUp` calls `startFromMessage` with `untagged`, which stays silent if limits stop it.
 - Such a run is marked (`untagged`, shown on the card), and the agent is told to stay out of it if it was really a conversation.

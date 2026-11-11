@@ -9,8 +9,10 @@
 //   run ends (checkLeftovers), like replies sent after it.
 // - While a run is queued, nothing happens: its brief is read from the thread when it starts.
 // - Otherwise, for a day after Claude's last run in the thread, a quick model call (check)
-//   decides whether the reply asks Claude for something. If it does, pickUp starts a run as
-//   if the reply had been tagged, and the card says so.
+//   decides whether the reply is meant for Claude. Most replies in a thread Claude worked in
+//   are, so it says yes unless the reply is clearly for someone else (it mentions another
+//   member, say) or needs nothing from Claude (only thanks or a reaction). If it says yes,
+//   pickUp starts a run as if the reply had been tagged, and the card says so.
 //
 // Never in #check-ins, whose text stays behind its gate. `@Claude !mute` in a thread turns all
 // of this off there (improvements.startFromMessage), and `@Claude !unmute` turns it back on.
@@ -32,6 +34,7 @@ import {
   UNTAGGED_PER_RUN,
   UNTAGGED_WINDOW_MS,
 } from "./lib/improve";
+import { mentionIds, type RichNode } from "./lib/richtext";
 import { canEnter, isAdminEmail } from "./lib/viewer";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -189,15 +192,23 @@ export const context = internalQuery({
       lines.push(`${names.get(r.authorId)}: ${text.slice(0, 2000)}`);
     }
     const author = await ctx.db.get(m.authorId);
+    // Who the reply @mentions (never Claude: a reply that mentions Claude is tagged).
+    const mentions: string[] = [];
+    for (const raw of mentionIds(JSON.parse(m.body) as RichNode)) {
+      const id = ctx.db.normalizeId("members", raw);
+      const name = id ? (await ctx.db.get(id))?.name : undefined;
+      if (name && !mentions.includes(name)) mentions.push(name);
+    }
     return {
       thread: lines,
       author: author?.name ?? "A member",
       text: m.text.slice(0, 4000),
+      mentions,
     };
   },
 });
 
-// Asks a quick model whether the reply is a request for Claude.
+// Asks a quick model whether the reply is meant for Claude.
 export const check = internalAction({
   args: { messageId: v.id("messages") },
   handler: async (ctx, { messageId }) => {
@@ -221,7 +232,9 @@ export const check = internalAction({
             {
               role: "system",
               content:
-                'In a writing club\'s chat, members ask Claude, an AI agent, to change the club\'s website or to look things up and post in chat. Claude has already worked in this thread. A member just replied without mentioning @Claude. Decide whether the reply asks Claude to do something now: a new instruction, a correction, a retry, or more work on what Claude did ("also make it blue", "can you try again", "that broke the menu"). Members also talk to each other in these threads. Thanks, praise, reactions, reports that it works, questions to other members, and general discussion are not requests. When unsure, answer no. ' +
+                "In a writing club's chat, members ask Claude, an AI agent, to change the club's website or to look things up and post in chat. Claude has already worked in this thread, so most replies in it are meant for Claude. A member just replied without mentioning @Claude. Decide whether Claude should take it up. " +
+                'Answer yes when the reply asks Claude to do something (an instruction, a correction, a retry, more work: "also make it blue", "that broke the menu"), asks Claude a question (including about what it did or why: "why did that need an admin?"), or gives feedback Claude could act on. Also answer yes when you can\'t tell who it\'s for. ' +
+                'Answer no only when it\'s clearly not for Claude: it @mentions or names another member and not Claude, it answers or asks another member something, it carries on a conversation between members, or it\'s only thanks, praise, or a reaction with nothing to do or answer ("thanks!", "nice", "works now"). ' +
                 'Answer with JSON {"request": true|false, "reason": "<under 12 words>"}.',
             },
             {
@@ -229,6 +242,9 @@ export const check = internalAction({
               content: [
                 `Thread so far:\n${brief.thread.join("\n\n").slice(-20_000)}`,
                 `New reply from ${brief.author}:\n${brief.text}`,
+                brief.mentions.length
+                  ? `It @mentions: ${brief.mentions.join(", ")}`
+                  : "It @mentions no one.",
               ].join("\n\n"),
             },
           ],
@@ -248,7 +264,7 @@ export const check = internalAction({
   },
 });
 
-// Starts a run from a reply the classifier judged a request, unless things changed since:
+// Starts a run from a reply the classifier judged meant for Claude, unless things changed since:
 // the reply was deleted, the thread was muted, or a run started after it (its brief has it).
 export const pickUp = internalMutation({
   args: { messageId: v.id("messages"), reason: v.string() },

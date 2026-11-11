@@ -5,6 +5,8 @@
 // automerge: merge whenever typecheck and lint pass.
 // classify: a second model call (MERGE_REVIEW_MODEL) answers a fixed checklist about the
 // change (lib/improve-finish.ts#CHECKLIST); any yes means a PR for an admin, else it merges.
+// A few questions (calling outside sites, scheduled jobs, small extras) can also be answered
+// "safe" with a reason, which passes.
 export const MERGE_POLICY: "review" | "automerge" | "classify" = "classify";
 
 // Production builds on Vercel push convex/ before building the site (buildCommand in

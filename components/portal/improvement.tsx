@@ -273,8 +273,8 @@ export function ImprovementCard({
 function UntaggedNote() {
   return (
     <p className="text-[14px] text-ink-muted">
-      This reply didn’t mention me, but it read like a request, so I picked it
-      up. Write “@Claude !mute” to stop that in this thread.
+      This reply didn’t mention me, but it read like it was for me, so I picked
+      it up. Write “@Claude !mute” to stop that in this thread.
     </p>
   );
 }
