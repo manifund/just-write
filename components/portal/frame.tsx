@@ -17,6 +17,7 @@ import { signOut } from "@/lib/auth-client";
 import { chatLinkClick, useChatUrl } from "@/lib/chat-url";
 import { deviceSubscription, setAppBadge } from "@/lib/push";
 import { Avatar } from "./avatar";
+import { CommandPalette, isMac, portalSections } from "./command-palette";
 import { PortalProvider, usePortal } from "./context";
 import { useRoom } from "./presence";
 import { profilePath, READER_LABEL } from "./util";
@@ -166,6 +167,7 @@ function Shell({ children }: { children: ReactNode }) {
   // Includes channel switches, which don't go through the router (lib/chat-url.ts).
   const { pathname } = useChatUrl();
   const [open, setOpen] = useState(false);
+  const [palette, setPalette] = useState(false);
   const [lastPath, setLastPath] = useState(pathname);
   const rootRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
@@ -201,8 +203,9 @@ function Shell({ children }: { children: ReactNode }) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <Sidebar />
+        <Sidebar onJump={() => setPalette(true)} />
       </aside>
+      <CommandPalette open={palette} setOpen={setPalette} />
       <button
         ref={shadeRef}
         type="button"
@@ -396,7 +399,7 @@ function ReadonlyBanner() {
 const navLink =
   "flex items-center gap-2.5 px-3 py-1.5 text-[16px] no-underline transition-colors hover:bg-cream/8";
 
-function Sidebar() {
+function Sidebar({ onJump }: { onJump: () => void }) {
   const { me, viewer } = usePortal();
   const { pathname } = useChatUrl();
   const channels = useQuery(api.chat.channels);
@@ -441,67 +444,38 @@ function Sidebar() {
         Just <span className="text-brass-light">Write</span>
       </Link>
 
+      <button
+        type="button"
+        onClick={onJump}
+        className="mx-6 -mt-2 flex cursor-pointer items-center gap-2 border border-cream/20 px-3 py-1.5 text-left text-[15px] text-wash-light transition-colors hover:bg-cream/8"
+      >
+        Jump to…
+        <kbd className="ml-auto hidden font-body text-[13px] opacity-70 md:inline">
+          {isMac() ? "⌘K" : "Ctrl+K"}
+        </kbd>
+      </button>
+
       <nav aria-label="Portal" className="flex flex-col px-3">
-        <Link href="/home" className={cls("/home")}>
-          <span aria-hidden="true" className="w-5 text-center">
-            ✦
-          </span>{" "}
-          Home
-        </Link>
-        <Link
-          href="/activity"
-          className={`${cls("/activity")} ${unreadActivity ? "font-bold text-cream" : ""}`}
-        >
-          <span aria-hidden="true" className="w-5 text-center">
-            @
-          </span>{" "}
-          Activity
-          {!!unreadActivity && !active("/activity") && (
-            <span className="ml-auto min-w-5 rounded-full bg-brass-light px-1.5 text-center text-[13px] leading-5 font-bold text-ink">
-              {unreadActivity}
-            </span>
-          )}
-        </Link>
-        <Link href="/calendar" className={cls("/calendar")}>
-          <span aria-hidden="true" className="w-5 text-center">
-            ◫
-          </span>{" "}
-          Calendar
-        </Link>
-        <Link href="/ideas" className={cls("/ideas")}>
-          <span aria-hidden="true" className="w-5 text-center">
-            ☆
-          </span>{" "}
-          Ideas
-        </Link>
-        <Link href="/themes" className={cls("/themes")}>
-          <span aria-hidden="true" className="w-5 text-center">
-            ¶
-          </span>{" "}
-          Themes
-        </Link>
-        <Link href="/members" className={cls("/members")}>
-          <span aria-hidden="true" className="w-5 text-center">
-            ◎
-          </span>{" "}
-          Members
-        </Link>
-        {viewer.isAdmin && (
-          <Link href="/admin" className={cls("/admin")}>
-            <span aria-hidden="true" className="w-5 text-center">
-              ⚙
-            </span>{" "}
-            Admin
-          </Link>
-        )}
-        {viewer.isAdmin && (
-          <Link href="/improvements" className={cls("/improvements")}>
-            <span aria-hidden="true" className="w-5 text-center">
-              ✳
-            </span>{" "}
-            Improvements
-          </Link>
-        )}
+        {portalSections(viewer.isAdmin).map((section) => {
+          const activity = section.href === "/activity";
+          return (
+            <Link
+              key={section.href}
+              href={section.href}
+              className={`${cls(section.href)} ${activity && unreadActivity ? "font-bold text-cream" : ""}`}
+            >
+              <span aria-hidden="true" className="w-5 text-center">
+                {section.icon}
+              </span>{" "}
+              {section.label}
+              {activity && !!unreadActivity && !active("/activity") && (
+                <span className="ml-auto min-w-5 rounded-full bg-brass-light px-1.5 text-center text-[13px] leading-5 font-bold text-ink">
+                  {unreadActivity}
+                </span>
+              )}
+            </Link>
+          );
+        })}
       </nav>
 
       <nav
