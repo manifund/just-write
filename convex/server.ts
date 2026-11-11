@@ -29,6 +29,7 @@ import {
   branchFor,
   hashRunToken,
   readRequest,
+  type Effort,
 } from "./lib/improve";
 import { appendLogs } from "./lib/improveLogs";
 import { CHECK_IN_SLUG } from "./lib/channels";
@@ -840,15 +841,26 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
     .query("improvements")
     .withIndex("by_thread", (q) => q.eq("threadId", r.threadId))
     .collect();
-  const out = [];
+  const out: {
+    author: string;
+    text: string;
+    tagged?: boolean;
+    edited?: boolean;
+    effort?: Effort;
+  }[] = [];
+  let effort = r.effort;
   for (const w of rows) {
     // A chat task sent during a code run gets its own run (and the other way round).
     if (w.waitingOn !== id || w.status !== "queued" || w.kind !== r.kind)
       continue;
+    const asked = readRequest(w.request);
     // A part of a split request can't tell which part a follow-up is about, and a request to
     // split needs its own runs, so those wait for this run to end (releaseWaiting).
     // A restart wants a fresh session, so it never joins the one it's restarting.
-    if (r.split || w.restart || readRequest(w.request).parallel) continue;
+    if (r.split || w.restart || asked.parallel) continue;
+    // "!new" or "!pr 40" for another PR asks for a different PR than this run's, so it waits
+    // and picks its PR when this run ends (lib/improve-target.ts).
+    if (asked.newPr || (asked.pr !== null && asked.pr !== r.prNumber)) continue;
     // A run already tied to another PR's branch (server.fixConflicts) can't be done here,
     // since this run only pushes to its own branch; it starts on its own when this one ends.
     if (w.previousId && w.branch !== r.branch) continue;
@@ -861,8 +873,16 @@ export async function takeFollowUps(ctx: MutationCtx, r: Doc<"improvements">) {
       ),
     });
     const author = await ctx.db.get(w.requesterId);
-    out.push({ author: author?.name ?? "A member", text: w.request });
+    // "!effort high" switches the running agent's effort (the runner applies it), and the
+    // run keeps it for its card and for follow-ups that continue it.
+    if (asked.effort) effort = asked.effort;
+    out.push({
+      author: author?.name ?? "A member",
+      text: w.request,
+      ...(asked.effort && { effort: asked.effort }),
+    });
   }
+  if (effort !== r.effort) await ctx.db.patch(id, { effort });
   // Untagged replies (convex/untagged.ts). They may be members talking to each
   // other, and the runner tells the agent so. Edits to the request come the same way.
   if (r.untaggedReplies?.length) {

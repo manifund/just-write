@@ -39,7 +39,8 @@ export function modelLabel(slug: string) {
 
 // The agent's effort level. A follow-up that doesn't set one keeps the effort of the run it
 // continues (convex/server.ts#continuePr), or else of the thread's latest earlier run that had
-// one (server.ts#threadEffort). Without any, the SDK uses the model's default.
+// one (server.ts#threadEffort). Without any, the SDK uses the model's default. Sent while a
+// code run is going, it switches that agent's effort (server.ts#takeFollowUps).
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 export type Effort = (typeof EFFORTS)[number];
 
@@ -168,7 +169,10 @@ export const HELP = {
     ["!code", "Change the site and open a PR."],
     ["!new", "Change the site in a new PR, not one already open here."],
     ["!pr 40", "Keep working on PR #40."],
-    ["!effort high", "How hard I think: low, medium, high, xhigh, or max."],
+    [
+      "!effort high",
+      "How hard I think: low, medium, high, xhigh, or max. Works while I’m working, too.",
+    ],
     [
       "!parallel",
       "Split a list of changes into separate runs and PRs that go at the same time.",
