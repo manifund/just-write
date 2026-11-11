@@ -40,8 +40,14 @@ export const notify = internalAction({
                 keys: { p256dh: s.p256dh, auth: s.auth },
               },
               JSON.stringify({ ...data.notification, body, badge }),
-              // A stalled push service shouldn't hold the action open.
-              { vapidDetails, TTL: 60 * 60 * 24, timeout: 10_000 },
+              // A stalled push service shouldn't hold the action open. "high" urgency: at
+              // the default ("normal"), FCM lets Android hold pushes while the phone dozes.
+              {
+                vapidDetails,
+                TTL: 60 * 60 * 24,
+                timeout: 10_000,
+                urgency: "high",
+              },
             );
           } catch (err) {
             // 404/410: the browser unsubscribed or the subscription expired.
