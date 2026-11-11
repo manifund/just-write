@@ -11,7 +11,7 @@
     "import:neon": "bun scripts/import-neon.ts"
   },
   "dependencies": {
-    "@convex-dev/better-auth": "^0.12.6",
+    "@convex-dev/better-auth": "^0.12.7",
     "@convex-dev/presence": "^0.4.0",
     "@neondatabase/serverless": "^1.2.0",
     "@openrouter/ai-sdk-provider": "^3.1.0",
