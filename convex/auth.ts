@@ -125,6 +125,11 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     plugins: [
       magicLink({
         expiresIn: 60 * 15,
+        // Store magic-link tokens hashed, so a Google sign-in's OAuth state (stored in the
+        // same verification table) can't be used as a magic link. Keep global
+        // `verification.storeIdentifier` unset. Workaround for GHSA-965c-763c-88jm until
+        // we're on better-auth >= 1.7.7.
+        storeToken: "hashed",
         sendMagicLink: async ({ email, url }) => {
           await sendEmail({
             to: email,
