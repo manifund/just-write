@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { messageUrls } from "@/convex/lib/linkMeta";
@@ -14,52 +14,98 @@ type Preview = FunctionReturnType<typeof api.linkPreviews.get>[number];
 
 // Cards for the outside links in a message, like the ones social sites show: the page's
 // title, description, and image. Links to members' essays get the essay card.
-// The author can remove any of them with the "x" on the card.
 export function LinkPreviews({
   messageId,
   body,
-  hidden,
-  canRemove,
 }: {
   messageId: string;
   body: string;
-  hidden?: string[];
-  canRemove?: boolean;
 }) {
-  const hide = useMutation(api.chat.hidePreview);
-  const [removed, setRemoved] = useState<string[]>([]);
-  const off = [...(hidden ?? []), ...removed];
-  const urls = messageUrls(body).filter((u) => !off.includes(u));
+  const urls = messageUrls(body);
   const previews = usePreviews(messageId, urls, body);
-  const shown = previews?.filter((p) => !off.includes(p.url));
-  if (!shown?.length) return null;
-  const onRemove =
-    canRemove && !messageId.startsWith(PENDING)
-      ? (url: string) => {
-          setRemoved((r) => [...r, url]);
-          hide({ messageId: messageId as Id<"messages">, url }).catch(() =>
-            setRemoved((r) => r.filter((u) => u !== url)),
-          );
-        }
-      : undefined;
+  const shown = previews?.filter((p) => p.essay || p.card) ?? [];
+  if (!shown.length) return null;
+  const inRow = shown.length > 1;
+  const cards = shown.map((p) =>
+    p.essay ? (
+      <EssayLinkCard key={p.url} preview={p} inRow={inRow} />
+    ) : (
+      <LinkCard key={p.url} preview={p} inRow={inRow} />
+    ),
+  );
+  return inRow ? (
+    <CardRow>{cards}</CardRow>
+  ) : (
+    <div className="mt-1.5">{cards}</div>
+  );
+}
+
+// Several cards sit side by side and scroll sideways when they don't fit, with arrows
+// and soft edges showing there's more.
+function CardRow({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const left = el.scrollLeft > 2;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setEdges((e) =>
+      e.left === left && e.right === right ? e : { left, right },
+    );
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    return () => ro.disconnect();
+  }, [measure]);
+  const go = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (el)
+      el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
+  const fade = 24;
+  const mask = `linear-gradient(to right, ${edges.left ? "transparent" : "#000"}, #000 ${fade}px, #000 calc(100% - ${fade}px), ${edges.right ? "transparent" : "#000"})`;
   return (
-    <div className="mt-1.5 flex flex-col gap-1.5">
-      {shown.map((p) =>
-        p.essay ? (
-          <EssayLinkCard
-            key={p.url}
-            preview={p}
-            onRemove={onRemove && (() => onRemove(p.url))}
-          />
-        ) : p.card ? (
-          <LinkCard
-            key={p.url}
-            preview={p}
-            onRemove={onRemove && (() => onRemove(p.url))}
-          />
-        ) : null,
-      )}
+    <div className="group/row relative mt-1.5 max-w-[42rem]">
+      <div
+        ref={ref}
+        onScroll={measure}
+        style={{ maskImage: mask, WebkitMaskImage: mask }}
+        className="flex snap-x snap-mandatory scroll-px-0 gap-2 overflow-x-auto overscroll-x-contain scroll-smooth pb-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
+      <RowArrow dir={-1} show={edges.left} onClick={() => go(-1)} />
+      <RowArrow dir={1} show={edges.right} onClick={() => go(1)} />
     </div>
+  );
+}
+
+function RowArrow({
+  dir,
+  show,
+  onClick,
+}: {
+  dir: 1 | -1;
+  show: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      tabIndex={show ? 0 : -1}
+      aria-hidden={!show}
+      aria-label={dir < 0 ? "Previous links" : "Next links"}
+      className={`absolute top-1/2 ${dir < 0 ? "left-1" : "right-1"} flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-ink/15 bg-cream text-[15px] leading-none text-ink shadow-sm transition-[opacity,transform,background-color] duration-200 hover:bg-cream-hover active:scale-95 ${show ? "opacity-90 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/row:opacity-100 focus-visible:opacity-100" : "pointer-events-none opacity-0"}`}
+    >
+      {dir < 0 ? "‹" : "›"}
+    </button>
   );
 }
 
@@ -94,10 +140,10 @@ export function EssayCard({
 
 function EssayLinkCard({
   preview: p,
-  onRemove,
+  inRow,
 }: {
   preview: Preview;
-  onRemove?: () => void;
+  inRow?: boolean;
 }) {
   const essay = p.essay!;
   const author = useMember(essay.authorId);
@@ -113,17 +159,17 @@ function EssayLinkCard({
         .filter(Boolean)
         .join(" · ")}
       themes={essay.themes}
-      onRemove={onRemove}
+      inRow={inRow}
     />
   );
 }
 
 function LinkCard({
   preview: p,
-  onRemove,
+  inRow,
 }: {
   preview: Preview;
-  onRemove?: () => void;
+  inRow?: boolean;
 }) {
   const card = p.card!;
   return (
@@ -135,7 +181,7 @@ function LinkCard({
       title={card.title}
       description={card.description}
       compact
-      onRemove={onRemove}
+      inRow={inRow}
     />
   );
 }
@@ -156,7 +202,7 @@ function CardFrame({
   meta,
   themes,
   compact,
-  onRemove,
+  inRow,
 }: {
   href: string;
   accent: string;
@@ -167,30 +213,19 @@ function CardFrame({
   meta?: string;
   themes?: string[];
   compact?: boolean;
-  onRemove?: () => void;
+  inRow?: boolean;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
   const showImage = image && broken !== image;
   return (
     <div
-      className={`group relative flex max-w-[25.5rem] flex-col border-l-[3px] ${accent} bg-cream-deep`}
+      className={`flex flex-col border-l-[3px] ${accent} bg-cream-deep ${inRow ? "w-60 shrink-0 snap-start" : "max-w-[22rem]"}`}
     >
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove preview"
-          title="Remove preview"
-          className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center bg-cream-deep/90 text-[16px] leading-none text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
-        >
-          ×
-        </button>
-      )}
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer nofollow ugc"
-        className="flex flex-col no-underline transition-colors hover:bg-cream-hover"
+        className="flex flex-1 flex-col no-underline transition-colors duration-150 hover:bg-cream-hover"
       >
         {showImage && (
           // eslint-disable-next-line @next/next/no-img-element -- page images from any host
@@ -200,28 +235,28 @@ function CardFrame({
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={() => setBroken(image)}
-            className={`block w-full object-cover ${compact ? "max-h-36" : "max-h-48"} aspect-[1.91/1]`}
+            className={`block w-full object-cover ${inRow ? "max-h-32" : compact ? "max-h-32" : "max-h-40"} aspect-[1.91/1]`}
           />
         )}
-        <span className="flex flex-col gap-0.5 px-3 py-2">
-          <span className="text-[11px] tracking-[0.1em] text-ink-muted uppercase">
+        <span className="flex flex-col gap-0.5 px-2.5 py-2">
+          <span className="truncate text-[10.5px] tracking-[0.1em] text-ink-muted uppercase">
             {kicker}
           </span>
           {title && (
             <span
-              className={`font-display leading-[1.2] font-[450] text-pretty ${compact ? "text-[15px]" : "text-[17px]"}`}
+              className={`font-display leading-[1.2] font-[450] text-pretty ${inRow ? "line-clamp-2 " : ""}${compact ? "text-[14px]" : "text-[16px]"}`}
             >
               {title}
             </span>
           )}
           {description && (
             <span
-              className={`text-[13px] leading-[1.35] text-ink-muted ${compact ? "line-clamp-2" : "line-clamp-3"}`}
+              className={`text-[12.5px] leading-[1.35] text-ink-muted ${compact || inRow ? "line-clamp-2" : "line-clamp-3"}`}
             >
               {description}
             </span>
           )}
-          {meta && <span className="text-[12px] text-ink-muted">{meta}</span>}
+          {meta && <span className="text-[11.5px] text-ink-muted">{meta}</span>}
         </span>
       </a>
       {!!themes?.length && <ThemeTags themes={themes} />}
@@ -231,12 +266,12 @@ function CardFrame({
 
 function ThemeTags({ themes }: { themes: string[] }) {
   return (
-    <div className="flex flex-wrap gap-1 px-3 pb-2">
+    <div className="flex flex-wrap gap-1 px-2.5 pb-2">
       {themes.map((t) => (
         <Link
           key={t}
           href="/themes"
-          className="border border-ink/20 px-1.5 py-0.5 text-[12px] text-ink-muted no-underline transition-colors hover:bg-cream-hover"
+          className="border border-ink/20 px-1.5 py-px text-[11.5px] text-ink-muted no-underline transition-colors hover:bg-cream-hover"
         >
           {t}
         </Link>

@@ -259,12 +259,7 @@ export function Message({
           <div className="text-[17px] leading-[1.35]">
             <RichText body={m.body} />
             <MessageLinkPreviews body={m.body} />
-            <LinkPreviews
-              messageId={m._id}
-              body={m.body}
-              hidden={m.hiddenPreviews}
-              canRemove={mine}
-            />
+            <LinkPreviews messageId={m._id} body={m.body} />
             {m.postedFor && (
               <p className="mt-1 text-[13px] text-ink-muted">
                 Posted for {m.postedFor.name} ·{" "}
