@@ -228,6 +228,9 @@ export default defineSchema({
           authorId: v.id("members"),
           text: v.string(),
           edited: v.optional(v.boolean()),
+          // The reply itself, so one the agent never took can be checked when the run ends
+          // (convex/untagged.ts#checkLeftovers).
+          messageId: v.optional(v.id("messages")),
         }),
       ),
     ),
