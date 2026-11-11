@@ -3,18 +3,24 @@
 
 // review: always open a PR for an admin to merge.
 // automerge: merge whenever typecheck and lint pass.
-// classify: a second model call decides per change (small and low-risk → merge; else PR).
+// classify: a second model call (MERGE_REVIEW_MODEL) answers a fixed checklist about the
+// change (lib/improve-finish.ts#CHECKLIST); any yes means a PR for an admin, else it merges.
 export const MERGE_POLICY: "review" | "automerge" | "classify" = "classify";
 
 // Production builds on Vercel push convex/ before building the site (buildCommand in
 // vercel.json, using the CONVEX_DEPLOY_KEY env var), so merged backend changes deploy themselves.
 // Set to false to make every change under convex/ wait for review.
 export const CONVEX_AUTODEPLOY = true;
+// There's no test backend, so at most this many changes under convex/ merge without an admin
+// in 24 hours (counted in convex/server.ts#startFinish); after that they wait for review.
+export const BACKEND_AUTOMERGES_PER_DAY = 5;
 
 export const REPO = "manifund/just-write";
 export const SANDBOX_ROOT = "/vercel/just-write"; // where Vercel Sandbox clones the repo
 export const AGENT_MODEL = "anthropic/claude-opus-5.5"; // OpenRouter slug
-export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5";
+export const CLASSIFIER_MODEL = "anthropic/claude-sonnet-5.5"; // quick calls about a request
+// Reads every change that could merge without an admin (lib/improve-finish.ts#review).
+export const MERGE_REVIEW_MODEL = "anthropic/claude-opus-5.5";
 
 // "anthropic/claude-opus-5.5" → "Opus 5.5", for the card (improvements.ts#cardOf).
 export function modelLabel(slug: string) {
@@ -208,24 +214,27 @@ export const CLAUDE_EMAIL = "claude@bot.invalid";
 
 // Paths a change can't touch and still merge without review, whatever the policy. This is a
 // denylist: other server code (pages, server actions, Convex functions) can still read env and
-// is left to the classifier. Set MERGE_POLICY to "review" to take the classifier out of it.
+// is left to the merge review, which also reads those files whole. Set MERGE_POLICY to
+// "review" to take the review out of it. convex/chat.ts (the #check-ins gate) and
+// convex/activity.ts aren't here: the review's checklist asks about check-in text directly.
 export const SENSITIVE_PATHS = [
-  /^convex\/schema\.ts$/,
   /^convex\/auth/,
-  /^convex\/(server|runner|chatTasks|http|crons|previewAccess|convex\.config)\.ts$/,
-  // What keeps chat tasks' data and #check-ins text members-only.
-  /^convex\/(improvements|chat|activity)\.ts$/,
+  /^convex\/(server|runner|chatTasks|untagged|prSync|http|crons|previewAccess|convex\.config)\.ts$/,
+  // Runs and their logs, which quote chat and chat tasks' members-only data.
+  /^convex\/improvements\.ts$/,
   /^convex\/lib\/(markdown|richtext|channels)\.ts$/,
-  /^convex\/lib\/(viewer|improve|messages|email|claude)\.ts$/,
+  /^convex\/lib\/(viewer|improve|improveLogs|messages|email|claude)\.ts$/,
   /^convex\/(gcal|pushAction|similarAction)\.ts$/,
   /^app\/api\//,
   /^app\/\(site\)\/commit\//,
   /^app\/\(portal\)\/\(private\)\/(improvements|admin)\//,
-  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-finish|improve-target|improve-kind|chat-task-sandbox|club-snapshot)\.ts$/,
+  /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-[\w-]+|time-limit|chat-task-sandbox|club-snapshot)\.ts$/,
   /^scripts\//,
   /^\.github\//,
-  // Instructions and hooks every agent run loads, chat tasks included.
-  /^(CLAUDE|AGENTS)\.md$/,
+  // Instructions and hooks every agent run loads, chat tasks included. The root CLAUDE.md
+  // goes to the merge review, which asks what the change tells agents; nested and .local
+  // ones always wait.
+  /^(?!CLAUDE\.md$)(.*\/)?(CLAUDE|AGENTS)(\.local)?\.md$/,
   /^\.claude\//,
   /^public\/sw\.js$/, // the service worker runs in every member's browser
   /^package\.json$/,
@@ -238,6 +247,10 @@ export const SENSITIVE_PATHS = [
   /(^|\/)\.gitattributes$/,
   /(^|\/)\.env/,
 ];
+
+// Paths that can merge without review only when their diff adds lines and removes none, and
+// the merge review agrees: new tables, indexes, and optional fields in the schema.
+export const ADDITIVE_ONLY_PATHS = [/^convex\/schema\.ts$/];
 
 // Sandboxes are saved when they stop and kept this long, so a follow-up in the same
 // thread resumes with the clone, node_modules, and the agent's session already there.
