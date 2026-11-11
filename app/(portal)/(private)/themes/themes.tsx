@@ -31,7 +31,7 @@ export function Themes() {
   }, [data?.stale, data?.working, request]);
 
   return (
-    <main className="mx-auto flex max-w-[76rem] flex-col gap-[clamp(28px,5vh,48px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
+    <main className="mx-auto flex w-full max-w-[76rem] min-w-0 flex-col gap-[clamp(28px,5vh,48px)] px-[clamp(20px,4vw,56px)] py-[clamp(24px,5vh,56px)]">
       <header className="flex flex-col gap-3">
         <h1 className="font-display text-[clamp(38px,5.2vw,64px)] leading-none font-[340] tracking-[-0.025em]">
           What we’re <em className="wonk text-brass-numeral">writing about</em>
@@ -129,7 +129,7 @@ function Cloud({ words }: { words: Word[] }) {
               onMouseEnter={() => setActive(w)}
               onFocus={() => setActive(w)}
               onClick={() => setActive(w)}
-              className={`cursor-default font-display leading-[1.15] transition-opacity outline-none focus-visible:underline ${
+              className={`max-w-full cursor-default font-display leading-[1.15] [overflow-wrap:anywhere] transition-opacity outline-none focus-visible:underline ${
                 rank < 8
                   ? "text-brass-text"
                   : rank < 30
@@ -137,7 +137,8 @@ function Cloud({ words }: { words: Word[] }) {
                     : "text-ink-muted"
               } ${active && active !== w ? "opacity-45" : ""}`}
               style={{
-                fontSize: `${Math.round(15 + s * 45)}px`,
+                // Cap big words on narrow screens so one word fits the width.
+                fontSize: `min(${Math.round(15 + s * 45)}px, 11vw)`,
                 fontWeight: Math.round(340 + s * 120),
               }}
             >
@@ -161,7 +162,7 @@ function Cloud({ words }: { words: Word[] }) {
         <ol className="mt-3 columns-[14rem] gap-x-8">
           {words.map((w) => (
             <li key={w.word} className="flex justify-between gap-3 py-0.5">
-              <span>{w.word}</span>
+              <span className="min-w-0 [overflow-wrap:anywhere]">{w.word}</span>
               <span className="text-ink-muted tabular-nums">
                 {w.uses} in {plural(w.essays, "essay")}
               </span>
@@ -198,9 +199,12 @@ function ThemeCards({
           {overview}
         </p>
       )}
-      <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sorted.map((t) => (
-          <li key={t.name} className="flex flex-col gap-3 bg-cream-deep p-5">
+          <li
+            key={t.name}
+            className="flex min-w-0 flex-col gap-3 bg-cream-deep p-5"
+          >
             <div className="flex flex-col gap-2">
               <h3 className="font-display text-[24px] leading-tight font-[420]">
                 {t.name}
