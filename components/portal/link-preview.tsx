@@ -14,23 +14,49 @@ type Preview = FunctionReturnType<typeof api.linkPreviews.get>[number];
 
 // Cards for the outside links in a message, like the ones social sites show: the page's
 // title, description, and image. Links to members' essays get the essay card.
+// The author can remove any of them with the "x" on the card.
 export function LinkPreviews({
   messageId,
   body,
+  hidden,
+  canRemove,
 }: {
   messageId: string;
   body: string;
+  hidden?: string[];
+  canRemove?: boolean;
 }) {
-  const urls = messageUrls(body);
+  const hide = useMutation(api.chat.hidePreview);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const off = [...(hidden ?? []), ...removed];
+  const urls = messageUrls(body).filter((u) => !off.includes(u));
   const previews = usePreviews(messageId, urls, body);
-  if (!previews?.length) return null;
+  const shown = previews?.filter((p) => !off.includes(p.url));
+  if (!shown?.length) return null;
+  const onRemove =
+    canRemove && !messageId.startsWith(PENDING)
+      ? (url: string) => {
+          setRemoved((r) => [...r, url]);
+          hide({ messageId: messageId as Id<"messages">, url }).catch(() =>
+            setRemoved((r) => r.filter((u) => u !== url)),
+          );
+        }
+      : undefined;
   return (
     <div className="mt-1.5 flex flex-col gap-1.5">
-      {previews.map((p) =>
+      {shown.map((p) =>
         p.essay ? (
-          <EssayLinkCard key={p.url} preview={p} />
+          <EssayLinkCard
+            key={p.url}
+            preview={p}
+            onRemove={onRemove && (() => onRemove(p.url))}
+          />
         ) : p.card ? (
-          <LinkCard key={p.url} preview={p} />
+          <LinkCard
+            key={p.url}
+            preview={p}
+            onRemove={onRemove && (() => onRemove(p.url))}
+          />
         ) : null,
       )}
     </div>
@@ -66,7 +92,13 @@ export function EssayCard({
   );
 }
 
-function EssayLinkCard({ preview: p }: { preview: Preview }) {
+function EssayLinkCard({
+  preview: p,
+  onRemove,
+}: {
+  preview: Preview;
+  onRemove?: () => void;
+}) {
   const essay = p.essay!;
   const author = useMember(essay.authorId);
   return (
@@ -81,11 +113,18 @@ function EssayLinkCard({ preview: p }: { preview: Preview }) {
         .filter(Boolean)
         .join(" · ")}
       themes={essay.themes}
+      onRemove={onRemove}
     />
   );
 }
 
-function LinkCard({ preview: p }: { preview: Preview }) {
+function LinkCard({
+  preview: p,
+  onRemove,
+}: {
+  preview: Preview;
+  onRemove?: () => void;
+}) {
   const card = p.card!;
   return (
     <CardFrame
@@ -96,6 +135,7 @@ function LinkCard({ preview: p }: { preview: Preview }) {
       title={card.title}
       description={card.description}
       compact
+      onRemove={onRemove}
     />
   );
 }
@@ -116,6 +156,7 @@ function CardFrame({
   meta,
   themes,
   compact,
+  onRemove,
 }: {
   href: string;
   accent: string;
@@ -126,13 +167,25 @@ function CardFrame({
   meta?: string;
   themes?: string[];
   compact?: boolean;
+  onRemove?: () => void;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
   const showImage = image && broken !== image;
   return (
     <div
-      className={`flex max-w-[34rem] flex-col border-l-4 ${accent} bg-cream-deep`}
+      className={`group relative flex max-w-[25.5rem] flex-col border-l-[3px] ${accent} bg-cream-deep`}
     >
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove preview"
+          title="Remove preview"
+          className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center bg-cream-deep/90 text-[16px] leading-none text-ink-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        >
+          ×
+        </button>
+      )}
       <a
         href={href}
         target="_blank"
@@ -147,28 +200,28 @@ function CardFrame({
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={() => setBroken(image)}
-            className={`block w-full object-cover ${compact ? "max-h-48" : "max-h-64"} aspect-[1.91/1]`}
+            className={`block w-full object-cover ${compact ? "max-h-36" : "max-h-48"} aspect-[1.91/1]`}
           />
         )}
-        <span className="flex flex-col gap-1 px-4 py-3">
-          <span className="text-[12px] tracking-[0.1em] text-ink-muted uppercase">
+        <span className="flex flex-col gap-0.5 px-3 py-2">
+          <span className="text-[11px] tracking-[0.1em] text-ink-muted uppercase">
             {kicker}
           </span>
           {title && (
             <span
-              className={`font-display leading-[1.2] font-[450] text-pretty ${compact ? "text-[18px]" : "text-[21px]"}`}
+              className={`font-display leading-[1.2] font-[450] text-pretty ${compact ? "text-[15px]" : "text-[17px]"}`}
             >
               {title}
             </span>
           )}
           {description && (
             <span
-              className={`text-[15px] leading-[1.35] text-ink-muted ${compact ? "line-clamp-2" : "line-clamp-3"}`}
+              className={`text-[13px] leading-[1.35] text-ink-muted ${compact ? "line-clamp-2" : "line-clamp-3"}`}
             >
               {description}
             </span>
           )}
-          {meta && <span className="text-[14px] text-ink-muted">{meta}</span>}
+          {meta && <span className="text-[12px] text-ink-muted">{meta}</span>}
         </span>
       </a>
       {!!themes?.length && <ThemeTags themes={themes} />}
@@ -178,12 +231,12 @@ function CardFrame({
 
 function ThemeTags({ themes }: { themes: string[] }) {
   return (
-    <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+    <div className="flex flex-wrap gap-1 px-3 pb-2">
       {themes.map((t) => (
         <Link
           key={t}
           href="/themes"
-          className="border border-ink/20 px-2 py-0.5 text-[13px] text-ink-muted no-underline transition-colors hover:bg-cream-hover"
+          className="border border-ink/20 px-1.5 py-0.5 text-[12px] text-ink-muted no-underline transition-colors hover:bg-cream-hover"
         >
           {t}
         </Link>

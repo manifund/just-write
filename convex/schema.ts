@@ -134,6 +134,7 @@ export default defineSchema({
     editedAt: v.optional(v.number()),
     improvementId: v.optional(v.id("improvements")), // Claude's live status card for a run
     postedFrom: v.optional(v.id("improvements")), // Claude's post with a chat task's result
+    hiddenPreviews: v.optional(v.array(v.string())), // link card URLs the author removed
   })
     .index("by_channel_parent", ["channelId", "parentId"])
     .index("by_channel_parent_author", ["channelId", "parentId", "authorId"])

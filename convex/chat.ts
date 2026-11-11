@@ -16,6 +16,7 @@ import {
   RECENT_SIZE,
 } from "./lib/channels";
 import { forgetActivity } from "./lib/activity";
+import { messageUrls } from "./lib/linkMeta";
 import { essayExtras, themesRow } from "./lib/essayCard";
 import { postMessage } from "./lib/messages";
 import { nextPtMidnight } from "./lib/time";
@@ -612,6 +613,21 @@ export const edit = mutation({
     if (!text) throw new ConvexError("Write something first.");
     await ctx.db.patch(m._id, { body, text, editedAt: Date.now() });
     if (text !== m.text) await noteEditedRequest(ctx, m, text);
+  },
+});
+
+// The author removes one link card from their message; it stays off for everyone.
+export const hidePreview = mutation({
+  args: { messageId: v.id("messages"), url: v.string() },
+  handler: async (ctx, { messageId, url }) => {
+    const { member } = await requireMember(ctx);
+    const m = await ctx.db.get(messageId);
+    if (!m || m.authorId !== member._id)
+      throw new ConvexError("You can only change your own messages.");
+    if (!messageUrls(m.body).includes(url)) return;
+    const hidden = m.hiddenPreviews ?? [];
+    if (hidden.includes(url)) return;
+    await ctx.db.patch(m._id, { hiddenPreviews: [...hidden, url] });
   },
 });
 

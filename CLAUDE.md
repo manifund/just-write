@@ -77,6 +77,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 - Outside links in a chat message (up to 3) get a card with the page's Open Graph title, description, and image, saved once per URL in `linkPreviews`.
 - The client asks for missing cards with `linkPreviews.request`, which only fetches URLs found in that message (or its essay), and never local or private hosts (`convex/lib/linkMeta.ts#previewableUrl`).
 - Cards are refreshed after 7 days; pages that couldn't be read are retried after a day.
+- A message's author can remove any of its cards with the card's "x" (`chat.hidePreview`, saved in the message's `hiddenPreviews`); it stays off for everyone.
 - Essay posts in #published, and links to registered essays, show the essay card: cover image, Claude's one-sentence summary, its themes (linking to `/themes`), and length.
 - The summaries come from the same `themesAction.compute` call as the themes (`themes.summaries`), so a new essay gets one when themes next update.
 
