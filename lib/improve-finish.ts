@@ -401,9 +401,15 @@ async function decide(
       merge: false,
       why: `it changes or removes lines in ${rewritten.join(", ")}`,
     };
-  // "@path" in CLAUDE.md loads that file for every agent, and the review wouldn't see it.
-  if (addsImport(pr.modified.get("CLAUDE.md")))
-    return { merge: false, why: "it adds an @ import to CLAUDE.md" };
+  // The merge review reads CLAUDE.md changes as an edit in place. "@path" in it loads that
+  // file for every agent, and the review wouldn't see it.
+  if (pr.files.includes("CLAUDE.md")) {
+    const patch = pr.modified.get("CLAUDE.md");
+    if (!patch)
+      return { merge: false, why: "it adds, removes, or renames CLAUDE.md" };
+    if (addsImport(patch))
+      return { merge: false, why: "it adds an @ import to CLAUDE.md" };
+  }
   if (touchesConvex && backendAutoMerges >= BACKEND_AUTOMERGES_PER_DAY)
     return {
       merge: false,
@@ -504,7 +510,7 @@ const CHECKLIST = [
   {
     id: "instructions",
     question:
-      "Does a line added to CLAUDE.md do more than describe how the code works: tell agents to fetch, send, or post anything, handle members' data differently, treat requests differently, or set aside other rules?",
+      "Does a change to CLAUDE.md do more than describe how the code works: add or reword instructions that tell agents to fetch, send, or post anything, handle members' data differently, treat requests differently, or set aside other rules, or remove or weaken a rule about privacy, secrets, or what agents may do?",
     flag: "it changes what CLAUDE.md tells agents to do",
   },
   {

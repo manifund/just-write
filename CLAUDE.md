@@ -84,6 +84,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 **Themes** (`/themes`, members only; `convex/themes.ts`, `convex/themesAction.ts`):
 
 - A word cloud and Claude's themes across every essay that isn't rejected, linked from "Everyone's progress" on `/home`.
+- It's also in the portal sidebar, after Ideas.
 - Opening the page asks for an update (`themes.request`) when the set of essays changed, at most once an hour for everyone.
 - `themesAction.compute` reads each essay's page once into `essayTexts` (`convex/lib/essayText.ts#essayText`; public Google Docs through their text export) and retries pages with no readable text after 12h.
 - The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
@@ -110,7 +111,8 @@ How a run goes:
 - `lib/improve-finish.ts` reads those files out of the sandbox, commits them to `claude/<n>` through GitHub's API, and opens a PR.
 - It merges the PR if `MERGE_POLICY` allows, judged on GitHub's diff of the branch, not on what the sandbox says.
 - Changes to `SENSITIVE_PATHS` always wait for an admin.
-- `convex/schema.ts` and `CLAUDE.md` (`ADDITIVE_ONLY_PATHS`) only merge on their own when their diff adds lines and removes none; a new `@` import in CLAUDE.md waits too.
+- `convex/schema.ts` (`ADDITIVE_ONLY_PATHS`) only merges on its own when its diff adds lines and removes none.
+- `CLAUDE.md` goes to the merge review like other files, which asks what the change tells agents to do; a new `@` import in it always waits, since the review wouldn't see the imported file.
 - Everything else is read by `MERGE_REVIEW_MODEL` (Opus) with the request, the diff, and every changed server file in full, against a fixed checklist (`lib/improve-finish.ts#CHECKLIST`); any yes means review.
 - The review's answers are posted as a comment on the PR.
 - At most `BACKEND_AUTOMERGES_PER_DAY` changes under `convex/` merge without an admin in 24 hours (`server.ts#backendAutoMerges`).

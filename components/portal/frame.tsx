@@ -473,6 +473,12 @@ function Sidebar() {
           </span>{" "}
           Ideas
         </Link>
+        <Link href="/themes" className={cls("/themes")}>
+          <span aria-hidden="true" className="w-5 text-center">
+            ¶
+          </span>{" "}
+          Themes
+        </Link>
         <Link href="/members" className={cls("/members")}>
           <span aria-hidden="true" className="w-5 text-center">
             ◎

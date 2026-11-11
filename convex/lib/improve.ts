@@ -232,7 +232,8 @@ export const SENSITIVE_PATHS = [
   /^scripts\//,
   /^\.github\//,
   // Instructions and hooks every agent run loads, chat tasks included. The root CLAUDE.md
-  // can take added lines (ADDITIVE_ONLY_PATHS); nested and .local ones always wait.
+  // goes to the merge review, which asks what the change tells agents; nested and .local
+  // ones always wait.
   /^(?!CLAUDE\.md$)(.*\/)?(CLAUDE|AGENTS)(\.local)?\.md$/,
   /^\.claude\//,
   /^public\/sw\.js$/, // the service worker runs in every member's browser
@@ -248,10 +249,8 @@ export const SENSITIVE_PATHS = [
 ];
 
 // Paths that can merge without review only when their diff adds lines and removes none, and
-// the merge review agrees: new tables, indexes, and optional fields in the schema, and new
-// facts in CLAUDE.md. Every agent run loads CLAUDE.md, chat tasks included, so the review asks
-// what its new lines tell agents, and a line that imports another file ("@path") waits.
-export const ADDITIVE_ONLY_PATHS = [/^convex\/schema\.ts$/, /^CLAUDE\.md$/];
+// the merge review agrees: new tables, indexes, and optional fields in the schema.
+export const ADDITIVE_ONLY_PATHS = [/^convex\/schema\.ts$/];
 
 // Sandboxes are saved when they stop and kept this long, so a follow-up in the same
 // thread resumes with the clone, node_modules, and the agent's session already there.
