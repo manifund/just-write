@@ -1,0 +1,12 @@
+# The repo uses Bun (bun.lock), which the default npm_and_yarn ecosystem can't update.
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # One PR a week for minor and patch bumps; majors and security fixes get their own.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
