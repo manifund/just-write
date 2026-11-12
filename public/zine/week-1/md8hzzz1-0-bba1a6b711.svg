@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 560" role="img" aria-labelledby="title desc">
+  <title id="title">A practice session, start to finish</title>
+  <desc id="desc">Warm up with a few dances, share intentions, then alternate blocks of about 15 minutes in which one person focuses and the other supports, switching when the timer suggests it, and wrap up with just-for-fun dances.</desc>
+  <style>
+    text { font-family: "Iowan Old Style", "Source Serif 4", Charter, Georgia, serif; }
+    .ink { fill: #23201b; }
+    .muted { fill: #706a5f; }
+    .rail { stroke: #e4ded2; stroke-width: 2; }
+    .dot { fill: #a39c8e; }
+    .a { fill: #f2e6cc; }
+    .b { fill: #dce7f1; }
+    .loop { stroke: #a39c8e; stroke-width: 2; fill: none; }
+    .head { fill: #a39c8e; }
+    .h { font-size: 25px; font-weight: 600; }
+    .s { font-size: 20px; }
+    .cap { font-size: 15px; letter-spacing: 0.14em; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #e8e3d9; }
+      .muted { fill: #a49e91; }
+      .rail { stroke: #36322c; }
+      .dot, .head { fill: #7e786c; }
+      .loop { stroke: #7e786c; }
+      .a { fill: #3b3223; }
+      .b { fill: #23313d; }
+    }
+  </style>
+
+  <text class="cap muted" x="64" y="38">A PRACTICE SESSION</text>
+  <line class="rail" x1="36" y1="96" x2="36" y2="500"/>
+
+  <circle class="dot" cx="36" cy="96" r="7"/>
+  <text class="h ink" x="64" y="104">Warm up</text>
+  <text class="s muted" x="64" y="132">a few dances together</text>
+
+  <circle class="dot" cx="36" cy="186" r="7"/>
+  <text class="h ink" x="64" y="194">Share intentions</text>
+  <text class="s muted" x="64" y="222">what each of us wants to work on</text>
+
+  <rect class="a" x="54" y="250" width="440" height="80" rx="14"/>
+  <circle class="dot" cx="36" cy="290" r="7"/>
+  <text class="h ink" x="76" y="284">~15 min on A’s thing</text>
+  <text class="s muted" x="76" y="313">A focuses, B supports</text>
+
+  <rect class="b" x="54" y="342" width="440" height="80" rx="14"/>
+  <circle class="dot" cx="36" cy="382" r="7"/>
+  <text class="h ink" x="76" y="376">~15 min on B’s thing</text>
+  <text class="s muted" x="76" y="405">B focuses, A supports</text>
+
+  <path class="loop" d="M 500 382 C 574 382, 574 290, 508 290"/>
+  <path class="head" d="M 500 290 L 514 282 L 514 298 Z"/>
+  <text class="s muted" x="604" y="342" text-anchor="middle">repeat</text>
+
+  <text class="s muted" x="64" y="458">switch when the timer suggests it, not on a hard cutoff</text>
+
+  <circle class="dot" cx="36" cy="500" r="7"/>
+  <text class="h ink" x="64" y="508">Just-for-fun dances</text>
+  <text class="s muted" x="64" y="536">to wrap things up</text>
+</svg>

@@ -110,6 +110,12 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 - The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
 - Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
 
+**Zine** (`/zine`, members only; `docs/magazine.md`): the weekly print magazine.
+
+- `scripts/zine-cache.ts` saves a week's essays to `content/zine/week-<n>.json` (images in `public/zine/week-<n>/`); `/zine` reads those files at build time (traced in `next.config.ts`).
+- `lib/zine/document.ts` builds one HTML document from an issue and the design settings in `lib/zine/tweaks.ts`; Paged.js (`public/zine/vendor/`) lays it out. `/zine` previews it in an iframe and `scripts/zine-pdf.ts` prints it to PDF, so both always match.
+- Paged.js's CSS parser rejects `:is()`; write the selectors out.
+
 **@Claude improvements:** mentioning `@Claude` in chat asks an agent to change this site.
 
 - How to edit these @Claude sections: one fact per line. Add new facts as new bullets, and change a line only when the behavior it describes changes.

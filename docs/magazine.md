@@ -90,3 +90,13 @@ Full report: [reports/Weekly magazine printing options.md](../reports/Weekly%20m
 Mailing copies by hand from a box adds about $4–5 each at 6×9 (First-Class large envelope, up to 13 oz) or $7–9 and up at 8.5×11 (parcel rates), plus envelopes and packing time.
 
 (to resume: claude --resume 2030b164-9ac5-4606-b0f9-13ee6595cd16)
+
+## Pipeline (Nov 12, 2026)
+
+- `bun scripts/zine-cache.ts --week 1` saves the essays that fill that week's slot into `content/zine/week-1.json`, with their images in `public/zine/week-1/`. It reads the essays and members tables with `bunx convex data`, so it needs your Convex login. Pages are read with Readability; Google Docs, LessWrong, and Substack have their own paths. Week 1: 62 of 68 read. The 6 that failed (2 EA Forum posts behind a bot check, 2 Notion pages, 2 personal sites) are listed in /zine.
+- `lib/zine/document.ts` turns an issue plus design settings (`lib/zine/tweaks.ts`) into one HTML document, and Paged.js (`public/zine/vendor/`) lays it out into pages: cover, contents with page numbers, essays, colophon.
+- `/zine` (members, portal sidebar) shows that document in an iframe with the design controls beside it. Settings are saved in the browser. Print uses the browser's print dialog.
+- `bun scripts/zine-pdf.ts --week 1 --tweaks '<json>'` prints the same document to `out/zine/week-1.pdf` with headless Chrome: single pages at trim size plus 0.125 in bleed, fonts embedded, no crop marks. /zine's "Copy PDF command" gives the `--tweaks` for what's on screen.
+- Art: `content/zine/art.json` maps an essay id (or `cover`) to `{file, web?, alt?, credit?}`; /zine uses `web` and the PDF uses `file`.
+- Length: the full week 1 is ~121k words, 470 pages at 6×9 or ~215 at 8.5×11 in two columns. The Length setting cuts each essay to about 2–4 pages and ends it with a QR code to the original post.
+- Still to do: the cover as a separate wraparound file with a spine (printers want it apart from the interior), padding to a multiple of 4 pages, and checking that images are 300 ppi at their printed size.
