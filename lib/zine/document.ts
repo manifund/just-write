@@ -99,16 +99,20 @@ function qr(url: string) {
 // The box at the end of an essay that points to it online: "rest" words left when the
 // essay was cut short, 0 when it's printed in full.
 function online(e: ZineEssay, rest: number, withQr: boolean) {
-  const short = e.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  // The QR code has the full link; long paths are shortened so the text stays one line or two.
+  const bare = e.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  const short = bare.length > 52 ? `${bare.slice(0, 50)}…` : bare;
   const about = (Math.round(rest / 100) * 100 || rest).toLocaleString("en-US");
-  return `<aside class="continued${withQr ? "" : " no-qr"}">
-  ${withQr ? `<div class="qr">${qr(e.url)}</div>` : ""}
-  <div>
+  // A one-row table: Paged.js keeps a table cell with break-inside: avoid in one piece, but
+  // ignores that on a div and would put the QR code and the text on different pages.
+  return `<table class="continued${withQr ? "" : " no-qr"}"><tr>
+  ${withQr ? `<td class="qr">${qr(e.url)}</td>` : ""}
+  <td class="text">
     <div class="k">${rest ? "Continued online" : "Read online"}</div>
     <p>${rest ? `The rest of this essay, about ${about} more words, is at` : "This essay first appeared at"}</p>
     <p class="url">${esc(short)}</p>
-  </div>
-</aside>`;
+  </td>
+</tr></table>`;
 }
 
 // Orders essays by the Order setting.
@@ -292,15 +296,20 @@ ${t.justify ? ".essay-body p[data-split-to], .essay-body li[data-split-to] { tex
 .essay-body td, .essay-body th { border-bottom: .5pt solid color-mix(in srgb, var(--ink) 25%, transparent); padding: .25em .4em; vertical-align: top; }
 .essay-body sup { line-height: 0; font-size: .7em; }
 .essay-body .end-mark { color: var(--accent); font-size: .8em; padding-left: .5em; }
-.continued { display: flex; gap: .2in; align-items: center; margin-top: 1.4em; padding: .16in;
-  border: .6pt solid var(--accent); break-inside: avoid; column-span: all; text-align: left; hyphens: manual; }
-.continued.no-qr { padding: .12in .16in; }
-.continued .qr { flex: 0 0 .85in; width: .85in; height: .85in; }
-.continued .qr svg { width: 100%; height: 100%; display: block; }
+.continued { width: 100%; border-collapse: collapse; margin-top: 1.4em; border: .6pt solid var(--accent);
+  break-inside: avoid; column-span: all; text-align: left; hyphens: manual; }
+.continued td { break-inside: avoid; vertical-align: middle; padding: .16in; }
+.continued td.qr { width: .85in; padding-right: 0; }
+.continued td.qr svg { width: .85in; height: .85in; }
+.continued.no-qr td { padding: .12in .16in; }
+/* When the box doesn't fit, Paged.js moves the row to the next page and leaves an empty
+   copy of the table behind. */
+.continued[data-split-to] { display: none; }
+.continued .qr svg { display: block; }
 .continued .qr svg path, .continued .qr svg rect[fill="black"] { fill: var(--ink); }
 .continued .k { font-size: .74em; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin-bottom: .35em; }
 .continued p { margin: 0; text-indent: 0; font-size: .86em; line-height: 1.35; }
-.continued .url { font-style: italic; word-break: break-all; margin-top: .2em; }
+.continued .url { font-style: italic; word-break: break-all; hyphens: none; margin-top: .2em; }
 .essay-note { margin-top: 1.6em; padding-top: .7em; border-top: .5pt solid color-mix(in srgb, var(--ink) 30%, transparent);
   font-size: .8em; line-height: 1.4; font-style: italic; text-align: left; break-inside: avoid; column-span: all; }
 
