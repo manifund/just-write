@@ -28,6 +28,42 @@ Next steps:
 - design out the physical pdf (and digital collated) form
 - make art -- at least for cover, but also maybe
 
+
+TODOs:
+- allow saving new presets & loading
+  - current changes: literata? 9.5pt for computer, spaced paragraphs, no justify, color on, qr all
+- softlaunch /zine
+- fix data
+  - confirm author names and piece printings?
+  - auto check pdf with claude code
+- check that type is black (?) per https://practicaltypography.com/color.html
+- QR code redesign?
+- nonsymmetric margins (internal border)
+- cover vs print split on pdf export
+- support tracking not just leading?
+- fix lowercase drop caps
+- "Issue 1" above every new essay title seems bad, replace or cut
+- overall: feedback pdf into claude to analyze
+
+
+Bigger design questions:
+- what is the role of a zine?
+  - forcing function to write good essays, polish them, edit them
+  - yearbook-like? also it's just cool.
+  - limits of physical vs digital incarnations. (interesting coming from digital world)
+  - 4 zines, one per week? or 2? or 1 big one? => 4 is cooler. everything printed.
+  - or: shard out a few zines by topic? like Asterisk?
+- personalized vs unified essays? should users get to choose whose essays they put into their personal copy? should each author just get a book of their own essays?
+  - printing pushes towards standardization.
+  - compare to malleable software
+- One more sorting option: might want to group essays by subject area, and represent that in ToC
+  - also rethink toc a bit more
+- definitely should let users update their own essays before publishing
+- related: logistics of shipping
+- how to handle multiple essays for one author in a single week? (mb fine b/c those are short)
+- where to put the generated art? (maybe cut for issue 1)
+
+
 ## Findings (Nov 10, 2026)
 
 Full report: [reports/Weekly magazine printing options.md](../reports/Weekly%20magazine%20printing%20options.md). Prices were read from public calculators on Nov 10 and are before tax. "Delivered" includes the cheapest shipping.
