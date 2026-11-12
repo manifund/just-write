@@ -1,6 +1,8 @@
 // November 2026 schedule. Nov 1, 2026 is a Sunday, so each row starts on a Sunday.
 // Edit WEEKS to change dates; the grid is generated from it.
 
+import { TodayDot } from "./today-dot";
+
 export type Event = "kickoff" | "essay" | "circle" | "wrap";
 
 type Day = {
@@ -128,9 +130,10 @@ export function Calendar() {
                     className="group/day flex justify-center py-[clamp(2px,0.6vh,6px)]"
                   >
                     <span
-                      className={`flex ${circle} items-center justify-center rounded-full text-base ${ease} ${dayStyle(day)}`}
+                      className={`relative flex ${circle} items-center justify-center rounded-full text-base ${ease} ${dayStyle(day)}`}
                     >
                       {day.date}
+                      {!day.outside && <TodayDot date={day.date} />}
                     </span>
                   </div>
                 ))}
