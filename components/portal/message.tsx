@@ -131,10 +131,12 @@ export function Message({
       data-message-id={m._id}
       onPointerDown={(e) => {
         if (e.pointerType !== "touch" || editing || pending) return;
+        // A new touch starts a new gesture. Phones often send no click when a long
+        // press ends, so without this the next tap (say, on Edit) would be swallowed.
+        fired.current = false;
         if ((e.target as Element).closest("button, input, [contenteditable]"))
           return;
         cancelPress();
-        fired.current = false;
         press.current = {
           x: e.clientX,
           y: e.clientY,
