@@ -70,6 +70,7 @@ async function render(prompt: string): Promise<Buffer> {
       ]
     : prompt;
   for (let attempt = 1; ; attempt++) {
+    const started = Date.now();
     const res = await fetch(`${API}/chat/completions`, {
       method: "POST",
       headers,
@@ -78,14 +79,21 @@ async function render(prompt: string): Promise<Buffer> {
         modalities: ["image", "text"],
         image_config: { aspect_ratio: ASPECT, image_size: "2K" },
         messages: [{ role: "user", content }],
+        usage: { include: true },
       }),
     });
     const body = (await res.json()) as {
       error?: { message: string };
+      usage?: { cost?: number };
       choices?: { message: { images?: { image_url: { url: string } }[] } }[];
     };
     const url = body.choices?.[0]?.message.images?.[0]?.image_url.url;
-    if (url) return Buffer.from(url.slice(url.indexOf(",") + 1), "base64");
+    if (url) {
+      const secs = Math.round((Date.now() - started) / 1000);
+      const cost = body.usage?.cost;
+      console.log(`  ${secs}s${cost == null ? "" : `, $${cost.toFixed(3)}`}`);
+      return Buffer.from(url.slice(url.indexOf(",") + 1), "base64");
+    }
     const why = body.error?.message ?? `no image (HTTP ${res.status})`;
     if (attempt >= 3) throw new Error(why);
     console.warn(`  retrying: ${why}`);
