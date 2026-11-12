@@ -27,7 +27,7 @@ import {
   PAGE_SIZE,
 } from "@/convex/lib/channels";
 import { DEADLINES, DEADLINE_LABELS } from "@/convex/lib/program";
-import { cleanBody, mentionIds } from "@/convex/lib/richtext";
+import { cleanBody } from "@/convex/lib/richtext";
 import { pushChatUrl, replaceChatUrl, useChatUrl } from "@/lib/chat-url";
 import { errorMessage } from "@/lib/convex";
 import { closeNotifications } from "@/lib/push";
@@ -146,14 +146,6 @@ function pendingMessage(
     };
   } catch {
     return null; // the server will reject it with a proper error
-  }
-}
-
-function mentionsBot(body: string, roster: Map<string, { bot: boolean }>) {
-  try {
-    return mentionIds(JSON.parse(body)).some((id) => roster.get(id)?.bot);
-  } catch {
-    return false;
   }
 }
 
@@ -370,7 +362,7 @@ function MessageList({
   const [nextDeadline] = useState(() =>
     DEADLINES.findIndex((d) => Date.now() <= d),
   );
-  const { me, roster } = usePortal();
+  const { me } = usePortal();
   const paged = usePaginatedQuery(
     api.chat.messages,
     { slug },
@@ -503,9 +495,7 @@ function MessageList({
             setError(null);
             atBottom.current = true;
             try {
-              const id = await send({ slug, body });
-              // Asking @Claude: open the thread where its live status card appears.
-              if (mentionsBot(body, roster)) onOpenThread(id);
+              await send({ slug, body });
             } catch (err) {
               setError(errorMessage(err));
               throw err;
