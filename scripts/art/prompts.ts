@@ -60,9 +60,9 @@ function shuffle<T>(xs: T[], seed: number): T[] {
 }
 
 const who = args.author.toLowerCase();
+// Matches the member's handle (or their full name), so "austin" doesn't pick up Austin Long.
 const isAuthor = (e: ZineEssay) =>
-  e.author.name.toLowerCase().includes(who) ||
-  e.author.handle?.toLowerCase() === who;
+  e.author.handle?.toLowerCase() === who || e.author.name.toLowerCase() === who;
 const mine = readable.filter(isAuthor);
 const others = shuffle(
   readable.filter((e) => !isAuthor(e)).sort((a, b) => a.id.localeCompare(b.id)),
