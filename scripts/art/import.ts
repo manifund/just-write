@@ -39,6 +39,20 @@ const model = existsSync(modelFile)
   ? readFileSync(modelFile, "utf8").trim()
   : null;
 
+// The paper's gray level: the most common light tone that isn't already pure white.
+async function paperTone(src: string): Promise<number> {
+  const { data } = await sharp(src)
+    .flatten({ background: "#ffffff" })
+    .grayscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const counts = new Array<number>(256).fill(0);
+  for (const v of data) counts[v]++;
+  let best = 180;
+  for (let v = 181; v < 255; v++) if (counts[v] > counts[best]) best = v;
+  return counts[best] > data.length * 0.02 ? best : 255;
+}
+
 mkdirSync(OUT_DIR, { recursive: true });
 const files = readdirSync(args.dir).filter((f) =>
   [".png", ".jpg", ".jpeg", ".webp"].includes(extname(f).toLowerCase()),
@@ -50,10 +64,13 @@ for (const f of files) {
   const src = join(args.dir, f);
   // Trim the bare paper the model leaves around the print, then pad it back out with
   // white to 3:2 with an even margin, so every image sits the same way on the page.
+  // The model's paper is off-white; lift it to pure white so the padding doesn't show.
+  const paper = await paperTone(src);
   const trimmed = await sharp(src)
+    .flatten({ background: "#ffffff" })
     .grayscale()
     .toColourspace("b-w")
-    .flatten({ background: "#ffffff" })
+    .linear(255 / paper, 0)
     .trim({ background: "#ffffff", threshold: 40 })
     .toBuffer({ resolveWithObject: true });
   const { width: tw, height: th } = trimmed.info;
