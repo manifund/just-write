@@ -4,7 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 
 export const STYLE =
   "Render it as a linocut print: black ink on off-white paper, bold carved lines, " +
-  "high contrast, no gray wash or gradients, generous empty paper around one central subject. " +
+  "high contrast, no gray wash or gradients, one central subject on plain paper. " +
+  "Vignette: the carving thins out and fades into the bare paper at the edges, with no hard " +
+  "rectangular block or outline around the scene. " +
   "Strictly black and white. No text, letters, signature, frame, or border.";
 
 export const ASPECT = "3:2";

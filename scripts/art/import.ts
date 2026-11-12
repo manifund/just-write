@@ -4,7 +4,7 @@
 //   bun scripts/art/import.ts --dir ~/Downloads/picks
 //
 // Name each file <essayId>.<png|jpg|webp> (or cover.png). Each is turned to grayscale,
-// center-cropped to 3:2, saved as public/zine/art/<id>.png (print) and <id>.webp (site,
+// trimmed of bare paper and padded to 3:2, saved as public/zine/art/<id>.png (print) and <id>.webp (site,
 // 1200px), and recorded in content/zine/art.json with its prompt and alt text from
 // content/zine/art-prompts.json.
 import {
@@ -24,6 +24,7 @@ const PROMPTS = "content/zine/art-prompts.json";
 const OUT_DIR = "public/zine/art";
 const MIN_WIDTH = 1800; // 6 in at 300 ppi
 const WEB_WIDTH = 1200;
+const MARGIN = 0.06; // white space on each side, as a share of the print
 
 const { values: args } = parseArgs({
   options: { dir: { type: "string", default: "art-inbox" } },
@@ -47,23 +48,33 @@ if (files.length === 0) console.log(`No images in ${args.dir}/`);
 for (const f of files) {
   const id = basename(f, extname(f));
   const src = join(args.dir, f);
-  const { width = 0, height = 0 } = await sharp(src).metadata();
-  // Center-crop to 3:2.
-  const w = Math.min(width, Math.round((height * 3) / 2));
+  // Trim the bare paper the model leaves around the print, then pad it back out with
+  // white to 3:2 with an even margin, so every image sits the same way on the page.
+  const trimmed = await sharp(src)
+    .grayscale()
+    .toColourspace("b-w")
+    .flatten({ background: "#ffffff" })
+    .trim({ background: "#ffffff", threshold: 40 })
+    .toBuffer({ resolveWithObject: true });
+  const { width: tw, height: th } = trimmed.info;
+  const w = Math.max(
+    Math.round(tw * (1 + 2 * MARGIN)),
+    Math.round(th * (1 + 2 * MARGIN) * 1.5),
+  );
   const h = Math.round((w * 2) / 3);
   if (w < MIN_WIDTH)
     console.warn(
-      `! ${f}: ${w}px wide after crop, under ${MIN_WIDTH}px; regenerate at a larger size`,
+      `! ${f}: ${w}px wide, under ${MIN_WIDTH}px; regenerate at a larger size`,
     );
-  const base = sharp(src)
-    .extract({
-      left: Math.floor((width - w) / 2),
-      top: Math.floor((height - h) / 2),
-      width: w,
-      height: h,
-    })
-    .grayscale()
-    .toColourspace("b-w");
+  const left = Math.floor((w - tw) / 2);
+  const top = Math.floor((h - th) / 2);
+  const base = sharp(trimmed.data).extend({
+    left,
+    right: w - tw - left,
+    top,
+    bottom: h - th - top,
+    background: "#ffffff",
+  });
   await base
     .clone()
     .png({ compressionLevel: 9 })
