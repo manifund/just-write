@@ -25,11 +25,55 @@ export async function imageModels(): Promise<ImageModel[]> {
     .sort((a, b) => b.created - a.created);
 }
 
+// Image-only models (GPT Image, FLUX, ...) refuse chat/completions; OpenRouter serves
+// them at /images instead. Remembered per model after the first refusal.
+const imagesOnly = new Set<string>();
+
+async function renderImages(
+  model: string,
+  prompt: string,
+  aspect?: string,
+): Promise<{ png: Buffer; secs: number; cost: number | null }> {
+  for (let attempt = 1; ; attempt++) {
+    const started = Date.now();
+    const res = await fetch(`${API}/images`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({
+        model,
+        prompt,
+        ...(aspect ? { aspect_ratio: aspect } : {}),
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: { message: string };
+      usage?: { cost?: number };
+      data?: { b64_json?: string; url?: string }[];
+    };
+    const img = body.data?.[0];
+    if (img?.b64_json || img?.url) {
+      const png = img.b64_json
+        ? Buffer.from(img.b64_json, "base64")
+        : Buffer.from(await (await fetch(img.url!)).arrayBuffer());
+      const secs = Math.round((Date.now() - started) / 1000);
+      return { png, secs, cost: body.usage?.cost ?? null };
+    }
+    const why = body.error?.message ?? `no image (HTTP ${res.status})`;
+    if (attempt >= 3) throw new Error(why);
+    console.warn(`  retrying: ${why}`);
+    await new Promise((r) => setTimeout(r, 2000 * attempt));
+  }
+}
+
 export async function render(
   model: string,
   prompt: string,
   opts: { aspect?: string; refUrl?: string | null } = {},
 ): Promise<{ png: Buffer; secs: number; cost: number | null }> {
+  if (imagesOnly.has(model)) {
+    if (opts.refUrl) throw new Error(`${model} can't take a style reference`);
+    return renderImages(model, prompt, opts.aspect);
+  }
   const content = opts.refUrl
     ? [
         { type: "text", text: prompt },
@@ -65,6 +109,10 @@ export async function render(
       return { png, secs, cost: body.usage?.cost ?? null };
     }
     const why = body.error?.message ?? `no image (HTTP ${res.status})`;
+    if (why.includes("/api/v1/images")) {
+      imagesOnly.add(model);
+      return render(model, prompt, opts);
+    }
     if (attempt >= 3) throw new Error(why);
     console.warn(`  retrying: ${why}`);
     await new Promise((r) => setTimeout(r, 2000 * attempt));
