@@ -72,6 +72,8 @@ export function Message({
   const actionsRef = useRef<HTMLDivElement>(null);
   // Touch screens have no hover, so a long press opens the actions instead.
   const [held, setHeld] = useState(false);
+  // Where the held bar sits when the message's top is scrolled out of view.
+  const [heldTop, setHeldTop] = useState<number | null>(null);
   const articleRef = useRef<HTMLElement>(null);
   const press = useRef<{ x: number; y: number; timer: number } | null>(null);
   const fired = useRef(false);
@@ -143,6 +145,7 @@ export function Message({
           timer: window.setTimeout(() => {
             press.current = null;
             fired.current = true;
+            setHeldTop(visibleBarTop(articleRef.current));
             setHeld(true);
             navigator.vibrate?.(10);
           }, 450),
@@ -323,6 +326,7 @@ export function Message({
       {!editing && !pending && (
         <div
           ref={actionsRef}
+          style={held && heldTop !== null ? { top: heldTop } : undefined}
           className={`absolute -top-3.5 right-[clamp(16px,3vw,32px)] z-10 items-center border border-ink/15 bg-cream shadow-[0_4px_12px_-6px_rgb(56_33_63/0.3)] ${
             picker || confirmDelete || held
               ? "flex"
@@ -647,6 +651,25 @@ function ReactionChip({
       </span>
     </button>
   );
+}
+
+// For a long press on a message whose top is scrolled out of view, the top
+// offset that keeps its action bar just inside the visible area; null if the
+// usual spot above the message is already visible.
+function visibleBarTop(article: HTMLElement | null): number | null {
+  if (!article) return null;
+  let visibleTop = 0;
+  for (let el = article.parentElement; el; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el);
+    if (overflowY === "auto" || overflowY === "scroll") {
+      visibleTop = Math.max(0, el.getBoundingClientRect().top);
+      break;
+    }
+  }
+  const rect = article.getBoundingClientRect();
+  const usual = rect.top - 14;
+  if (usual >= visibleTop) return null;
+  return visibleTop + 8 - rect.top;
 }
 
 // A sheet listing everyone who reacted, opened by long-pressing a reaction.
