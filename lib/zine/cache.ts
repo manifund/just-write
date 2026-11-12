@@ -81,6 +81,23 @@ export async function putRender(key: string, render: Render) {
   } catch {}
 }
 
+// The default design's pages, typeset once by scripts/zine-pages.ts and served from
+// public/. The caller only asks when its document's key matches the file's.
+export async function getPrebuilt(
+  key: string,
+  file: { src: string; pages: number },
+): Promise<Render | null> {
+  try {
+    const res = await fetch(file.src);
+    if (!res.ok) return null;
+    const render = { snapshot: await res.text(), pages: file.pages };
+    void putRender(key, render);
+    return render;
+  } catch {
+    return null;
+  }
+}
+
 // Typesetting that was still going when /zine was closed (client-side navigation) is
 // finished in a hidden iframe, so the pages are saved and the next visit opens them at once.
 // The page waits on a running job for its document instead of starting a second one.
