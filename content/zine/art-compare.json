@@ -1,0 +1,290 @@
+{
+  "models": [
+    "google/gemini-nano-banana-2.1",
+    "openai/gpt-image-2.6-sunburst",
+    "black-forest-labs/flux-3-image"
+  ],
+  "styles": [
+    "engraving",
+    "sumi",
+    "photo"
+  ],
+  "styleText": {
+    "linocut": "Render it as a linocut print: black ink on off-white paper, bold carved lines, high contrast, no gray wash or gradients, one central subject on plain paper. Vignette: the carving thins out and fades into the bare paper at the edges, with no hard rectangular block or outline around the scene. Strictly black and white. No text, letters, signature, frame, or border.",
+    "engraving": "Render it as a fine pen-and-ink engraving, like a 19th-century book illustration: delicate cross-hatching and stippling, precise thin black lines on white paper, no gray wash, the drawing fading out into the white page at its edges. Strictly black and white. No text, letters, signature, seal, frame, or border.",
+    "sumi": "Render it as a Japanese sumi-e ink painting: a few loose, confident brushstrokes in black ink with soft gray washes on white paper, most of the paper left empty. Black, white, and gray only. No text, letters, signature, seal, frame, or border.",
+    "photo": "Render it as a black-and-white film photograph: a quiet scene shot on medium-format film, soft natural window light, fine grain, deep blacks, the calm of an editorial magazine photo. Black and white only. No text, letters, signature, seal, frame, or border."
+  },
+  "results": [
+    {
+      "style": "engraving",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/engraving__google_gemini-nano-banana-2.1__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 16,
+      "cost": 0.053727,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/engraving__google_gemini-nano-banana-2.1__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 15,
+      "cost": 0.052608,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/engraving__google_gemini-nano-banana-2.1__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 14,
+      "cost": 0.05238,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/sumi__google_gemini-nano-banana-2.1__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 14,
+      "cost": 0.0526365,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/sumi__google_gemini-nano-banana-2.1__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 13,
+      "cost": 0.05238,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/sumi__google_gemini-nano-banana-2.1__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 15,
+      "cost": 0.052947,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/photo__google_gemini-nano-banana-2.1__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 20,
+      "cost": 0.0530655,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/photo__google_gemini-nano-banana-2.1__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 16,
+      "cost": 0.053034,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "google/gemini-nano-banana-2.1",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/photo__google_gemini-nano-banana-2.1__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 15,
+      "cost": 0.052656,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/engraving__openai_gpt-image-2.6-sunburst__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 59,
+      "cost": 0.041705,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/engraving__openai_gpt-image-2.6-sunburst__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 34,
+      "cost": 0.02049,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/engraving__openai_gpt-image-2.6-sunburst__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 43,
+      "cost": 0.041725,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/sumi__openai_gpt-image-2.6-sunburst__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 27,
+      "cost": 0.020395,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/sumi__openai_gpt-image-2.6-sunburst__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 25,
+      "cost": 0.02042,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/sumi__openai_gpt-image-2.6-sunburst__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 22,
+      "cost": 0.020415,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/photo__openai_gpt-image-2.6-sunburst__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 21,
+      "cost": 0.02039,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/photo__openai_gpt-image-2.6-sunburst__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 20,
+      "cost": 0.020415,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "openai/gpt-image-2.6-sunburst",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/photo__openai_gpt-image-2.6-sunburst__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 25,
+      "cost": 0.02041,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/engraving__black-forest-labs_flux-3-image__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 21,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/engraving__black-forest-labs_flux-3-image__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 26,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "engraving",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/engraving__black-forest-labs_flux-3-image__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 26,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/sumi__black-forest-labs_flux-3-image__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 18,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/sumi__black-forest-labs_flux-3-image__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 18,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "sumi",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/sumi__black-forest-labs_flux-3-image__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 21,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j97fff1k6svyrtdb0hx9gc6n6s8hwczf",
+      "title": "Higher salaries in AI safety",
+      "file": "/zine/art/compare/photo__black-forest-labs_flux-3-image__j97fff1k6svyrtdb0hx9gc6n6s8hwczf.webp",
+      "secs": 21,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j971fy7y31scwynk9hmgvcnbqx8hzg3r",
+      "title": "Fluid org boundaries with AI",
+      "file": "/zine/art/compare/photo__black-forest-labs_flux-3-image__j971fy7y31scwynk9hmgvcnbqx8hzg3r.webp",
+      "secs": 23,
+      "cost": 0.048,
+      "error": null
+    },
+    {
+      "style": "photo",
+      "model": "black-forest-labs/flux-3-image",
+      "id": "j978z5166fvb289rc6d4s780358hzja1",
+      "title": "Bits, Atoms, and the Lonliness crisis",
+      "file": "/zine/art/compare/photo__black-forest-labs_flux-3-image__j978z5166fvb289rc6d4s780358hzja1.webp",
+      "secs": 19,
+      "cost": 0.048,
+      "error": null
+    }
+  ]
+}
