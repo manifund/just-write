@@ -235,7 +235,9 @@ export const SENSITIVE_PATHS = [
   /^app\/\(site\)\/commit\//,
   /^app\/\(portal\)\/\(private\)\/(improvements|admin)\//,
   /^lib\/(stripe|terms|email|auth-server|auth-client|github|improve-[\w-]+|time-limit|chat-task-sandbox|club-snapshot)\.ts$/,
-  /^scripts\//,
+  // The @Claude runner (copied into every sandbox) and its dry run, and scripts that send
+  // email or write member data. Other scripts (the zine ones) go to the merge review.
+  /^scripts\/(improve-runner|improve-try|email-blast|import-neon)(\/|\.ts$)/,
   /^\.github\//,
   // Instructions and hooks every agent run loads, chat tasks included. The root CLAUDE.md
   // goes to the merge review, which asks what the change tells agents; nested and .local
