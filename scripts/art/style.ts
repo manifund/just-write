@@ -9,6 +9,30 @@ export const STYLE =
   "rectangular block or outline around the scene. " +
   "Strictly black and white. No text, letters, signature, frame, or border.";
 
+const NO_TEXT = "No text, letters, signature, seal, frame, or border.";
+
+// Candidate house styles, compared side by side with scripts/art/compare.ts.
+export const STYLES: Record<string, string> = {
+  linocut: STYLE,
+  engraving:
+    "Render it as a fine pen-and-ink engraving, like a 19th-century book illustration: " +
+    "delicate cross-hatching and stippling, precise thin black lines on white paper, " +
+    "no gray wash, the drawing fading out into the white page at its edges. " +
+    `Strictly black and white. ${NO_TEXT}`,
+  sumi:
+    "Render it as a Japanese sumi-e ink painting: a few loose, confident brushstrokes in black ink " +
+    "with soft gray washes on white paper, most of the paper left empty. " +
+    `Black, white, and gray only. ${NO_TEXT}`,
+  photo:
+    "Render it as a black-and-white film photograph: a quiet scene shot on medium-format film, " +
+    "soft natural window light, fine grain, deep blacks, the calm of an editorial magazine photo. " +
+    `Black and white only. ${NO_TEXT}`,
+};
+
+export function stylePrompt(style: string, subject: string) {
+  return `Illustration for a literary magazine essay: ${subject.replace(/[.\s]+$/, "")}. ${STYLES[style]}`;
+}
+
 export const ASPECT = "3:2";
 
 // Once Austin approves an image, its path goes in content/zine/art-style.json as
