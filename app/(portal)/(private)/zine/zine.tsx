@@ -10,6 +10,7 @@ import {
 import {
   BODY_FONTS,
   DEFAULT_TWEAKS,
+  HOUSE_TWEAKS,
   DISPLAY_FONTS,
   PALETTES,
   PRESETS,
@@ -316,7 +317,7 @@ function Panel({
               type="button"
               onClick={() =>
                 setTweaks({
-                  ...DEFAULT_TWEAKS,
+                  ...HOUSE_TWEAKS,
                   ...p.tweaks,
                   exclude: t.exclude,
                   limit: t.limit,

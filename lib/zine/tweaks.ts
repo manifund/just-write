@@ -75,7 +75,8 @@ export type Tweaks = {
   exclude: string[]; // essay ids left out
 };
 
-export const DEFAULT_TWEAKS: Tweaks = {
+// The House design. Presets are written as changes to it.
+export const HOUSE_TWEAKS: Tweaks = {
   trim: "6x9",
   bleed: true,
   bodyFont: "newsreader",
@@ -105,7 +106,22 @@ export const DEFAULT_TWEAKS: Tweaks = {
   exclude: [],
 };
 
+// Austin's pick, and the default for /zine and scripts/zine-pdf.ts.
+const AUSTINS_CUT: Partial<Tweaks> = {
+  trim: "8.5x11",
+  columns: 2,
+  bodyFont: "literata",
+  size: 9.5,
+  paragraphs: "spaced",
+  justify: false, // also turns hyphenation off
+  images: "color",
+  qr: "all",
+};
+
+export const DEFAULT_TWEAKS: Tweaks = { ...HOUSE_TWEAKS, ...AUSTINS_CUT };
+
 export const PRESETS: { label: string; tweaks: Partial<Tweaks> }[] = [
+  { label: "Austin's cut", tweaks: AUSTINS_CUT },
   { label: "House", tweaks: {} },
   {
     label: "Literary",
