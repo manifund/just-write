@@ -438,14 +438,26 @@ const PREVIEW_SCRIPT = `let t = 0;
   }`;
 
 // A saved snapshot of pages Paged.js already laid out, shown without typesetting again.
-// Paged.js writes its page styles as plain <style> text, so the copy looks the same.
-export function cachedDocument(snapshot: string, pages: number) {
+// Paged.js writes its page styles as plain <style> text, so the copy looks the same. The
+// pages are static HTML, so it reports ready as soon as the document is parsed rather than
+// after every image and web font has loaded, and it starts in the preview's current view.
+export function cachedDocument(
+  snapshot: string,
+  pages: number,
+  view: { zoom: number; spreads: boolean; guides: boolean },
+) {
   const script = `<script>
+  document.documentElement.style.setProperty("--zoom", ${Number(view.zoom)});
+  document.documentElement.classList.toggle("spreads", ${!!view.spreads});
+  document.documentElement.classList.toggle("guides", ${!!view.guides});
   ${PREVIEW_SCRIPT}
-  addEventListener("load", () => document.fonts.ready.then(() => parent.postMessage({ type: "zine:done", pages: ${Number(pages)} }, "*")));
+  addEventListener("DOMContentLoaded", () => parent.postMessage({ type: "zine:done", pages: ${Number(pages)} }, "*"));
 </script>`;
-  const at = snapshot.indexOf("</head>");
-  return at < 0 ? snapshot + script : snapshot.slice(0, at) + script + snapshot.slice(at);
+  // First thing in <head>, so the stylesheet link after it doesn't hold the script back.
+  const head = /<head[^>]*>/i.exec(snapshot);
+  if (!head) return script + snapshot;
+  const at = head.index + head[0].length;
+  return snapshot.slice(0, at) + script + snapshot.slice(at);
 }
 
 export function zineDocument(

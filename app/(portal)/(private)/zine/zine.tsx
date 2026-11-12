@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getRender, putRender, renderKey } from "@/lib/zine/cache";
+import {
+  backgroundJob,
+  finishInBackground,
+  getRender,
+  putRender,
+  renderKey,
+} from "@/lib/zine/cache";
 import {
   cachedDocument,
   cleanTitle,
@@ -25,14 +31,15 @@ import type { ZineArt, ZineIssue } from "@/lib/zine/types";
 
 const STORAGE = "zine:tweaks";
 
-type Doc = { key: number; html: string };
+type Doc = { key: number; html: string; saved: boolean };
 
 // /zine: the magazine laid out by Paged.js in an iframe, with design controls beside it.
 // Each change typesets the issue again in a hidden iframe and swaps it in when done, so
 // the old pages stay up while the new ones are set. The iframe isn't sandboxed: Paged.js
 // stalls in an opaque origin, and the essays' HTML is rebuilt from a tag whitelist with no
 // scripts or attributes beyond href/src/alt (scripts/zine-cache.ts). Finished pages are
-// saved in the browser (lib/zine/cache.ts), so the same issue and settings open at once.
+// saved in the browser (lib/zine/cache.ts), so the same issue and settings open at once;
+// leaving mid-typeset finishes it in the background so the next visit is instant too.
 export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
   const [week, setWeek] = useState(issues[0]?.week ?? 1);
   const issue = issues.find((i) => i.week === week);
@@ -73,33 +80,66 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
     [],
   );
 
+  // The view, read when a saved copy is opened so it starts at the current zoom.
+  const view = useRef({ zoom, spreads, guides });
+  useEffect(() => {
+    view.current = { zoom, spreads, guides };
+  }, [zoom, spreads, guides]);
+
   // Typeset again shortly after the last change.
   useEffect(() => {
     if (!loaded || !issue) return;
     let cancelled = false;
+    let unlisten = () => {};
     const timer = setTimeout(
       async () => {
         const html = zineDocument(issue, art, tweaks, { preview: true });
         const cacheKey = await renderKey(html).catch(() => null);
-        const hit = cacheKey ? await getRender(cacheKey) : null;
+        let hit = cacheKey ? await getRender(cacheKey) : null;
+        // Typesetting left running from an earlier visit: wait for it instead.
+        const job = cacheKey && !hit ? backgroundJob(cacheKey) : undefined;
+        if (job && !cancelled) {
+          setProgress(job.progress);
+          job.listeners.add(setProgress);
+          unlisten = () => job.listeners.delete(setProgress);
+          hit = await job.done;
+          unlisten();
+        }
         if (cancelled) return;
         const key = nextKey.current++;
         if (cacheKey && !hit) cacheKeys.current.set(key, cacheKey);
         setProgress(0);
         setDocs((ds) => [
           ...ds.filter((d) => d.key === shown),
-          { key, html: hit ? cachedDocument(hit.snapshot, hit.pages) : html },
+          hit
+            ? { key, html: cachedDocument(hit.snapshot, hit.pages, view.current), saved: true }
+            : { key, html, saved: false },
         ]);
       },
       shown === null ? 0 : 450,
     );
     return () => {
       cancelled = true;
+      unlisten();
       clearTimeout(timer);
     };
     // `shown` is read only to keep the visible frame; it shouldn't trigger a new render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tweaks, issue, art, loaded]);
+
+  // Leaving while the newest version is still typesetting: finish it in the background.
+  const pending = useRef<{ key: string; html: string } | null>(null);
+  useEffect(() => {
+    const last = docs.at(-1);
+    const cacheKey = last && last.key !== shown ? cacheKeys.current.get(last.key) : undefined;
+    pending.current = last && cacheKey ? { key: cacheKey, html: last.html } : null;
+  }, [docs, shown]);
+  useEffect(
+    () => () => {
+      if (pending.current) finishInBackground(pending.current.key, pending.current.html);
+    },
+    [],
+  );
 
   const latest = docs.at(-1)?.key ?? null;
   const busy = latest !== null && latest !== shown;
@@ -202,7 +242,9 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
             <span className="text-ink-muted">Issue {week}</span>
           )}
           <span className="text-ink-muted tabular-nums">
-            {busy
+            {busy && docs.at(-1)?.saved
+              ? "Opening…"
+              : busy
               ? `Typesetting… ${progress} pages`
               : pages !== null
                 ? `${pages} pages · ${essays.length} essays · ${words.toLocaleString("en-US")} words · spine ≈ ${spineInches(pages).toFixed(2)} in`
@@ -261,7 +303,9 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
           ))}
           {shown === null && (
             <p className="absolute inset-0 flex items-center justify-center text-ink-muted">
-              Typesetting… {progress > 0 ? `${progress} pages` : ""}
+              {docs.at(-1)?.saved
+                ? "Opening…"
+                : `Typesetting… ${progress > 0 ? `${progress} pages` : ""}`}
             </p>
           )}
         </div>
