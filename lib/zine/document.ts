@@ -96,27 +96,39 @@ function qr(url: string) {
   return q.createSvgTag({ cellSize: 2, margin: 0, scalable: true });
 }
 
-function continued(e: ZineEssay, rest: number) {
+// The box at the end of an essay that points to it online: "rest" words left when the
+// essay was cut short, 0 when it's printed in full.
+function online(e: ZineEssay, rest: number, withQr: boolean) {
   const short = e.url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-  return `<aside class="continued">
-  <div class="qr">${qr(e.url)}</div>
+  const about = (Math.round(rest / 100) * 100 || rest).toLocaleString("en-US");
+  return `<aside class="continued${withQr ? "" : " no-qr"}">
+  ${withQr ? `<div class="qr">${qr(e.url)}</div>` : ""}
   <div>
-    <div class="k">Continued online</div>
-    <p>The rest of this essay, about ${(Math.round(rest / 100) * 100 || rest).toLocaleString("en-US")} more words, is at</p>
+    <div class="k">${rest ? "Continued online" : "Read online"}</div>
+    <p>${rest ? `The rest of this essay, about ${about} more words, is at` : "This essay first appeared at"}</p>
     <p class="url">${esc(short)}</p>
   </div>
 </aside>`;
 }
 
+// Orders essays by the Order setting.
+export function orderEssays<E extends ZineEssay>(list: E[], t: Tweaks): E[] {
+  const out = [...list];
+  if (t.order === "author")
+    out.sort((a, b) => a.author.name.localeCompare(b.author.name));
+  else if (t.order === "length") out.sort((a, b) => a.words - b.words);
+  else out.sort((a, b) => a.submittedAt - b.submittedAt);
+  return out;
+}
+
 // The essays that go in, in order. Pages that couldn't be read are left out.
 export function issueEssays(issue: ZineIssue, t: Tweaks): ZineEssay[] {
   const skip = new Set(t.exclude);
-  const list = issue.essays.filter((e) => !e.error && e.html && !skip.has(e.id));
-  if (t.order === "author")
-    list.sort((a, b) => a.author.name.localeCompare(b.author.name));
-  else if (t.order === "length") list.sort((a, b) => a.words - b.words);
-  else list.sort((a, b) => a.submittedAt - b.submittedAt);
-  return list;
+  const list = orderEssays(
+    issue.essays.filter((e) => !e.error && e.html && !skip.has(e.id)),
+    t,
+  );
+  return t.limit === null ? list : list.slice(0, t.limit);
 }
 
 function fontsUrl(t: Tweaks) {
@@ -198,9 +210,10 @@ a { color: inherit; text-decoration: none; }
 .masthead em { font-style: italic; color: color-mix(in srgb, var(--cover-ink) 60%, var(--accent)); }
 .cover-meta { display: flex; justify-content: space-between; font-size: 8.5pt; letter-spacing: .14em;
   text-transform: uppercase; margin-top: .9em; padding-top: .7em; border-top: .6pt solid currentColor; }
-.cover-names { margin-top: auto; font-family: var(--display); font-size: ${Math.min(14, trim.w * 1.6)}pt; line-height: 1.32;
-  columns: 2; column-gap: .3in; }
-.cover-names span { display: block; break-inside: avoid; }
+.cover-names { position: absolute; left: ${m.inside - 0.1 + (t.bleed ? BLEED : 0)}in; right: ${m.outside + (t.bleed ? BLEED : 0)}in;
+  font-family: var(--display); line-height: 1.32;
+  display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; column-gap: .3in; }
+.cover-names span { display: block; }
 
 /* Contents */
 .front { page: front; break-after: page; }
@@ -281,6 +294,7 @@ ${t.justify ? ".essay-body p[data-split-to], .essay-body li[data-split-to] { tex
 .essay-body .end-mark { color: var(--accent); font-size: .8em; padding-left: .5em; }
 .continued { display: flex; gap: .2in; align-items: center; margin-top: 1.4em; padding: .16in;
   border: .6pt solid var(--accent); break-inside: avoid; column-span: all; text-align: left; hyphens: manual; }
+.continued.no-qr { padding: .12in .16in; }
 .continued .qr { flex: 0 0 .85in; width: .85in; height: .85in; }
 .continued .qr svg { width: 100%; height: 100%; display: block; }
 .continued .qr svg path, .continued .qr svg rect[fill="black"] { fill: var(--ink); }
@@ -313,7 +327,20 @@ const PREVIEW_CSS = `
 @media print { html, body { background: none; } }
 `;
 
-function cover(issue: ZineIssue, essays: ZineEssay[], art: ZineArt, preview: boolean) {
+// The writers' names sit at the foot of the cover, placed from the top in inches: in print,
+// Chrome doesn't give the cover the page's height to push them down with flexbox. Long lists
+// get a smaller size so they fit in the lower 40% of the cover.
+function namesStyle(count: number, t: Tweaks) {
+  const trim = TRIMS[t.trim];
+  const m = margins(t);
+  const rows = Math.max(1, Math.ceil(count / 2));
+  const size = Math.min(14, trim.w * 1.6, (trim.h * 0.4 * 72) / (rows * 1.32));
+  const height = (rows * size * 1.32) / 72;
+  const top = trim.h - m.bottom - height + (t.bleed ? BLEED : 0);
+  return `top: ${top.toFixed(3)}in; font-size: ${size.toFixed(2)}pt; grid-template-rows: repeat(${rows}, auto)`;
+}
+
+function cover(issue: ZineIssue, essays: ZineEssay[], art: ZineArt, t: Tweaks, preview: boolean) {
   const label = DEADLINE_LABELS[issue.week - 1] ?? "";
   const names = [...new Set(essays.map((e) => e.author.name))];
   const a = art.cover;
@@ -322,7 +349,7 @@ function cover(issue: ZineIssue, essays: ZineEssay[], art: ZineArt, preview: boo
   <div class="cover-inner">
     <h1 class="masthead">Just <em>Write</em></h1>
     <div class="cover-meta"><span>Issue ${issue.week}</span><span>${esc(label)}, 2026</span></div>
-    <div class="cover-names">${names.map((n) => `<span>${esc(n)}</span>`).join("")}</div>
+    <div class="cover-names" style="${namesStyle(names.length, t)}">${names.map((n) => `<span>${esc(n)}</span>`).join("")}</div>
   </div>
 </section>`;
 }
@@ -355,14 +382,17 @@ function essay(e: ZineEssay, issue: ZineIssue, t: Tweaks, art: ZineArt, preview:
     const part = excerpt(e.html, Math.max(150, wordsPerPage(t) * (t.length - 1)));
     if (part.words < e.words - 80) {
       cut = true;
-      body = `${splitBreaks(part.html).replace(/<\/p>$/, "…</p>")}${continued(e, e.words - part.words)}`;
+      body = `${splitBreaks(part.html).replace(/<\/p>$/, "…</p>")}${online(e, e.words - part.words, t.qr !== "none")}`;
     }
   }
   // The drop cap goes on the first paragraph only, never on its continuation after a page
   // or column break (Paged.js copies the element, which would match :first-child again).
   body = body.replace(/^<p>/, '<p class="first">');
   const bio = e.author.bio?.trim();
-  const note = `${bio ? `${esc(bio.length > 320 ? `${bio.slice(0, 317)}…` : bio)} ` : ""}First published at ${esc(host(e.url))}.`;
+  const bioText = bio ? esc(bio.length > 320 ? `${bio.slice(0, 317)}…` : bio) : "";
+  // With QR codes on every essay, the box gives the link, so the note is just the bio.
+  const qrAll = t.qr === "all";
+  const note = qrAll ? bioText : `${bioText ? `${bioText} ` : ""}First published at ${esc(host(e.url))}.`;
   return `<article class="essay op-${t.opener}" id="e-${e.id}">
   <header class="essay-head">${
     t.opener === "titlePage"
@@ -370,7 +400,7 @@ function essay(e: ZineEssay, issue: ZineIssue, t: Tweaks, art: ZineArt, preview:
       : `${img}${head}`
   }</header>
   <div class="essay-body">${body}</div>
-  ${cut ? "" : `<p class="essay-note">${note}</p>`}
+  ${cut ? "" : `${note ? `<p class="essay-note">${note}</p>` : ""}${qrAll ? online(e, 0, true) : ""}`}
 </article>`;
 }
 
@@ -435,7 +465,7 @@ ${opts.preview ? `<style data-pagedjs-ignore>${PREVIEW_CSS}</style>` : ""}
 </script>
 </head>
 <body>
-${t.cover ? cover(issue, essays, art, !!opts.preview) : ""}
+${t.cover ? cover(issue, essays, art, t, !!opts.preview) : ""}
 ${t.contents ? contents(issue, essays) : ""}
 ${essays.map((e) => essay(e, issue, t, art, !!opts.preview)).join("\n")}
 <section class="colophon">

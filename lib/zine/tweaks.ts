@@ -69,6 +69,9 @@ export type Tweaks = {
   order: "submitted" | "author" | "length";
   // "full", or about this many pages of each essay followed by a QR code to the rest.
   length: "full" | 2 | 3 | 4;
+  // QR codes to the essay online: on every essay, only on essays cut short, or never.
+  qr: "all" | "overflow" | "none";
+  limit: number | null; // only the first n essays (after order and exclusions); null for all
   exclude: string[]; // essay ids left out
 };
 
@@ -91,12 +94,14 @@ export const DEFAULT_TWEAKS: Tweaks = {
   runningHeads: true,
   folio: "outer",
   startRight: false,
-  images: "color",
+  images: "gray",
   endMark: "square",
   cover: true,
   contents: true,
   order: "submitted",
   length: "full",
+  qr: "all",
+  limit: 10,
   exclude: [],
 };
 
@@ -184,6 +189,8 @@ export function readTweaks(raw: unknown): Tweaks {
   pick("contents", bool);
   pick("order", oneOf(["submitted", "author", "length"]));
   pick("length", oneOf(["full", 2, 3, 4]));
+  pick("qr", oneOf(["all", "overflow", "none"]));
+  pick("limit", (v) => v === null || (typeof v === "number" && v >= 0 && v <= 1000));
   pick("exclude", (v) => Array.isArray(v) && v.every((x) => typeof x === "string"));
   return t;
 }

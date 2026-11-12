@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { cleanTitle, issueEssays, zineDocument } from "@/lib/zine/document";
+import {
+  cleanTitle,
+  issueEssays,
+  orderEssays,
+  zineDocument,
+} from "@/lib/zine/document";
 import {
   BODY_FONTS,
   DEFAULT_TWEAKS,
@@ -237,7 +242,7 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
         set={set}
         setTweaks={setTweaks}
         issue={issue}
-        included={essays.length}
+        essays={essays}
       />
     </div>
   );
@@ -279,17 +284,28 @@ function Panel({
   set,
   setTweaks,
   issue,
-  included,
+  essays,
 }: {
   tweaks: Tweaks;
   set: Setter;
   setTweaks: (t: Tweaks) => void;
   issue: ZineIssue;
-  included: number;
+  essays: ZineIssue["essays"];
 }) {
   const failed = issue.essays.filter((e) => e.error);
-  const readable = issue.essays.filter((e) => !e.error);
-  const excluded = new Set(t.exclude);
+  // Listed in the Order setting's order, so "first 10" reads top to bottom.
+  const readable = orderEssays(
+    issue.essays.filter((e) => !e.error),
+    t,
+  );
+  const included = new Set(essays.map((e) => e.id));
+  // Picking by hand turns the current selection into an explicit list.
+  const choose = (ids: Set<string>) =>
+    setTweaks({
+      ...t,
+      limit: null,
+      exclude: readable.filter((e) => !ids.has(e.id)).map((e) => e.id),
+    });
   return (
     <aside className="flex max-h-none shrink-0 flex-col gap-6 overflow-y-auto border-t border-ink/10 bg-paper px-5 py-5 text-[14px] lg:max-h-full lg:w-[320px] lg:border-t-0 lg:border-l">
       <Group title="Presets">
@@ -299,7 +315,12 @@ function Panel({
               key={p.label}
               type="button"
               onClick={() =>
-                setTweaks({ ...DEFAULT_TWEAKS, ...p.tweaks, exclude: t.exclude })
+                setTweaks({
+                  ...DEFAULT_TWEAKS,
+                  ...p.tweaks,
+                  exclude: t.exclude,
+                  limit: t.limit,
+                })
               }
               className="cursor-pointer border border-ink/20 px-2.5 py-1 hover:bg-cream-hover"
             >
@@ -396,7 +417,7 @@ function Panel({
           options={[["color", "Color"], ["gray", "Gray"], ["none", "Hide"]]} onChange={(v) => set("images", v)} />
       </Group>
 
-      <Group title={`Essays · ${included} of ${readable.length}`}>
+      <Group title={`Essays · ${included.size} of ${readable.length}`}>
         <Segmented label="Order" value={t.order}
           options={[["submitted", "Submitted"], ["author", "Author"], ["length", "Length"]]}
           onChange={(v) => set("order", v)} />
@@ -405,33 +426,45 @@ function Panel({
           onChange={(v) => set("length", v)} />
         {t.length !== "full" && (
           <p className="-mt-1 text-[12px] text-ink-muted">
-            About {t.length} pages of each essay, then a QR code to the rest.
+            About {t.length} pages of each essay, then a link to the rest.
           </p>
         )}
-        <div className="flex gap-3 text-[13px]">
-          <button type="button" className="cursor-pointer underline" onClick={() => set("exclude", [])}>
-            All
-          </button>
-          <button type="button" className="cursor-pointer underline"
-            onClick={() => set("exclude", readable.map((e) => e.id))}>
-            None
-          </button>
-        </div>
+        <Segmented label="QR codes" value={t.qr}
+          options={[["all", "All"], ["overflow", "Overflow"], ["none", "None"]]}
+          onChange={(v) => set("qr", v)} />
+        <Segmented
+          label="Include"
+          value={
+            t.exclude.length === 0 && t.limit === 10
+              ? "10"
+              : t.exclude.length === 0 && t.limit === null
+                ? "all"
+                : included.size === 0
+                  ? "none"
+                  : "custom"
+          }
+          options={[["10", "First 10"], ["all", "All"], ["none", "None"]]}
+          onChange={(v) =>
+            setTweaks({
+              ...t,
+              limit: v === "10" ? 10 : null,
+              exclude: v === "none" ? readable.map((e) => e.id) : [],
+            })
+          }
+        />
         <ul className="flex flex-col gap-1">
           {readable.map((e) => (
             <li key={e.id}>
               <label className="flex cursor-pointer items-baseline gap-2">
                 <input
                   type="checkbox"
-                  checked={!excluded.has(e.id)}
-                  onChange={(ev) =>
-                    set(
-                      "exclude",
-                      ev.target.checked
-                        ? t.exclude.filter((x) => x !== e.id)
-                        : [...t.exclude, e.id],
-                    )
-                  }
+                  checked={included.has(e.id)}
+                  onChange={(ev) => {
+                    const ids = new Set(included);
+                    if (ev.target.checked) ids.add(e.id);
+                    else ids.delete(e.id);
+                    choose(ids);
+                  }}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{cleanTitle(e)}</span>
@@ -464,7 +497,9 @@ function Panel({
 
       <button
         type="button"
-        onClick={() => setTweaks({ ...DEFAULT_TWEAKS, exclude: t.exclude })}
+        onClick={() =>
+          setTweaks({ ...DEFAULT_TWEAKS, exclude: t.exclude, limit: t.limit })
+        }
         className="cursor-pointer self-start text-[13px] text-ink-muted underline"
       >
         Reset design
