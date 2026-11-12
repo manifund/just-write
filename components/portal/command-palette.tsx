@@ -25,6 +25,7 @@ export function portalSections(isAdmin: boolean): Section[] {
     { href: "/calendar", label: "Calendar", icon: "◫" },
     { href: "/ideas", label: "Ideas", icon: "☆" },
     { href: "/themes", label: "Themes", icon: "¶" },
+    { href: "/zine", label: "Zine", icon: "❡" },
     { href: "/members", label: "Members", icon: "◎" },
     ...(isAdmin
       ? [

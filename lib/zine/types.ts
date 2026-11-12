@@ -15,3 +15,14 @@ export type ZineEssay = {
 };
 
 export type ZineIssue = { week: number; cachedAt: number; essays: ZineEssay[] };
+
+// content/zine/art.json: illustrations by essay id, plus an optional "cover".
+// file is a path under public/, e.g. "/zine/art/<essayId>.png".
+export type ZineArtEntry = {
+  file: string; // print resolution
+  web?: string; // smaller copy for the on-screen preview
+  prompt?: string;
+  alt?: string;
+  credit?: string;
+};
+export type ZineArt = Record<string, ZineArtEntry | undefined>;
