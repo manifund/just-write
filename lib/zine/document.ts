@@ -413,6 +413,41 @@ function essay(e: ZineEssay, issue: ZineIssue, t: Tweaks, art: ZineArt, preview:
 </article>`;
 }
 
+// Scroll, zoom, spreads, guides, and print for the preview iframe, both while Paged.js
+// runs and in a saved copy of its finished pages (cachedDocument).
+const PREVIEW_SCRIPT = `let t = 0;
+  addEventListener("scroll", () => { clearTimeout(t); t = setTimeout(() => parent.postMessage({ type: "zine:scroll", f: scrollY / Math.max(1, document.documentElement.scrollHeight) }, "*"), 120); });
+  addEventListener("message", (ev) => {
+    const d = ev.data || {};
+    if (d.type === "zine:view") {
+      document.documentElement.style.setProperty("--zoom", d.zoom);
+      document.documentElement.classList.toggle("spreads", !!d.spreads);
+      document.documentElement.classList.toggle("guides", !!d.guides);
+    }
+    if (d.type === "zine:scrollTo") scrollTo(0, d.f * document.documentElement.scrollHeight);
+    if (d.type === "zine:page") document.querySelectorAll(".pagedjs_page")[d.page - 1]?.scrollIntoView();
+    if (d.type === "zine:print") print();
+  });
+  // The laid-out pages as static HTML, without scripts or the preview's view settings.
+  function zineSnapshot() {
+    const root = document.documentElement.cloneNode(true);
+    root.querySelectorAll("script").forEach((s) => s.remove());
+    root.removeAttribute("style");
+    root.classList.remove("spreads", "guides");
+    return "<!doctype html>\\n" + root.outerHTML;
+  }`;
+
+// A saved snapshot of pages Paged.js already laid out, shown without typesetting again.
+// Paged.js writes its page styles as plain <style> text, so the copy looks the same.
+export function cachedDocument(snapshot: string, pages: number) {
+  const script = `<script>
+  ${PREVIEW_SCRIPT}
+  addEventListener("load", () => document.fonts.ready.then(() => parent.postMessage({ type: "zine:done", pages: ${Number(pages)} }, "*")));
+</script>`;
+  const at = snapshot.indexOf("</head>");
+  return at < 0 ? snapshot + script : snapshot.slice(0, at) + script + snapshot.slice(at);
+}
+
 export function zineDocument(
   issue: ZineIssue,
   art: ZineArt,
@@ -447,30 +482,14 @@ ${opts.preview ? `<style data-pagedjs-ignore>${PREVIEW_CSS}</style>` : ""}
     },
     after: (flow) => {
       window.__zine.done = { pages: flow.total, ms: Date.now() - window.__zine.started };
-      parent.postMessage({ type: "zine:done", pages: flow.total }, "*");
+      parent.postMessage({ type: "zine:done", pages: flow.total${opts.preview ? ", snapshot: zineSnapshot()" : ""} }, "*");
     },
   };
 </script>
 <script src="${PAGED_SRC}"></script>
 <script>
   window.PagedPolyfill.on("page", (p) => parent.postMessage({ type: "zine:progress", pages: p.position + 1 }, "*"));
-  ${
-    opts.preview
-      ? `let t = 0;
-  addEventListener("scroll", () => { clearTimeout(t); t = setTimeout(() => parent.postMessage({ type: "zine:scroll", f: scrollY / Math.max(1, document.documentElement.scrollHeight) }, "*"), 120); });
-  addEventListener("message", (ev) => {
-    const d = ev.data || {};
-    if (d.type === "zine:view") {
-      document.documentElement.style.setProperty("--zoom", d.zoom);
-      document.documentElement.classList.toggle("spreads", !!d.spreads);
-      document.documentElement.classList.toggle("guides", !!d.guides);
-    }
-    if (d.type === "zine:scrollTo") scrollTo(0, d.f * document.documentElement.scrollHeight);
-    if (d.type === "zine:page") document.querySelectorAll(".pagedjs_page")[d.page - 1]?.scrollIntoView();
-    if (d.type === "zine:print") print();
-  });`
-      : ""
-  }
+  ${opts.preview ? PREVIEW_SCRIPT : ""}
 </script>
 </head>
 <body>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getRender, putRender, renderKey } from "@/lib/zine/cache";
 import {
+  cachedDocument,
   cleanTitle,
   issueEssays,
   orderEssays,
@@ -29,7 +31,8 @@ type Doc = { key: number; html: string };
 // Each change typesets the issue again in a hidden iframe and swaps it in when done, so
 // the old pages stay up while the new ones are set. The iframe isn't sandboxed: Paged.js
 // stalls in an opaque origin, and the essays' HTML is rebuilt from a tag whitelist with no
-// scripts or attributes beyond href/src/alt (scripts/zine-cache.ts).
+// scripts or attributes beyond href/src/alt (scripts/zine-cache.ts). Finished pages are
+// saved in the browser (lib/zine/cache.ts), so the same issue and settings open at once.
 export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
   const [week, setWeek] = useState(issues[0]?.week ?? 1);
   const issue = issues.find((i) => i.week === week);
@@ -46,6 +49,8 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
   const frames = useRef(new Map<number, HTMLIFrameElement>());
   const scroll = useRef(0);
   const nextKey = useRef(1);
+  // Cache key of each frame that's typesetting, so its finished pages can be saved.
+  const cacheKeys = useRef(new Map<number, string>());
 
   useEffect(() => {
     try {
@@ -71,15 +76,27 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
   // Typeset again shortly after the last change.
   useEffect(() => {
     if (!loaded || !issue) return;
-    const timer = setTimeout(() => {
-      const key = nextKey.current++;
-      setProgress(0);
-      setDocs((ds) => [
-        ...ds.filter((d) => d.key === shown),
-        { key, html: zineDocument(issue, art, tweaks, { preview: true }) },
-      ]);
-    }, 450);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    const timer = setTimeout(
+      async () => {
+        const html = zineDocument(issue, art, tweaks, { preview: true });
+        const cacheKey = await renderKey(html).catch(() => null);
+        const hit = cacheKey ? await getRender(cacheKey) : null;
+        if (cancelled) return;
+        const key = nextKey.current++;
+        if (cacheKey && !hit) cacheKeys.current.set(key, cacheKey);
+        setProgress(0);
+        setDocs((ds) => [
+          ...ds.filter((d) => d.key === shown),
+          { key, html: hit ? cachedDocument(hit.snapshot, hit.pages) : html },
+        ]);
+      },
+      shown === null ? 0 : 450,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
     // `shown` is read only to keep the visible frame; it shouldn't trigger a new render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tweaks, issue, art, loaded]);
@@ -103,9 +120,20 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
       );
       if (!entry) return;
       const [key, frame] = entry;
-      const d = ev.data as { type?: string; pages?: number; f?: number };
+      const d = ev.data as {
+        type?: string;
+        pages?: number;
+        f?: number;
+        snapshot?: string;
+      };
       if (d.type === "zine:progress" && key === latest) setProgress(d.pages ?? 0);
       if (d.type === "zine:scroll" && key === shown) scroll.current = d.f ?? 0;
+      if (d.type === "zine:done") {
+        const cacheKey = cacheKeys.current.get(key);
+        cacheKeys.current.delete(key);
+        if (cacheKey && typeof d.snapshot === "string" && d.pages)
+          void putRender(cacheKey, { snapshot: d.snapshot, pages: d.pages });
+      }
       if (d.type === "zine:done" && key === latest) {
         sendView(frame);
         frame.contentWindow?.postMessage(
