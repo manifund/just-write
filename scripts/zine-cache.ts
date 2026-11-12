@@ -37,7 +37,7 @@ type Row = Record<string, unknown> & { _id: string };
 async function table(name: string): Promise<Row[]> {
   const { stdout: out } = await run(
     "bunx",
-    ["convex", "data", name, "--limit", "100000", "--format", "jsonLines"],
+    ["convex", "data", name, "--limit", "10000", "--format", "jsonLines"],
     { maxBuffer: 1 << 28 },
   );
   return out
@@ -52,6 +52,33 @@ function fetchUrl(url: string) {
   return doc
     ? `https://docs.google.com/document/d/${doc[1]}/export?format=html`
     : url;
+}
+
+// LessWrong pages are built by scripts, and Substack pages can come back as a stub; both
+// have APIs that return the post body. Returns null for other hosts.
+async function apiBody(url: string): Promise<string | null> {
+  const u = new URL(url);
+  const lw = u.hostname.endsWith("lesswrong.com") && u.pathname.match(/^\/posts\/(\w+)/);
+  if (lw) {
+    const res = await fetch("https://www.lesswrong.com/graphql", {
+      method: "POST",
+      headers: { "user-agent": UA, "content-type": "application/json" },
+      body: JSON.stringify({
+        query: `{ post(input:{selector:{_id:${JSON.stringify(lw[1])}}}){ result { contents { html } } } }`,
+      }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = (await res.json()) as { data?: { post?: { result?: { contents?: { html?: string } } } } };
+    return j.data?.post?.result?.contents?.html ?? null;
+  }
+  const sub = u.pathname.match(/^\/p\/([\w-]+)/);
+  if (sub && u.hostname.endsWith(".substack.com")) {
+    const res = await fetch(`${u.origin}/api/v1/posts/${sub[1]}`, { headers: { "user-agent": UA } });
+    if (!res.ok) return null;
+    const j = (await res.json().catch(() => null)) as { body_html?: string } | null;
+    return j?.body_html ?? null;
+  }
+  return null;
 }
 
 const KEEP = new Set([
@@ -154,6 +181,23 @@ export function googleDocBody(raw: string) {
   return document.body?.innerHTML ?? "";
 }
 
+const EMAIL = "[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+";
+const EMAIL_G = new RegExp(EMAIL, "g");
+const hasEmail = (s: string) => new RegExp(EMAIL).test(s);
+
+// Substack's subscribe boxes, buttons, and share widgets, in pages and in its API's body_html.
+const WIDGETS = [
+  ".subscription-widget-wrap", ".subscription-widget-wrap-editor", ".subscription-widget",
+  ".button-wrapper", ".captioned-button-wrap", ".subscribe-widget", ".paywall-jump",
+  ".share-dialog", ".post-ufi", ".image-link-expand", "[data-component-name=SubscribeWidget]",
+  "[data-component-name=ButtonCreateButton]", "[data-component-name=SubscribeWidgetToDOM]",
+].join(",");
+function stripWidgets(raw: string) {
+  const { document } = parseHTML(raw.includes("<html") ? raw : `<html><body>${raw}</body></html>`);
+  for (const el of document.querySelectorAll(WIDGETS)) el.remove();
+  return document;
+}
+
 // Tidies the cleaned HTML: empty paragraphs, a leading heading that repeats the title.
 function tidy(html: string, title: string) {
   let out = html
@@ -162,8 +206,16 @@ function tidy(html: string, title: string) {
     .replace(/\s+/g, " ")
     .trim();
   const norm = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\W+/g, "").toLowerCase();
-  const first = out.match(/^<h[2-4]>(.*?)<\/h[2-4]>/);
-  if (first && norm(first[1]) === norm(title)) out = out.slice(first[0].length).trim();
+  // The heading may come after a short date line, and may add a subtitle to the title.
+  const first = out.match(/^(<p>[^<]{0,60}<\/p>\s*)?<h[2-4]>(.*?)<\/h[2-4]>/);
+  if (first && norm(first[2]).startsWith(norm(title))) out = out.slice(first[0].length).trim();
+  // No email addresses in the magazine: drop short lines that hold one (bylines, contact
+  // lines), and blank out the rest.
+  out = out
+    .replace(/<p>(.*?)<\/p>/g, (m, body: string) =>
+      hasEmail(body) && body.replace(/<[^>]+>/g, "").length <= 160 ? "" : m,
+    )
+    .replace(EMAIL_G, "(address removed)");
   return out;
 }
 
@@ -215,16 +267,21 @@ export async function readEssay(
     error: null,
   };
   try {
-    const res = await fetch(fetchUrl(url), {
-      headers: { "user-agent": UA, accept: "text/html" },
-      redirect: "follow",
-    });
+    const fromApi = await apiBody(url);
+    const res = fromApi
+      ? { ok: true, status: 200, url, text: async () => "" }
+      : await fetch(fetchUrl(url), {
+          headers: { "user-agent": UA, accept: "text/html" },
+          redirect: "follow",
+        });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.text();
     const gdoc = fetchUrl(url) !== url;
-    const article = gdoc
+    const article = fromApi
+      ? { content: stripWidgets(fromApi).body.innerHTML, excerpt: null }
+      : gdoc
       ? { content: googleDocBody(raw), excerpt: null }
-      : new Readability(parseHTML(raw).document as unknown as Document, {
+      : new Readability(stripWidgets(raw) as unknown as Document, {
           charThreshold: 300,
           keepClasses: false,
         }).parse();
