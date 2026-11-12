@@ -74,6 +74,7 @@ const REVIEW_MS = 120_000; // the route gives the whole finish 250s
 const SERVER_CODE = [
   /^convex\/(?!_generated\/).*\.ts$/,
   /^lib\/.*\.ts$/,
+  /^scripts\/.*\.ts$/,
   /^app\/.*\/(actions|route)\.ts$/,
 ];
 
