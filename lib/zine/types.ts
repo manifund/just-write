@@ -26,3 +26,7 @@ export type ZineArtEntry = {
   credit?: string;
 };
 export type ZineArt = Record<string, ZineArtEntry | undefined>;
+
+// content/zine/defaults.json (scripts/zine-pages.ts): each week's pages typeset once in the
+// default design. key is the hash of the document they came from; src is under public/.
+export type ZineDefaults = Record<string, { key: string; pages: number; src: string } | undefined>;

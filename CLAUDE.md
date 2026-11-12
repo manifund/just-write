@@ -115,6 +115,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 - `scripts/zine-cache.ts` saves a week's essays to `content/zine/week-<n>.json` (images in `public/zine/week-<n>/`); `/zine` reads those files at build time (traced in `next.config.ts`).
 - `lib/zine/document.ts` builds one HTML document from an issue and the design settings in `lib/zine/tweaks.ts`; Paged.js (`public/zine/vendor/`) lays it out. `/zine` previews it in an iframe and `scripts/zine-pdf.ts` prints it to PDF, so both always match.
 - Paged.js's CSS parser rejects `:is()`; write the selectors out.
+- `scripts/zine-pages.ts` typesets each issue in the default design once (`public/zine/week-<n>/default-<hash>.html`, listed in `content/zine/defaults.json`); `/zine` opens those pages when its document's hash matches, else typesets in the browser. Rerun it after `zine-cache.ts` or any change to the layout code or default design.
 
 **@Claude improvements:** mentioning `@Claude` in chat asks an agent to change this site.
 

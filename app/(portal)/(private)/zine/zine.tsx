@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   backgroundJob,
   finishInBackground,
+  getPrebuilt,
   getRender,
   putRender,
   renderKey,
@@ -27,7 +28,7 @@ import {
   spineInches,
   type Tweaks,
 } from "@/lib/zine/tweaks";
-import type { ZineArt, ZineIssue } from "@/lib/zine/types";
+import type { ZineArt, ZineDefaults, ZineIssue } from "@/lib/zine/types";
 
 const STORAGE = "zine:tweaks";
 
@@ -40,7 +41,17 @@ type Doc = { key: number; html: string; saved: boolean };
 // scripts or attributes beyond href/src/alt (scripts/zine-cache.ts). Finished pages are
 // saved in the browser (lib/zine/cache.ts), so the same issue and settings open at once;
 // leaving mid-typeset finishes it in the background so the next visit is instant too.
-export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
+// The default design's pages also ship with the site (scripts/zine-pages.ts), so a first
+// visit on the defaults opens at once.
+export function Zine({
+  issues,
+  art,
+  defaults,
+}: {
+  issues: ZineIssue[];
+  art: ZineArt;
+  defaults: ZineDefaults;
+}) {
   const [week, setWeek] = useState(issues[0]?.week ?? 1);
   const issue = issues.find((i) => i.week === week);
   const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
@@ -96,6 +107,10 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
         const html = zineDocument(issue, art, tweaks, { preview: true });
         const cacheKey = await renderKey(html).catch(() => null);
         let hit = cacheKey ? await getRender(cacheKey) : null;
+        // The default pages shipped with the site, if they came from this same document.
+        const prebuilt = defaults[issue.week];
+        if (cacheKey && !hit && prebuilt?.key === cacheKey)
+          hit = await getPrebuilt(cacheKey, prebuilt);
         // Typesetting left running from an earlier visit: wait for it instead.
         const job = cacheKey && !hit ? backgroundJob(cacheKey) : undefined;
         if (job && !cancelled) {
@@ -125,7 +140,7 @@ export function Zine({ issues, art }: { issues: ZineIssue[]; art: ZineArt }) {
     };
     // `shown` is read only to keep the visible frame; it shouldn't trigger a new render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tweaks, issue, art, loaded]);
+  }, [tweaks, issue, art, defaults, loaded]);
 
   // Leaving while the newest version is still typesetting: finish it in the background.
   const pending = useRef<{ key: string; html: string } | null>(null);
