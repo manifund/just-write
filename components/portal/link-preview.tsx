@@ -14,23 +14,48 @@ type Preview = FunctionReturnType<typeof api.linkPreviews.get>[number];
 
 // Cards for the outside links in a message, like the ones social sites show: the page's
 // title, description, and image. Links to members' essays get the essay card.
+// The author (or an admin) can remove a card with its ×; the link stays in the text.
 export function LinkPreviews({
   messageId,
   body,
+  hidden,
+  canHide,
 }: {
   messageId: string;
   body: string;
+  hidden?: string[];
+  canHide?: boolean;
 }) {
-  const urls = messageUrls(body);
+  const hidePreview = useMutation(api.chat.hidePreview);
+  const [removed, setRemoved] = useState<string[]>([]);
+  const gone = [...(hidden ?? []), ...removed];
+  const urls = messageUrls(body).filter((u) => !gone.includes(u));
   const previews = usePreviews(messageId, urls, body);
-  const shown = previews?.filter((p) => p.essay || p.card) ?? [];
+  const shown =
+    previews?.filter((p) => (p.essay || p.card) && !gone.includes(p.url)) ??
+    [];
   if (!shown.length) return null;
   const inRow = shown.length > 1;
+  const onHide = (url: string) =>
+    canHide
+      ? () => {
+          // Hidden right away; it comes back if the save fails.
+          setRemoved((r) => [...r, url]);
+          hidePreview({ messageId: messageId as Id<"messages">, url }).catch(
+            () => setRemoved((r) => r.filter((u) => u !== url)),
+          );
+        }
+      : undefined;
   const cards = shown.map((p) =>
     p.essay ? (
-      <EssayLinkCard key={p.url} preview={p} inRow={inRow} />
+      <EssayLinkCard
+        key={p.url}
+        preview={p}
+        inRow={inRow}
+        onHide={onHide(p.url)}
+      />
     ) : (
-      <LinkCard key={p.url} preview={p} inRow={inRow} />
+      <LinkCard key={p.url} preview={p} inRow={inRow} onHide={onHide(p.url)} />
     ),
   );
   return inRow ? (
@@ -141,9 +166,11 @@ export function EssayCard({
 function EssayLinkCard({
   preview: p,
   inRow,
+  onHide,
 }: {
   preview: Preview;
   inRow?: boolean;
+  onHide?: () => void;
 }) {
   const essay = p.essay!;
   const author = useMember(essay.authorId);
@@ -160,6 +187,7 @@ function EssayLinkCard({
         .join(" · ")}
       themes={essay.themes}
       inRow={inRow}
+      onHide={onHide}
     />
   );
 }
@@ -167,9 +195,11 @@ function EssayLinkCard({
 function LinkCard({
   preview: p,
   inRow,
+  onHide,
 }: {
   preview: Preview;
   inRow?: boolean;
+  onHide?: () => void;
 }) {
   const card = p.card!;
   return (
@@ -182,6 +212,7 @@ function LinkCard({
       description={card.description}
       compact
       inRow={inRow}
+      onHide={onHide}
     />
   );
 }
@@ -203,6 +234,7 @@ function CardFrame({
   themes,
   compact,
   inRow,
+  onHide,
 }: {
   href: string;
   accent: string;
@@ -214,13 +246,25 @@ function CardFrame({
   themes?: string[];
   compact?: boolean;
   inRow?: boolean;
+  onHide?: () => void;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
   const showImage = image && broken !== image;
   return (
     <div
-      className={`flex flex-col border-l-[3px] ${accent} bg-cream-deep ${inRow ? "w-60 shrink-0 snap-start" : "max-w-[22rem]"}`}
+      className={`group/card relative flex flex-col border-l-[3px] ${accent} bg-cream-deep ${inRow ? "w-60 shrink-0 snap-start" : "max-w-[22rem]"}`}
     >
+      {onHide && (
+        <button
+          type="button"
+          onClick={onHide}
+          aria-label="Remove preview"
+          title="Remove preview"
+          className="absolute top-1 right-1 z-10 flex size-6 items-center justify-center rounded-full border border-ink/15 bg-cream text-[15px] leading-none text-ink-muted shadow-sm transition-[opacity,background-color] duration-150 hover:bg-cream-hover hover:text-ink focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/card:opacity-100"
+        >
+          ×
+        </button>
+      )}
       <a
         href={href}
         target="_blank"
