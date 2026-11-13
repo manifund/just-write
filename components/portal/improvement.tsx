@@ -269,6 +269,19 @@ export function ImprovementCard({
   );
 }
 
+// Why the merge decision held a PR for an admin, from its verdict ("review: <why>").
+function heldNote(verdict: string | null) {
+  const why = verdict?.startsWith("review:")
+    ? verdict
+        .slice("review:".length)
+        .replace(/^\s*unfinished:/, "")
+        .trim()
+    : "";
+  return why
+    ? `Waiting for an admin to review. Held because ${why.replace(/[.\s]+$/, "")}.`
+    : "Waiting for an admin to review.";
+}
+
 // A run started from a reply that didn't mention Claude (convex/untagged.ts).
 function UntaggedNote() {
   return (
@@ -448,7 +461,7 @@ function Outcome({ card, isAdmin }: { card: Card; isAdmin: boolean }) {
           ? "This conflicts with newer changes to the site. Merge has Claude fix that first."
           : "This conflicts with newer changes to the site, so it needs a sync before it can merge."
         : card.checksPassed
-          ? "Waiting for an admin to review."
+          ? heldNote(card.verdict)
           : "The typecheck or linter failed, so this needs a closer look.";
       if (isAdmin)
         actions = (

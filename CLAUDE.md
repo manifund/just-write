@@ -144,6 +144,7 @@ How a run goes:
 - Everything else is read by `MERGE_REVIEW_MODEL` (Opus) with the request, the diff, and every changed server file in full, against a fixed checklist (`lib/improve-finish.ts#CHECKLIST`); any yes means review.
 - Checklist questions marked `judged` (calling outside sites, scheduled jobs and rate limits, doing more than asked) can also be answered "safe" with a one-line reason, which passes; the others (caller checks, private data, data loss, secrets and email, sign-in/payments/@Claude, schema, CLAUDE.md instructions, load, obscure code) only pass on "no".
 - The review's answers are posted as a comment on the PR.
+- A PR held for an admin shows why on its card (the run's `verdict`: the failed checklist flags plus the review's own reason).
 - At most `BACKEND_AUTOMERGES_PER_DAY` changes under `convex/` merge without an admin in 24 hours (`server.ts#backendAutoMerges`).
 - Settings (merge policy, models, rate limits, paths that always need review) are in `convex/lib/improve.ts`.
 - `server.reportImprovement`'s `patch` validator is built from the `improvements` table in `convex/schema.ts` (minus fields set at creation or owned elsewhere), so a new field only needs the schema.
