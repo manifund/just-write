@@ -292,7 +292,14 @@ export function veil(
       { type: "paragraph", content: [{ type: "text", text: preview }] },
     ],
   };
-  return { ...m, hidden: true, text: preview, body: JSON.stringify(body) };
+  // hiddenPreviews holds link addresses from the full text, so it goes too.
+  return {
+    ...m,
+    hidden: true,
+    text: preview,
+    body: JSON.stringify(body),
+    hiddenPreviews: undefined,
+  };
 }
 
 // Adds reactions and the linked essay to each message, and hides what the viewer
