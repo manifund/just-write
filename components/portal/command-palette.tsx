@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 import { api } from "@/convex/_generated/api";
 import { pushChatUrl, useChatUrl } from "@/lib/chat-url";
 import { usePortal } from "./context";
-import { profilePath } from "./util";
+import { profilePath, timeAgo, useNow } from "./util";
 
 // The numbered sections of the portal, in sidebar order. Cmd/Ctrl+1–9 go to them.
 export type Section = { href: string; label: string; icon: string };
@@ -55,10 +55,11 @@ type Item = {
   kind: string; // shown on the right
   search: string; // lowercase text to match
   unread?: boolean;
+  detail?: string; // a second line, for message matches
 };
 
 // Opens with Cmd/Ctrl+K (or the sidebar's "Jump to" button) and lists sections,
-// channels, and members. Also handles the portal's other shortcuts:
+// channels, and members, then messages whose text matches (chat.search). Also handles the portal's other shortcuts:
 // Cmd/Ctrl+1–9 (or Alt+1–9 outside text fields) for sections, Alt+↑/↓ for the
 // previous/next channel, and Alt+Shift+↑/↓ for the previous/next unread channel.
 export function CommandPalette({
@@ -234,16 +235,44 @@ function Dialog({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
+  const { roster } = usePortal();
+  const now = useNow();
   const q = query.trim().toLowerCase();
-  const shown = useMemo(
-    () =>
-      items
-        .map((item, i) => ({ item, i, s: score(item, q) }))
-        .filter((x) => x.s !== null)
-        .sort((a, b) => a.s! - b.s! || a.i - b.i)
-        .map((x) => x.item),
-    [items, q],
+  // Message search waits for a pause in typing.
+  const [searchFor, setSearchFor] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchFor(q), 200);
+    return () => clearTimeout(t);
+  }, [q]);
+  const found = useQuery(
+    api.chat.search,
+    searchFor.length >= 2 ? { q: searchFor } : "skip",
   );
+  const searching = q.length >= 2 && (searchFor !== q || found === undefined);
+  const shown = useMemo(() => {
+    const list = items
+      .map((item, i) => ({ item, i, s: score(item, q) }))
+      .filter((x) => x.s !== null)
+      .sort((a, b) => a.s! - b.s! || a.i - b.i)
+      .map((x) => x.item);
+    if (q.length < 2 || searchFor !== q) return list;
+    for (const m of found ?? [])
+      list.push({
+        key: `msg:${m._id}`,
+        href: m.href,
+        label: m.snippet,
+        icon: "“",
+        kind: "",
+        search: "",
+        detail: `${roster.get(m.authorId)?.name ?? "Someone"} ${
+          m.reply ? "replied" : ""
+        } in #${m.channel}${now ? ` · ${timeAgo(m._creationTime, now)}` : ""}`.replace(
+          /\s+/g,
+          " ",
+        ),
+      });
+    return list;
+  }, [items, q, searchFor, found, roster, now]);
   const current = Math.min(active, Math.max(0, shown.length - 1));
 
   // Put focus back where it was when the palette closes.
@@ -303,7 +332,7 @@ function Dialog({
             setActive(0);
           }}
           onKeyDown={onKeyDown}
-          placeholder="Jump to a page, channel, or member"
+          placeholder="Jump to a page, channel, member, or message"
           aria-label="Jump to"
           role="combobox"
           aria-expanded="true"
@@ -321,7 +350,7 @@ function Dialog({
         >
           {shown.length === 0 && (
             <li className="px-4 py-3 text-[15px] text-ink-muted">
-              Nothing matches.
+              {searching ? "Searching messages…" : "Nothing matches."}
             </li>
           )}
           {shown.map((item, i) => (
@@ -339,15 +368,26 @@ function Dialog({
             >
               <span
                 aria-hidden="true"
-                className="w-5 shrink-0 text-center text-ink-muted"
+                className={`w-5 shrink-0 text-center text-ink-muted ${item.detail ? "self-start" : ""}`}
               >
                 {item.icon}
               </span>
-              <span
-                className={`min-w-0 truncate ${item.unread ? "font-bold" : ""}`}
-              >
-                {item.label}
-              </span>
+              {item.detail ? (
+                <span className="min-w-0">
+                  <span className="line-clamp-2 block text-[15px]">
+                    {item.label}
+                  </span>
+                  <span className="block truncate text-[13px] text-ink-muted">
+                    {item.detail}
+                  </span>
+                </span>
+              ) : (
+                <span
+                  className={`min-w-0 truncate ${item.unread ? "font-bold" : ""}`}
+                >
+                  {item.label}
+                </span>
+              )}
               {item.unread && (
                 <span
                   className="size-2 shrink-0 rounded-full bg-brass"

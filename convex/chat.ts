@@ -489,6 +489,83 @@ export const linkPreview = query({
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGES = 10;
 
+// Message search for the "Jump to" palette: the best text matches across every channel
+// and thread. #check-ins posts the viewer can't read yet are left out, so a match can't
+// give away what's behind the gate.
+const SEARCH_SCAN = 40;
+const SEARCH_RESULTS = 8;
+const SNIPPET_CHARS = 140;
+export const search = query({
+  args: { q: v.string() },
+  handler: async (ctx, args) => {
+    const { member } = await requireMember(ctx);
+    const q = args.q.trim().slice(0, 100);
+    if (q.length < 2) return [];
+    const rows = await ctx.db
+      .query("messages")
+      .withSearchIndex("search_text", (s) => s.search("text", q))
+      .take(SEARCH_SCAN);
+    const channels = new Map<
+      Id<"channels">,
+      { c: Doc<"channels">; gate: Gate | null } | null
+    >();
+    const parents = new Map<Id<"messages">, Doc<"messages"> | null>();
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (const m of rows) {
+      if (out.length >= SEARCH_RESULTS) break;
+      if (!m.text.trim()) continue;
+      if (!channels.has(m.channelId)) {
+        const c = await ctx.db.get(m.channelId);
+        channels.set(
+          m.channelId,
+          c ? { c, gate: await checkInGate(ctx, c, member) } : null,
+        );
+      }
+      const ch = channels.get(m.channelId);
+      if (!ch) continue;
+      let parent: Doc<"messages"> | null = null;
+      if (m.parentId) {
+        if (!parents.has(m.parentId))
+          parents.set(m.parentId, await ctx.db.get(m.parentId));
+        parent = parents.get(m.parentId) ?? null;
+        if (!parent) continue;
+      }
+      if (veil(m, ch.gate, parent).hidden) continue;
+      out.push({
+        _id: m._id,
+        _creationTime: m._creationTime,
+        authorId: m.authorId,
+        channel: ch.c.name,
+        reply: !!m.parentId,
+        href: m.parentId
+          ? `/chat/${ch.c.slug}/${m.parentId}?message=${m._id}`
+          : `/chat/${ch.c.slug}/${m._id}`,
+        snippet: snippet(m.text, words),
+      });
+    }
+    return out;
+  },
+});
+
+// A short piece of the text around the first word of the search that appears in it.
+function snippet(text: string, words: string[]) {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= SNIPPET_CHARS) return flat;
+  const lower = flat.toLowerCase();
+  const at = Math.min(
+    ...words.map((w) => lower.indexOf(w)).filter((i) => i >= 0),
+    flat.length,
+  );
+  const start = at === flat.length ? 0 : Math.max(0, at - 40);
+  const end = Math.min(flat.length, start + SNIPPET_CHARS);
+  return (
+    (start > 0 ? "…" : "") +
+    flat.slice(start, end).trim() +
+    (end < flat.length ? "…" : "")
+  );
+}
+
 export const imageUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
