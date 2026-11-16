@@ -26,6 +26,17 @@ export const improvementStatus = v.union(
   v.literal("superseded"),
 );
 
+// checkout (sent to Stripe) → paid → rendering → printing (sent to Lulu) → shipped.
+export const zineOrderStatus = v.union(
+  v.literal("checkout"),
+  v.literal("paid"),
+  v.literal("rendering"),
+  v.literal("printing"),
+  v.literal("shipped"),
+  v.literal("failed"),
+  v.literal("canceled"),
+);
+
 export default defineSchema({
   // Everyone who expressed interest, signed, or committed. Keyed by lowercase email,
   // which is also how a signed-in Better Auth user finds their row.
@@ -421,4 +432,65 @@ export default defineSchema({
     computedAt: v.number(),
     requestedAt: v.number(),
   }),
+
+  // Printed copies of the zine ordered from /zine (convex/zineOrders.ts). The member pays us
+  // through Stripe; then a sandbox renders the PDFs from their design and we send a print job
+  // to Lulu (app/api/zine/print/route.ts), whose webhook reports production and shipping.
+  zineOrders: defineTable({
+    memberId: v.id("members"),
+    week: v.number(),
+    tweaks: v.string(), // the design, as JSON (lib/zine/tweaks.ts#readTweaks reads it)
+    podPackageId: v.string(), // Lulu product code (lib/zine/print.ts#podPackageId)
+    print: v.object({
+      binding: v.string(),
+      ink: v.string(),
+      paper: v.string(),
+      finish: v.string(),
+    }),
+    quantity: v.number(),
+    pages: v.number(), // interior pages when quoted
+    shippingLevel: v.string(),
+    address: v.object({
+      name: v.string(),
+      street1: v.string(),
+      street2: v.string(),
+      city: v.string(),
+      state: v.string(),
+      postcode: v.string(),
+      country: v.string(),
+      phone: v.string(),
+      email: v.string(),
+    }),
+    // Lulu's price (tax included), what we added, and what the member pays.
+    luluCents: v.number(),
+    feeCents: v.number(),
+    totalCents: v.number(),
+    status: zineOrderStatus,
+    stripeSessionId: v.optional(v.string()),
+    stripePaymentIntent: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    // Rendering: the sandbox's name and the hash of its one-time key.
+    printTokenHash: v.optional(v.string()),
+    sandboxId: v.optional(v.string()),
+    interiorId: v.optional(v.id("_storage")),
+    coverId: v.optional(v.id("_storage")),
+    printedPages: v.optional(v.number()),
+    luluJobId: v.optional(v.number()),
+    luluStatus: v.optional(v.string()),
+    tracking: v.optional(
+      v.array(
+        v.object({
+          number: v.optional(v.string()),
+          url: v.optional(v.string()),
+          carrier: v.optional(v.string()),
+        }),
+      ),
+    ),
+    error: v.optional(v.string()),
+    updatedAt: v.number(),
+  })
+    .index("by_member", ["memberId"])
+    .index("by_stripeSession", ["stripeSessionId"])
+    .index("by_luluJob", ["luluJobId"])
+    .index("by_status", ["status"]),
 });

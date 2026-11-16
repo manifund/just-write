@@ -1,5 +1,5 @@
-// Lays out a zine document in headless Chrome, for scripts/zine-pdf.ts and
-// scripts/zine-pages.ts. Serves the document at / and public/ beside it, so image paths
+// Lays out a zine document in headless Chrome, for scripts/zine-pdf.ts, scripts/zine-pages.ts,
+// and scripts/zine-print.ts. Serves the document at / and public/ beside it, so image paths
 // match the site's. Uses Chrome from CHROME_PATH, else the installed Google Chrome.
 import { chromium, type Page } from "playwright-core";
 import { readFile } from "node:fs/promises";
@@ -15,10 +15,13 @@ const TYPES: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
-// Opens the document, waits for Paged.js to finish, then hands the page to `onDone`.
+// Opens the document, waits for Paged.js to finish, then hands the page to `onDone`. With
+// `paged: false` (a document without Paged.js, like the cover sheet) it waits for the fonts
+// and images instead, and reports one page.
 export async function withLaidOut<T>(
   html: string,
   onDone: (page: Page, pages: number) => Promise<T>,
+  { paged = true }: { paged?: boolean } = {},
 ): Promise<T> {
   const server = createServer(async (req, res) => {
     const path = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
@@ -41,15 +44,29 @@ export async function withLaidOut<T>(
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;
 
+  // ZINE_CHROMIUM=bundled: Playwright's own Chromium (`playwright-core install chromium`).
   const browser = await chromium.launch(
     process.env.CHROME_PATH
       ? { executablePath: process.env.CHROME_PATH }
-      : { channel: "chrome" },
+      : process.env.ZINE_CHROMIUM === "bundled"
+        ? {}
+        : { channel: "chrome" },
   );
   try {
     const page = await browser.newPage();
     page.on("pageerror", (e) => console.error("page error:", e.message));
     await page.goto(`http://127.0.0.1:${port}/`);
+    if (!paged) {
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await Promise.all(
+          [...document.images].map((i) =>
+            i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; }),
+          ),
+        );
+      });
+      return await onDone(page, 1);
+    }
     const started = Date.now();
     await page.waitForFunction(
       () => (window as unknown as { __zine?: { done?: unknown } }).__zine?.done,
