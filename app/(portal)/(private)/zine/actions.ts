@@ -1,9 +1,10 @@
 "use server";
 
 // /zine's Order panel: prices from Lulu (or rough estimates until Lulu keys are set), then
-// Stripe Checkout. Prices are always worked out here, never taken from the browser.
+// a free order within the weekly cap, or Stripe Checkout once members pay. Prices are always worked out here, never taken from the browser.
 import { fetchMutation } from "convex/nextjs";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { fetchAuthMutation, fetchAuthQuery, serverSecret } from "@/lib/auth-server";
@@ -12,6 +13,7 @@ import { LuluError, luluConfigured, quote, shippingOptions } from "@/lib/lulu";
 import { stripe } from "@/lib/stripe";
 import { startPrint, submit } from "@/lib/zine/fulfill";
 import {
+  CHARGE_MEMBERS,
   FULFILLMENT_CENTS,
   SHIPPING,
   addressProblem,
@@ -44,6 +46,8 @@ export type Quote =
       printCents: number; // all copies, before shipping
       shipping: ShippingQuote[]; // empty until there's an address to quote
       open: boolean; // whether checkout works yet
+      charge: boolean; // false: Just Write covers the order (lib/zine/print.ts#CHARGE_MEMBERS)
+      leftCents: number | null; // what's left of the member's weekly allowance, if known
     }
   | { ok: false; error: string };
 
@@ -54,6 +58,14 @@ export type QuoteInput = {
   print: unknown;
   address: unknown; // null for a print-only price
 };
+
+// The signed-in member, through members.viewer (so this works on previews, whose Convex
+// functions may be older than this code).
+async function member() {
+  const viewer = await fetchAuthQuery(api.members.viewer, {});
+  if (!viewer?.member || !viewer.canEnter) throw new Error("Only committed members can order.");
+  return viewer.member;
+}
 
 const ordersOpen = () => process.env.ZINE_ORDERS === "on" && luluConfigured();
 
@@ -90,7 +102,7 @@ async function price(
   pages: number,
   address: Address | null,
   levels: ShippingLevel[],
-): Promise<Omit<Extract<Quote, { ok: true }>, "ok" | "open">> {
+): Promise<Omit<Extract<Quote, { ok: true }>, "ok" | "open" | "charge" | "leftCents">> {
   const item = { pod_package_id: podPackageId(tweaks, print), page_count: pages, quantity: print.quantity };
   if (!luluConfigured()) {
     const printCents = estimatePrintCents(pages, print) * print.quantity;
@@ -138,7 +150,7 @@ async function price(
 
 export async function quoteZine(input: QuoteInput): Promise<Quote> {
   try {
-    await fetchAuthQuery(api.zineOrders.start, {}); // members only
+    await member();
     const r = read(input);
     if ("error" in r) return { ok: false, error: r.error! };
     let address: Address | null = null;
@@ -148,7 +160,17 @@ export async function quoteZine(input: QuoteInput): Promise<Quote> {
       if (addressProblem(address, false)) address = null;
     }
     const levels = Object.keys(SHIPPING) as ShippingLevel[];
-    return { ok: true, open: ordersOpen(), ...(await price(r.tweaks, r.print, r.pages, address, levels)) };
+    const [priced, allowance] = await Promise.all([
+      price(r.tweaks, r.print, r.pages, address, levels),
+      CHARGE_MEMBERS ? null : fetchAuthQuery(api.zineOrders.allowance, {}).catch(() => null),
+    ]);
+    return {
+      ok: true,
+      open: ordersOpen(),
+      charge: CHARGE_MEMBERS,
+      leftCents: allowance?.leftCents ?? null,
+      ...priced,
+    };
   } catch (err) {
     console.error("quoteZine failed", err);
     return { ok: false, error: errorMessage(err) };
@@ -168,7 +190,7 @@ export async function checkoutZine(
   input: QuoteInput & { level: unknown },
 ): Promise<{ url: string } | { error: string }> {
   try {
-    const viewer = await fetchAuthQuery(api.zineOrders.start, {});
+    const me = await member();
     if (!ordersOpen())
       return { error: "Ordering isn’t open yet. The prices shown are estimates." };
     const r = read(input);
@@ -185,9 +207,8 @@ export async function checkoutZine(
 
     const secret = serverSecret();
     const { quantity, ...print } = r.print;
-    const orderId: Id<"zineOrders"> = await fetchMutation(api.zineOrders.createCheckout, {
-      secret,
-      memberId: viewer.memberId,
+    const order = {
+      memberId: me._id,
       week: input.week,
       tweaks: JSON.stringify(r.tweaks),
       podPackageId: podPackageId(r.tweaks, r.print),
@@ -199,8 +220,18 @@ export async function checkoutZine(
       luluCents: ship.luluCents,
       feeCents: ship.feeCents,
       totalCents: ship.totalCents,
-    });
+    };
     const origin = await siteOrigin();
+    // Free for now: saved as paid (within the weekly cap) and sent to print right away.
+    if (!CHARGE_MEMBERS) {
+      const id: Id<"zineOrders"> = await fetchMutation(api.zineOrders.placeFree, { secret, ...order });
+      after(() => startPrint(id, origin).catch((e) => console.error("startPrint failed", e)));
+      return { url: `/zine/orders?placed=${id}` };
+    }
+    const orderId: Id<"zineOrders"> = await fetchMutation(api.zineOrders.createCheckout, {
+      secret,
+      ...order,
+    });
     const session = await stripe().checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -218,7 +249,7 @@ export async function checkoutZine(
       ],
       customer_email: address.email,
       client_reference_id: orderId,
-      metadata: { kind: "zine", order_id: orderId, member_id: viewer.memberId },
+      metadata: { kind: "zine", order_id: orderId, member_id: me._id },
       payment_intent_data: {
         description: `Just Write zine, issue ${input.week}`,
         metadata: { kind: "zine", order_id: orderId },

@@ -88,13 +88,17 @@ export const COUNTRIES: [string, string][] = [
 ];
 export const NEEDS_STATE = new Set(["US", "CA", "AU"]);
 
-// What we charge on top of Lulu's price (which includes tax): Stripe's card fee, so each
-// order covers itself, plus MARKUP_CENTS per order. Austin decides the markup.
+// For now members don't pay: Just Write covers Lulu's price (tax included), up to
+// WEEKLY_CAP_CENTS per member over any 7 days (convex/zineOrders.ts#placeFree). With
+// CHARGE_MEMBERS on, checkout goes through Stripe and adds its card fee plus MARKUP_CENTS.
+export const CHARGE_MEMBERS = false;
+export { WEEKLY_CAP_CENTS } from "@/convex/lib/zine";
 export const MARKUP_CENTS = 0;
 const STRIPE_PERCENT = 0.029;
 const STRIPE_FIXED_CENTS = 30;
 
 export function withFees(luluCents: number) {
+  if (!CHARGE_MEMBERS) return { luluCents, feeCents: 0, totalCents: luluCents };
   const base = luluCents + MARKUP_CENTS;
   const total = Math.ceil((base + STRIPE_FIXED_CENTS) / (1 - STRIPE_PERCENT));
   return { luluCents, feeCents: total - luluCents, totalCents: total };

@@ -123,9 +123,11 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 **Zine orders** (printed copies through Lulu's Print API; `convex/zineOrders.ts`, `lib/zine/print.ts`, `lib/lulu.ts`, `lib/zine/fulfill.ts`):
 
 - The Order panel asks `actions.ts#quoteZine` for prices: Lulu's live quote (tax included) when `LULU_CLIENT_KEY`/`LULU_CLIENT_SECRET` are set, else rough estimates from `lib/zine/print.ts`.
-- What members pay is Lulu's price plus Stripe's card fee plus `MARKUP_CENTS` (`withFees`). Prices are always worked out on the server, again at checkout.
+- For now members don't pay (`CHARGE_MEMBERS` off in `lib/zine/print.ts`): the panel shows Lulu's price, and `zineOrders.placeFree` saves the order as paid and starts printing, up to `WEEKLY_CAP_CENTS` ($100) per member over any 7 days (`convex/lib/zine.ts`).
+- With `CHARGE_MEMBERS` on, members pay Lulu's price plus Stripe's card fee plus `MARKUP_CENTS` (`withFees`) through Stripe Checkout (below). Prices are always worked out on the server, again when ordering.
+- The Order panel and `quoteZine` only call Convex functions that already exist on the shared deployment (`members.viewer`; `zineOrders.allowance` is optional), since preview builds don't push `convex/`.
 - Checkout is open only when `ZINE_ORDERS=on` and Lulu keys are set; until then the panel shows estimates and a disabled Pay button.
-- `checkoutZine` saves a `zineOrders` row (`status: "checkout"`) and opens Stripe Checkout with `metadata.kind = "zine"` and the order id as `client_reference_id`.
+- When charging, `checkoutZine` saves a `zineOrders` row (`status: "checkout"`) and opens Stripe Checkout with `metadata.kind = "zine"` and the order id as `client_reference_id`.
 - The Stripe webhook marks it paid (`zineOrders.markPaid`, which checks the amount) and, after answering, calls `fulfill.ts#startPrint`.
 - `startPrint` starts a Vercel Sandbox at the deployed commit that runs `scripts/zine-print.ts`: the interior PDF (the design without its cover page, with bleed), then the wraparound cover (`document.ts#coverDocument`) at the size Lulu's `/cover-dimensions/` gives for the page count.
 - The sandbox gets no secrets: the order's one-time key (hash in `printTokenHash`) and Convex upload URLs. It reports to `app/api/zine/print`, and the PDFs live in Convex storage, whose URLs Lulu downloads.

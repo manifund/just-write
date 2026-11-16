@@ -1,9 +1,8 @@
 "use client";
 
-import { useQuery } from "convex/react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { api } from "@/convex/_generated/api";
+import { usePortal } from "@/components/portal/context";
 import {
   BINDINGS,
   COUNTRIES,
@@ -15,6 +14,7 @@ import {
   NEEDS_STATE,
   PAPERS,
   SHIPPING,
+  WEEKLY_CAP_CENTS,
   addressProblem,
   arrivalRange,
   dollars,
@@ -41,7 +41,8 @@ const EMPTY: Address = {
   email: "",
 };
 
-// The Order panel beside the preview: print options, address, shipping speed, then Stripe.
+// The Order panel beside the preview: print options, address, shipping speed, then the order
+// (free within a weekly cap for now; Stripe once members pay).
 // Prices come from the server (Lulu's live quote, or an estimate until Lulu is connected),
 // and are worked out again there at checkout.
 export function OrderPanel({
@@ -57,7 +58,7 @@ export function OrderPanel({
   custom: boolean;
   onClose: () => void;
 }) {
-  const start = useQuery(api.zineOrders.start);
+  const { me } = usePortal();
   const [print, setPrint] = useState<PrintOptions>(DEFAULT_PRINT);
   const [address, setAddress] = useState<Address>(EMPTY);
   const [level, setLevel] = useState<ShippingLevel>(DEFAULT_SHIPPING);
@@ -69,7 +70,7 @@ export function OrderPanel({
 
   // Start from the last address used here (this browser), else from the last paid order.
   useEffect(() => {
-    if (filled.current || start === undefined) return;
+    if (filled.current) return;
     filled.current = true;
     let draft: Partial<{ address: Address; print: PrintOptions; level: ShippingLevel }> = {};
     try {
@@ -77,14 +78,13 @@ export function OrderPanel({
     } catch {}
     setAddress({
       ...EMPTY,
-      name: start?.name ?? "",
-      email: start?.email ?? "",
-      ...(start?.address ?? {}),
+      name: me.name,
+      email: me.email,
       ...(draft.address ?? {}),
     });
     if (draft.print) setPrint({ ...DEFAULT_PRINT, ...draft.print });
     if (draft.level && draft.level in SHIPPING) setLevel(draft.level);
-  }, [start]);
+  }, [me]);
 
   useEffect(() => {
     if (!filled.current) return;
@@ -126,6 +126,8 @@ export function OrderPanel({
   const ok = quote?.ok ? quote : null;
   const chosen = ok?.shipping.find((s) => s.level === level) ?? null;
   const full = addressProblem(address, true);
+  const overCap =
+    !!ok && !ok.charge && !!chosen && chosen.totalCents > (ok.leftCents ?? WEEKLY_CAP_CENTS);
 
   const setP = <K extends keyof PrintOptions>(k: K, v: PrintOptions[K]) =>
     setPrint((p) => ({ ...p, [k]: v }));
@@ -261,8 +263,8 @@ export function OrderPanel({
               );
             })}
             <p className="mt-2 text-[12px] text-ink-muted">
-              Totals include printing, shipping{ok?.estimate ? "" : ", tax"}, and the card fee. Delivery dates are Lulu’s
-              estimates, counted from today.
+              Prices include printing and shipping{ok?.estimate ? "" : " and tax"}{ok?.charge ? ", plus the card fee" : ""}. Delivery
+              dates are Lulu’s estimates, counted from today.
             </p>
           </div>
         )}
@@ -274,27 +276,51 @@ export function OrderPanel({
             <summary className="cursor-pointer">
               Total {dollars(chosen.totalCents)}
               {ok?.estimate ? " (estimate, before tax)" : ""}
+              {ok && !ok.charge ? ", covered by Just Write" : ""}
             </summary>
             <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 tabular-nums">
               <dt>Printing and shipping (Lulu)</dt>
               <dd>{dollars(chosen.luluCents)}</dd>
-              <dt>Card fee</dt>
-              <dd>{dollars(chosen.feeCents)}</dd>
+              {chosen.feeCents > 0 && (
+                <>
+                  <dt>Card fee</dt>
+                  <dd>{dollars(chosen.feeCents)}</dd>
+                </>
+              )}
             </dl>
           </details>
         )}
         <button
           type="button"
-          disabled={!chosen || !!full || paying || !ok?.open}
+          disabled={!chosen || !!full || paying || !ok?.open || overCap}
           onClick={pay}
           className="cursor-pointer bg-ink px-4 py-2.5 text-[15px] text-cream disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {paying ? "Opening checkout…" : chosen ? `Pay ${dollars(chosen.totalCents)}` : "Pay"}
+          {ok && !ok.charge
+            ? paying
+              ? "Placing order…"
+              : "Place order"
+            : paying
+              ? "Opening checkout…"
+              : chosen
+                ? `Pay ${dollars(chosen.totalCents)}`
+                : "Pay"}
         </button>
         {ok && !ok.open ? (
           <p className="text-[13px] text-ink-muted">Ordering isn’t open yet. The prices shown are estimates.</p>
+        ) : overCap ? (
+          <p className="text-[13px] text-brass-text">
+            That’s more than the {dollars(WEEKLY_CAP_CENTS)} a week each member can order. You have{" "}
+            {dollars(ok?.leftCents ?? 0)} left this week.
+          </p>
         ) : chosen && full ? (
           <p className="text-[13px] text-ink-muted">{full}</p>
+        ) : ok && !ok.charge ? (
+          <p className="text-[13px] text-ink-muted">
+            Free for members for now, up to {dollars(WEEKLY_CAP_CENTS)} a week
+            {ok.leftCents !== null && ok.leftCents < WEEKLY_CAP_CENTS ? ` (${dollars(ok.leftCents)} left)` : ""}. We print
+            your copy as it looks here.
+          </p>
         ) : (
           <p className="text-[13px] text-ink-muted">You’ll pay on Stripe. We print your copy as it looks here.</p>
         )}

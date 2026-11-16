@@ -5,6 +5,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type QueryCtx } from "./_generated/server";
 import schema, { zineOrderStatus } from "./schema";
+import { WEEK_MS, WEEKLY_CAP_CENTS } from "./lib/zine";
 import { checkServerSecret, getViewer, requireAdmin, requireMember } from "./lib/viewer";
 
 const fields = schema.tables.zineOrders.validator.fields;
@@ -88,6 +89,53 @@ export const all = query({
 const { status: _s, updatedAt: _u, ...draftFields } = fields;
 void _s;
 void _u;
+
+// What a member's orders in the last 7 days cost (failed and unpaid ones don't count).
+async function spentThisWeek(ctx: QueryCtx, memberId: Id<"members">) {
+  const since = Date.now() - WEEK_MS;
+  return (await mine(ctx, memberId))
+    .filter(
+      (o) =>
+        (o.paidAt ?? 0) > since &&
+        o.status !== "checkout" &&
+        o.status !== "canceled" &&
+        o.status !== "failed",
+    )
+    .reduce((n, o) => n + o.totalCents, 0);
+}
+
+// For the Order panel: how much of the weekly allowance is left.
+export const allowance = query({
+  args: {},
+  handler: async (ctx) => {
+    const { member } = await requireMember(ctx, { allowReadonly: true });
+    const spent = await spentThisWeek(ctx, member._id);
+    return { capCents: WEEKLY_CAP_CENTS, leftCents: Math.max(0, WEEKLY_CAP_CENTS - spent) };
+  },
+});
+
+// A free order (lib/zine/print.ts#CHARGE_MEMBERS off): saved as paid, within the member's
+// weekly allowance. The server action prices it; members can't.
+export const placeFree = mutation({
+  args: { secret: v.string(), ...draftFields },
+  handler: async (ctx, { secret, ...order }) => {
+    checkServerSecret(secret);
+    const spent = await spentThisWeek(ctx, order.memberId);
+    if (spent + order.totalCents > WEEKLY_CAP_CENTS) {
+      const left = Math.max(0, WEEKLY_CAP_CENTS - spent);
+      throw new ConvexError(
+        `Orders are capped at $${WEEKLY_CAP_CENTS / 100} a week per member. You have $${(left / 100).toFixed(2)} left this week.`,
+      );
+    }
+    const now = Date.now();
+    return await ctx.db.insert("zineOrders", {
+      ...order,
+      status: "paid",
+      paidAt: now,
+      updatedAt: now,
+    });
+  },
+});
 
 // A new order on its way to Stripe Checkout. The server action prices it; members can't.
 export const createCheckout = mutation({

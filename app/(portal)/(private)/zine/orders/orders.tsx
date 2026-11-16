@@ -43,7 +43,7 @@ function OrderList() {
       <h1 className="mt-3 font-display text-[40px] leading-tight font-[340]">Your orders</h1>
       {placed && (
         <p className="mt-4 border border-ink/15 bg-paper px-4 py-3">
-          Thanks! Your order is paid. We’re preparing the print files now; Lulu usually prints in
+          Thanks, your order is in. We’re preparing the print files now; Lulu usually prints in
           3–5 business days, then ships. Tracking shows up here.
         </p>
       )}
