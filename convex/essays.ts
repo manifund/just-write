@@ -3,6 +3,7 @@ import { api } from "./_generated/api";
 import { action, internalMutation, mutation, query } from "./_generated/server";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
+import { readPage } from "./lib/essayText";
 import { emptyDoc } from "./lib/richtext";
 import { canCountFor, DEADLINES, fillSlots } from "./lib/program";
 import { parseWebsite } from "./lib/util";
@@ -28,7 +29,8 @@ export const preview = action({
         signal: AbortSignal.timeout(8000),
       });
       if (!res.ok) return { url, title: null, wordCount: null };
-      const html = (await res.text()).slice(0, 2_000_000);
+      const html = await readPage(res);
+      if (!html) return { url, title: null, wordCount: null };
       return { url, title: extractTitle(html), wordCount: countWords(html) };
     } catch {
       return { url, title: null, wordCount: null };
