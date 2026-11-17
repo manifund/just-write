@@ -25,10 +25,19 @@ export const canCountFor = (week: number, submittedAt: number) =>
 
 // Fills the 4 weekly slots. Essays the writer put toward a week go there first (a week
 // can hold several, e.g. two short posts). The rest go in submission order to the
-// earliest empty slot whose deadline they beat: writing two essays early covers two
-// weeks; a late essay fills nothing.
+// earliest slot whose deadline they beat that is empty or still short of MIN_WORDS (by
+// the counted words of the essays in it), so a short post and the next one share a week.
+// Writing two full essays early covers two weeks; a late essay fills nothing.
+export const MIN_WORDS = 1000;
+
 export function fillSlots<
-  E extends { _id: string; submittedAt: number; review: string; week?: number },
+  E extends {
+    _id: string;
+    submittedAt: number;
+    review: string;
+    week?: number;
+    wordCount?: number | null;
+  },
 >(essays: E[]): Slot[] {
   const slots: Slot[] = DEADLINES.map((deadline, i) => ({
     week: i + 1,
@@ -42,15 +51,21 @@ export function fillSlots<
     .sort((a, b) => a.submittedAt - b.submittedAt);
   const pinned = (e: E) =>
     e.week !== undefined && canCountFor(e.week, e.submittedAt);
+  // Words in each slot so far; an essay with no count makes its slot full.
+  const words = slots.map(() => 0);
+  const add = (i: number, e: E) => {
+    slots[i].essayIds.push(e._id);
+    words[i] += e.wordCount ?? MIN_WORDS;
+  };
   for (const e of counted) {
-    if (pinned(e)) slots[e.week! - 1].essayIds.push(e._id);
+    if (pinned(e)) add(e.week! - 1, e);
   }
   for (const e of counted) {
     if (pinned(e)) continue;
-    const slot = slots.find(
-      (s) => s.essayIds.length === 0 && e.submittedAt <= s.deadline,
+    const i = slots.findIndex(
+      (s, i) => words[i] < MIN_WORDS && e.submittedAt <= s.deadline,
     );
-    if (slot) slot.essayIds.push(e._id);
+    if (i >= 0) add(i, e);
   }
   for (const s of slots) s.essayId = s.essayIds[0] ?? null;
   return slots;

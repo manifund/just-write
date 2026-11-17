@@ -56,6 +56,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 5. `/members` and `/members/[handle]` — public, server-rendered from Convex then live (`app/(portal)/members`); members see them inside the portal shell.
 
 **Essay deadlines** are in `convex/lib/program.ts` (Mondays 9pm PT, Nov 9–30). `fillSlots` assigns registered essays to the earliest open slot they beat; admins can mark essays rejected so they don't count. Registering an essay posts it to `#published`.
+An essay without a week also joins an earlier slot whose essays' word counts add up to under 1,000 (`MIN_WORDS`); an essay with no count fills its slot.
 
 **Calendar** (`/calendar`, public; `app/(portal)/calendar`, `convex/events.ts`):
 
