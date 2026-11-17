@@ -321,7 +321,13 @@ async function main() {
     const author = byId.get(memberId);
     if (!author || author.status !== "committed" || author.bot) continue;
     const slots = fillSlots(
-      list as unknown as { _id: string; submittedAt: number; review: string; week?: number }[],
+      list as unknown as {
+        _id: string;
+        submittedAt: number;
+        review: string;
+        week?: number;
+        wordCount?: number;
+      }[],
     );
     for (const id of slots[week - 1]?.essayIds ?? []) {
       const essay = list.find((e) => e._id === id);
