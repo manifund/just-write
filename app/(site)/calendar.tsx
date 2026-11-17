@@ -113,7 +113,7 @@ type Arc = { d: string; mx: number; my: number };
 // Split n essays into arcs around one ring (or two, split by circumference),
 // starting at the top and going clockwise; the outer ring is offset half a
 // step so its gaps fall beside the inner ones'.
-function arcRing(n: number, width: number): Arc[] {
+function arcRing(n: number): Arc[] {
   const radii = n > RING_CAP ? [RADIUS, RADIUS + RING_GAP] : [RADIUS];
   const total = radii.reduce((a, r) => a + r, 0);
   const counts = radii.map((r) => Math.round((n * r) / total));
@@ -123,8 +123,8 @@ function arcRing(n: number, width: number): Arc[] {
   return radii.flatMap((r, ring) => {
     const count = counts[ring];
     const step = (2 * Math.PI) / count;
-    // Round caps reach past each end, so leave room for them in the gap.
-    const half = Math.max(0.01, (step - (GAP + width) / r) / 2);
+    // Butt caps end exactly at the arc's ends, so the gap is just GAP.
+    const half = Math.max(0.01, (step - GAP / r) / 2);
     return Array.from({ length: count }, (_, i) => {
       const mid = -Math.PI / 2 + (i + 0.5 + ring / 2) * step;
       const large = half * 2 > Math.PI ? 1 : 0;
@@ -155,7 +155,7 @@ function EssayArcs({
   const align =
     col < 2 ? "left-0" : col > 4 ? "right-0" : "left-1/2 -translate-x-1/2";
   const width = deadline ? 6 : 4;
-  const arcs = arcRing(essays.length, width);
+  const arcs = arcRing(essays.length);
   return (
     <span className="max-md:hidden">
       {essays.map((e, i) => {
@@ -179,7 +179,7 @@ function EssayArcs({
               <path
                 d={d}
                 fill="none"
-                strokeLinecap="round"
+                strokeLinecap="butt"
                 strokeWidth={width}
                 className={`${ease} ${deadline ? "stroke-brass-light" : "stroke-wash-light/85"} group-hover/dot:stroke-cream group-hover/dot:[stroke-width:8] group-focus-visible/dot:stroke-cream group-focus-visible/dot:[stroke-width:8]`}
                 style={{ transitionProperty: "stroke, stroke-width" }}
