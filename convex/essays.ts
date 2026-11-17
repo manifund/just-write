@@ -7,13 +7,21 @@ import {
   mutation,
   query,
 } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { notionText, readPage } from "./lib/essayText";
 import { emptyDoc } from "./lib/richtext";
-import { canCountFor, DEADLINES, fillSlots } from "./lib/program";
+import { canCountFor, DEADLINES, fillSlots, recountUntil } from "./lib/program";
 import { parseWebsite } from "./lib/util";
-import { publicMember, requireMember, requireWriter } from "./lib/viewer";
+import {
+  getViewer,
+  publicMember,
+  requireAdmin,
+  requireMember,
+  requireWriter,
+} from "./lib/viewer";
 
 // Fetches an essay URL to suggest a title and estimate its word count. Members only, so it
 // can't be used by anyone on the internet (or a chat task's sandbox) to fetch arbitrary URLs.
@@ -71,10 +79,7 @@ export const recount = action({
 export const ownedEssay = internalQuery({
   args: { essayId: v.id("essays") },
   handler: async (ctx, { essayId }) => {
-    const { member } = await requireMember(ctx);
-    const essay = await ctx.db.get(essayId);
-    if (!essay || essay.memberId !== member._id)
-      throw new ConvexError("Not your essay.");
+    const essay = await recountable(ctx, essayId);
     return { url: essay.url };
   },
 });
@@ -82,13 +87,30 @@ export const ownedEssay = internalQuery({
 export const saveWordCount = internalMutation({
   args: { essayId: v.id("essays"), wordCount: v.number() },
   handler: async (ctx, { essayId, wordCount }) => {
-    const { member } = await requireMember(ctx);
-    const essay = await ctx.db.get(essayId);
-    if (!essay || essay.memberId !== member._id)
-      throw new ConvexError("Not your essay.");
+    await recountable(ctx, essayId);
     await ctx.db.patch(essayId, { wordCount });
   },
 });
+
+// Admins can recount any essay. Writers can recount their own until the deadline of the
+// week they registered it in (`recountUntil`); after that it's up to an admin.
+async function recountable(ctx: QueryCtx | MutationCtx, essayId: Id<"essays">) {
+  const viewer = await getViewer(ctx);
+  const essay = await ctx.db.get(essayId);
+  if (!essay) throw new ConvexError("No such essay.");
+  if (viewer?.isAdmin) {
+    await requireAdmin(ctx);
+    return essay;
+  }
+  const { member } = await requireMember(ctx);
+  if (essay.memberId !== member._id) throw new ConvexError("Not your essay.");
+  const until = recountUntil(essay.submittedAt);
+  if (until !== null && Date.now() > until)
+    throw new ConvexError(
+      "That week’s deadline has passed, so an admin has to recount this one.",
+    );
+  return essay;
+}
 
 function decode(s: string) {
   return s
