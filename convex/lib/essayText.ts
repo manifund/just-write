@@ -168,3 +168,69 @@ export function buildCloud(
       essays: s.essays,
     }));
 }
+
+const GZIP_LAYERS = 3;
+
+// A fetched page as text, up to `max` bytes. Some sites (LessWrong) send gzipped bytes without
+// a Content-Encoding header, or gzip them twice, so fetch hands back the compressed bytes;
+// those are unpacked here. Null when the page still isn't text.
+export async function readPage(
+  res: Response,
+  max = 2_000_000,
+): Promise<string | null> {
+  let bytes = await readBytes(res.body, max);
+  for (let i = 0; i < GZIP_LAYERS && isGzip(bytes); i++) {
+    if (typeof DecompressionStream === "undefined") return null;
+    const unpacked = new Response(bytes).body;
+    if (!unpacked) return null;
+    try {
+      bytes = await readBytes(
+        unpacked.pipeThrough(new DecompressionStream("gzip")),
+        max,
+      );
+    } catch {
+      return null;
+    }
+  }
+  if (isGzip(bytes)) return null;
+  const text = new TextDecoder().decode(bytes);
+  // Binary that slipped through decodes to replacement characters.
+  const bad = text.slice(0, 5_000).split("�").length - 1;
+  return bad > 50 ? null : text;
+}
+
+function isGzip(bytes: Uint8Array) {
+  return bytes[0] === 0x1f && bytes[1] === 0x8b;
+}
+
+// Reads a body up to `max` bytes. A gzip stream cut short throws, so its read stops at `max`
+// without failing.
+async function readBytes(
+  body: ReadableStream<Uint8Array> | null,
+  max: number,
+): Promise<Uint8Array<ArrayBuffer>> {
+  if (!body) return new Uint8Array();
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (size < max) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      size += value.length;
+    }
+  } catch (e) {
+    if (!size) throw e;
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+  const out = new Uint8Array(Math.min(size, max));
+  let at = 0;
+  for (const c of chunks) {
+    if (at >= out.length) break;
+    out.set(c.subarray(0, out.length - at), at);
+    at += c.length;
+  }
+  return out;
+}
