@@ -90,25 +90,31 @@ const ease = "transition duration-150 motion-reduce:transition-none";
 
 export type DotEssay = { _id: string; title: string; url: string; author: string };
 
-const PER_RING = 16;
+const PER_SIDE = 9;
+const STEP = Math.PI / 10; // 18° between neighbouring dots
+const SQUASH = 0.7; // flatten vertically so dots stay within their week's row
 
-// One dot per essay published that day, spaced around the date (extra rings
-// past PER_RING). Hovering or focusing a dot shows the essay above it; clicking
-// opens it in a new tab. Desktop only: the dots are too small to tap.
+// One dot per essay published that day, split between the left and right of
+// the date. Each side fills from the middle outward (level, then just above,
+// just below, ...), so dots bunch beside the number like a bell curve; extra
+// rings start past PER_SIDE per side. Hovering or focusing a dot shows the
+// essay above it; clicking opens it in a new tab. Desktop only: the dots are
+// too small to tap.
 function EssayDots({ essays, col }: { essays: DotEssay[]; col: number }) {
-  const rings = Math.ceil(essays.length / PER_RING);
   // Keep the pop-up inside the panel: left-aligned near the left edge, right-aligned near the right.
   const align =
     col < 2 ? "left-0" : col > 4 ? "right-0" : "left-1/2 -translate-x-1/2";
   return (
     <span className="max-md:hidden">
       {essays.map((e, i) => {
-        const ring = Math.floor(i / PER_RING);
-        const inRing =
-          ring < rings - 1 ? PER_RING : essays.length - ring * PER_RING;
-        const angle = (((i % PER_RING) + 0.5 * ring) / inRing) * 2 * Math.PI;
-        const sin = Math.sin(angle);
-        const cos = Math.cos(angle);
+        const ring = Math.floor(i / (2 * PER_SIDE));
+        const j = i % (2 * PER_SIDE);
+        const side = j % 2 === 0 ? 1 : -1; // right, then left
+        const k = Math.floor(j / 2); // 0, 1, 2, ... → 0, +1, -1, +2, -2, ...
+        const off = k % 2 === 1 ? (k + 1) / 2 : -k / 2;
+        const angle = off * STEP;
+        const x = side * Math.cos(angle);
+        const y = -Math.sin(angle) * SQUASH;
         const gap = 6 + ring * 7;
         return (
           <a
@@ -118,8 +124,8 @@ function EssayDots({ essays, col }: { essays: DotEssay[]; col: number }) {
             rel="noopener noreferrer nofollow ugc"
             className="group/dot absolute z-10 cursor-pointer size-[5px] -translate-1/2 rounded-full bg-brass-light no-underline outline-none hover:z-20 focus-visible:z-20"
             style={{
-              left: `calc(${(50 + 50 * sin).toFixed(2)}% + ${(gap * sin).toFixed(2)}px)`,
-              top: `calc(${(50 - 50 * cos).toFixed(2)}% - ${(gap * cos).toFixed(2)}px)`,
+              left: `calc(${(50 + 50 * x).toFixed(2)}% + ${(gap * x).toFixed(2)}px)`,
+              top: `calc(${(50 + 50 * y).toFixed(2)}% + ${(gap * y).toFixed(2)}px)`,
             }}
           >
             <span
