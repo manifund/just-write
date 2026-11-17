@@ -26,7 +26,15 @@ function firstName(name: string) {
   return name.trim().split(/\s+/)[0];
 }
 
-function Item({ essay, hidden }: { essay: Essay; hidden?: boolean }) {
+function Item({
+  essay,
+  hidden,
+  dark,
+}: {
+  essay: Essay;
+  hidden?: boolean;
+  dark?: boolean;
+}) {
   return (
     <li className="shrink-0 pr-2" aria-hidden={hidden || undefined}>
       <a
@@ -34,12 +42,16 @@ function Item({ essay, hidden }: { essay: Essay; hidden?: boolean }) {
         target="_blank"
         rel="noopener noreferrer nofollow ugc"
         tabIndex={hidden ? -1 : undefined}
-        className="flex max-w-[22em] flex-col rounded-md bg-cream-deep px-3 py-2 no-underline transition-colors hover:bg-cream-hover"
+        className={`flex max-w-[22em] flex-col rounded-md px-3 py-2 no-underline transition-colors ${dark ? "bg-cream/[0.07] ring-1 ring-cream/10 ring-inset hover:bg-cream/[0.13]" : "bg-cream-deep hover:bg-cream-hover"}`}
       >
-        <span className="truncate font-display text-[15px] text-ink">
+        <span
+          className={`truncate font-display text-[15px] ${dark ? "text-cream" : "text-ink"}`}
+        >
           {essay.title}
         </span>
-        <span className="text-[12px] text-ink-muted">
+        <span
+          className={`text-[12px] ${dark ? "text-wash-light/70" : "text-ink-muted"}`}
+        >
           {firstName(essay.author)}
         </span>
       </a>
@@ -53,7 +65,8 @@ function Item({ essay, hidden }: { essay: Essay; hidden?: boolean }) {
 export async function Essays({ dark }: { dark?: boolean } = {}) {
   const essays = await getEssays();
   if (essays.length === 0) return null;
-  const duration = Math.max(20, essays.length * 5);
+  // About 10s per essay, so titles can be read as they pass.
+  const duration = Math.max(40, essays.length * 10);
   return (
     <div className="marquee-wrap flex flex-col gap-1.5">
       <span
@@ -71,10 +84,10 @@ export async function Essays({ dark }: { dark?: boolean } = {}) {
           }
         >
           {essays.map((e) => (
-            <Item key={e._id} essay={e} />
+            <Item key={e._id} essay={e} dark={dark} />
           ))}
           {essays.map((e) => (
-            <Item key={`${e._id}-copy`} essay={e} hidden />
+            <Item key={`${e._id}-copy`} essay={e} hidden dark={dark} />
           ))}
         </ul>
         {/* The page is cached, so pick a random starting point in the
