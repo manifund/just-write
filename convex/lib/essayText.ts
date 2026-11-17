@@ -234,3 +234,76 @@ async function readBytes(
   }
   return out;
 }
+
+const NOTION_HOST = /(^|\.)notion\.(site|so)$/;
+const NOTION_CHUNKS = 10;
+
+// The text of a public Notion page. Its HTML is built by scripts, so this reads the page's
+// blocks from Notion's own page API on the same host instead. Null when it isn't a Notion
+// page or can't be read.
+export async function notionText(href: string): Promise<string | null> {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || !NOTION_HOST.test(url.hostname)) return null;
+  const hex = url.pathname.match(/([0-9a-f]{32})\/?$/i)?.[1]?.toLowerCase();
+  if (!hex) return null;
+  const pageId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  type Block = {
+    type?: string;
+    content?: string[];
+    properties?: { title?: unknown[][] };
+  };
+  const blocks: Record<string, Block> = {};
+  let cursor: unknown = { stack: [] };
+  for (let chunk = 0; chunk < NOTION_CHUNKS; chunk++) {
+    const res = await fetch(`${url.origin}/api/v3/loadPageChunk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pageId,
+        limit: 100,
+        cursor,
+        chunkNumber: chunk,
+        verticalColumns: false,
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      cursor?: { stack?: unknown[] };
+      recordMap?: {
+        block?: Record<string, { value?: Block & { value?: Block } }>;
+      };
+    };
+    for (const [id, b] of Object.entries(data.recordMap?.block ?? {})) {
+      // Newer responses wrap each record in a second `value`.
+      const v = b.value?.value ?? b.value;
+      if (v) blocks[id] = v;
+    }
+    if (!data.cursor?.stack?.length) break;
+    cursor = data.cursor;
+  }
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  const walk = (id: string) => {
+    const b = blocks[id];
+    if (!b || seen.has(id)) return;
+    seen.add(id);
+    if (id !== pageId) {
+      const title = (b.properties?.title ?? [])
+        .map((run) => (typeof run[0] === "string" ? run[0] : ""))
+        .join("");
+      if (title) lines.push(title);
+      // Subpages are their own pages; only their titles show here.
+      if (b.type === "page") return;
+    }
+    for (const c of b.content ?? []) walk(c);
+  };
+  walk(pageId);
+  const text = lines.join("\n").trim();
+  return text ? text : null;
+}
