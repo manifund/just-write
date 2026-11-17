@@ -108,7 +108,12 @@ const GAP = 9; // space between arcs, along the ring
 const MIN_PITCH = 17; // shortest arc plus gap before a second ring starts
 const RING_CAP = Math.floor((2 * Math.PI * RADIUS) / MIN_PITCH);
 
-type Arc = { d: string; mx: number; my: number };
+// Each arc's hover area is a wedge of the ring: its whole share of the angle
+// (gaps included, so wedges meet) from near the number out past the arc.
+const HIT_INNER = 26;
+const HIT_OUTER = 18; // past the outermost ring
+
+type Arc = { d: string; hit: string; mx: number; my: number };
 
 // Split n essays into arcs around one ring (or two, split by circumference),
 // starting at the top and going clockwise; the outer ring is offset half a
@@ -125,10 +130,23 @@ function arcRing(n: number): Arc[] {
     const step = (2 * Math.PI) / count;
     // Butt caps end exactly at the arc's ends, so the gap is just GAP.
     const half = Math.max(0.01, (step - GAP / r) / 2);
+    // Two rings split the space between them; the outer one reaches past itself.
+    const inner = ring === 0 ? HIT_INNER : (radii[0] + r) / 2;
+    const outer =
+      ring === radii.length - 1 ? r + HIT_OUTER : (r + radii[ring + 1]) / 2;
     return Array.from({ length: count }, (_, i) => {
       const mid = -Math.PI / 2 + (i + 0.5 + ring / 2) * step;
       const large = half * 2 > Math.PI ? 1 : 0;
+      const a0 = mid - step / 2;
+      const a1 = mid + step / 2;
+      // Each edge goes in two halves, so a lone essay's full ring still draws.
+      const hit =
+        `M ${pt(outer, a0)} A ${outer} ${outer} 0 0 1 ${pt(outer, mid)}` +
+        ` A ${outer} ${outer} 0 0 1 ${pt(outer, a1)} L ${pt(inner, a1)}` +
+        ` A ${inner} ${inner} 0 0 0 ${pt(inner, mid)}` +
+        ` A ${inner} ${inner} 0 0 0 ${pt(inner, a0)} Z`;
       return {
+        hit,
         d: `M ${pt(r, mid - half)} A ${r} ${r} 0 ${large} 1 ${pt(r, mid + half)}`,
         mx: Math.cos(mid) * (r / 100) + 0.5,
         my: Math.sin(mid) * (r / 100) + 0.5,
@@ -159,9 +177,9 @@ function EssayArcs({
   return (
     <span className="max-md:hidden">
       {essays.map((e, i) => {
-        const { d, mx, my } = arcs[i];
-        // The link covers the whole circle but only its arc takes the pointer,
-        // so neighbouring arcs and the date underneath stay hoverable.
+        const { d, hit, mx, my } = arcs[i];
+        // The link covers the whole circle but only its wedge takes the
+        // pointer, so neighbouring arcs and the number stay hoverable.
         return (
           <a
             key={e._id}
@@ -185,12 +203,10 @@ function EssayArcs({
                 style={{ transitionProperty: "stroke, stroke-width" }}
               />
               <path
-                d={d}
-                fill="none"
-                strokeWidth={14}
-                stroke="transparent"
+                d={hit}
+                fill="transparent"
                 className="cursor-pointer"
-                style={{ pointerEvents: "stroke" }}
+                style={{ pointerEvents: "fill" }}
               />
             </svg>
             <span
