@@ -124,6 +124,25 @@ body {
   }
 }
 
+/* Landing page essay strip: the list is doubled, so -50% loops seamlessly. */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee {
+  animation: marquee var(--marquee-duration, 60s) linear infinite;
+}
+.marquee-wrap:hover .marquee,
+.marquee-wrap:focus-within .marquee {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    animation: none;
+  }
+}
+
 /* Rendered chat messages and the composer share these styles. */
 .rich {
   overflow-wrap: anywhere; /* long URLs wrap instead of widening the column */
