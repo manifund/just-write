@@ -48,6 +48,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
    In the two-column layout (1120px and up) the strip sits in the left column, under the headline, instead.
    The strip starts at a random point on each page load (an inline script sets a negative `animation-delay`, since the page is cached).
    On desktop, the landing calendar puts a dot around each November date for every essay registered that day (Pacific time, from the public `essays.published`); hovering one shows the essay, clicking opens it.
+   The dots are spaced evenly around the date's circle so together they draw its outline (a second ring past ~25); deadline days use larger coral dots in place of their solid ring, other days small lilac ones.
 2. `/commit` — requires sign-in. `app/(site)/commit/actions.ts#startCommitment` records the signature on the viewer's row (`members.signTerms`, status `signed`) and redirects to Stripe Checkout with the Convex member id as `client_reference_id`.
 3. `app/api/stripe/webhook/route.ts` — on `checkout.session.completed` / `async_payment_succeeded`, `markCommitted` (`lib/stripe.ts` → `server.markCommitted`) flips the row to `committed` (numeric references are pre-Convex Neon ids, matched via `legacyId`), then `sendSignedTerms` (`lib/email.ts`) emails the signed terms. Both are idempotent, and failures return 500 so Stripe retries. `/commit/thanks` only displays Stripe's session status; the webhook is the source of truth.
 4. Portal (`app/(portal)/`, client-rendered behind `PortalFrame`):

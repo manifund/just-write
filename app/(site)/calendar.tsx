@@ -10,7 +10,12 @@ type Day = {
   event?: Event;
   /** Spills into December; shown dimmed */
   outside?: boolean;
+  /** In December but not dimmed (the wrap party) */
+  december?: boolean;
 };
+
+// Only November dates get essay dots and the today marker.
+const inNovember = (day: Day) => !day.outside && !day.december;
 
 const week = (start: number): Day[] =>
   Array.from({ length: 7 }, (_, i) => {
@@ -29,7 +34,7 @@ export const WEEKS: Day[][] = [
     { date: 29 },
     { date: 30, event: "essay" },
     { date: 1, outside: true },
-    { date: 2, event: "wrap" },
+    { date: 2, event: "wrap", december: true },
     { date: 3, outside: true },
     { date: 4, outside: true },
     { date: 5, outside: true },
@@ -57,7 +62,7 @@ const mark: Record<Event, string> = {
 
 const swatch: Record<Event, string> = {
   kickoff: "bg-brass",
-  essay: "border border-brass",
+  essay: "border border-brass md:border-2 md:border-dotted",
   circle: "bg-wash/40",
   wrap: "bg-cream",
 };
@@ -77,12 +82,14 @@ const dayLit: Record<Event, string> = {
   wrap: "group-has-[[data-legend=wrap]:hover]/cal:ring-2",
 };
 
-const dayStyle = (day: Day) =>
-  day.event
+// On desktop, a deadline day with essays swaps its solid ring for the dots.
+const dayStyle = (day: Day, dotted: boolean) =>
+  (day.event === "essay" && dotted ? "md:border-transparent " : "") +
+  (day.event
     ? `${mark[day.event]} ${dayLit[day.event]} ring-cream/70 ring-offset-2 ring-offset-ink`
     : day.outside
       ? "text-cream/30"
-      : "text-cream group-hover/day:bg-cream/10";
+      : "text-cream group-hover/day:bg-cream/10");
 
 const row = "grid grid-cols-7";
 const circle =
@@ -91,40 +98,72 @@ const ease = "transition duration-150 motion-reduce:transition-none";
 
 export type DotEssay = { _id: string; title: string; url: string; author: string };
 
-const PER_SIDE = 9;
-const STEP = Math.PI / 10; // 18° between neighbouring dots
-const SQUASH = 0.7; // flatten vertically so dots stay within their week's row
+// Dot ring geometry, in px. Dots sit on the edge of the date's circle, so
+// together they draw its outline; past RING_CAP essays a second ring starts
+// just outside. Sizes are estimated at a typical desktop circle (~42px).
+const RADIUS = 22;
+const RING_GAP = 6;
+const MIN_PITCH = 5.5; // closest spacing along the ring before dots shrink
+const RING_CAP = Math.floor((2 * Math.PI * RADIUS) / MIN_PITCH);
 
-// One dot per essay published that day, split between the left and right of
-// the date. Each side fills from the middle outward (level, then just above,
-// just below, ...), so dots bunch beside the number like a bell curve; extra
-// rings start past PER_SIDE per side. Hovering or focusing a dot shows the
-// essay above it; clicking opens it in a new tab. Desktop only: the dots are
-// too small to tap.
-function EssayDots({ essays, col }: { essays: DotEssay[]; col: number }) {
+type Dot = { x: number; y: number; gap: number; size: number };
+
+// Spread n dots evenly around one ring (or two, split by circumference),
+// starting at the top and going clockwise; the outer ring is offset half a
+// step so its dots fall between the inner ones.
+function dotRing(n: number, base: number): Dot[] {
+  const radii = n > RING_CAP ? [RADIUS, RADIUS + RING_GAP] : [RADIUS];
+  const total = radii.reduce((a, r) => a + r, 0);
+  const counts = radii.map((r) => Math.round((n * r) / total));
+  counts[counts.length - 1] += n - counts.reduce((a, c) => a + c, 0);
+  return radii.flatMap((r, ring) => {
+    const count = counts[ring];
+    const pitch = (2 * Math.PI * r) / count;
+    const size = Math.max(3, Math.min(base, pitch - 1.5));
+    return Array.from({ length: count }, (_, i) => {
+      const angle = -Math.PI / 2 + ((i + ring / 2) / count) * 2 * Math.PI;
+      return {
+        x: Math.cos(angle),
+        y: Math.sin(angle),
+        gap: 1 + ring * RING_GAP,
+        size,
+      };
+    });
+  });
+}
+
+// One dot per essay published that day, drawn as a dotted outline around the
+// date. Deadline days use larger coral dots so they stay the ones you notice;
+// other days use small lilac ones. Hovering or focusing a dot shows the essay
+// above it; clicking opens it in a new tab. Desktop only: the dots are too
+// small to tap.
+function EssayDots({
+  essays,
+  col,
+  deadline,
+}: {
+  essays: DotEssay[];
+  col: number;
+  deadline: boolean;
+}) {
   // Keep the pop-up inside the panel: left-aligned near the left edge, right-aligned near the right.
   const align =
     col < 2 ? "left-0" : col > 4 ? "right-0" : "left-1/2 -translate-x-1/2";
+  const dots = dotRing(essays.length, deadline ? 6 : 4.5);
   return (
     <span className="max-md:hidden">
       {essays.map((e, i) => {
-        const ring = Math.floor(i / (2 * PER_SIDE));
-        const j = i % (2 * PER_SIDE);
-        const side = j % 2 === 0 ? 1 : -1; // right, then left
-        const k = Math.floor(j / 2); // 0, 1, 2, ... → 0, +1, -1, +2, -2, ...
-        const off = k % 2 === 1 ? (k + 1) / 2 : -k / 2;
-        const angle = off * STEP;
-        const x = side * Math.cos(angle);
-        const y = -Math.sin(angle) * SQUASH;
-        const gap = 7 + ring * 8;
+        const { x, y, gap, size } = dots[i];
         return (
           <a
             key={e._id}
             href={e.url}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
-            className="group/dot absolute z-10 cursor-pointer size-[6px] -translate-1/2 rounded-full bg-brass-light no-underline outline-none hover:z-20 focus-visible:z-20"
+            className={`group/dot absolute z-10 -translate-1/2 cursor-pointer rounded-full no-underline outline-none hover:z-20 focus-visible:z-20 ${deadline ? "bg-brass-light" : "bg-wash-light/85"}`}
             style={{
+              width: `${size.toFixed(2)}px`,
+              height: `${size.toFixed(2)}px`,
               left: `calc(${(50 + 50 * x).toFixed(2)}% + ${(gap * x).toFixed(2)}px)`,
               top: `calc(${(50 + 50 * y).toFixed(2)}% + ${(gap * y).toFixed(2)}px)`,
             }}
@@ -195,12 +234,16 @@ export function Calendar({
                     className="group/day flex justify-center py-[clamp(2px,0.6vh,6px)] md:py-[clamp(3px,0.8vh,8px)]"
                   >
                     <span
-                      className={`relative flex ${circle} items-center justify-center rounded-full text-base md:text-lg ${ease} ${dayStyle(day)}`}
+                      className={`relative flex ${circle} items-center justify-center rounded-full text-base md:text-lg ${ease} ${dayStyle(day, inNovember(day) && !!essays?.[day.date]?.length)}`}
                     >
                       {day.date}
-                      {!day.outside && <TodayDot date={day.date} />}
-                      {!day.outside && essays?.[day.date] && (
-                        <EssayDots essays={essays[day.date]} col={i} />
+                      {inNovember(day) && <TodayDot date={day.date} />}
+                      {inNovember(day) && essays?.[day.date] && (
+                        <EssayDots
+                          essays={essays[day.date]}
+                          col={i}
+                          deadline={day.event === "essay"}
+                        />
                       )}
                     </span>
                   </div>
@@ -208,6 +251,11 @@ export function Calendar({
               </div>
             ))}
           </div>
+          {essays && Object.keys(essays).length > 0 && (
+            <p className="mt-3 text-[13px] text-wash-light/70 max-md:hidden">
+              Each dot is an essay published that day.
+            </p>
+          )}
         </div>
 
         <ul className="grid grid-cols-2 gap-x-6 gap-y-3 @min-[580px]:grid-cols-1 @min-[580px]:gap-y-[clamp(10px,1.8vh,18px)]">
