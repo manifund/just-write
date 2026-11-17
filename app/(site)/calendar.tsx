@@ -88,7 +88,65 @@ const row = "grid grid-cols-7";
 const circle = "size-[clamp(32px,4.6vh,38px)]";
 const ease = "transition duration-150 motion-reduce:transition-none";
 
-export function Calendar() {
+export type DotEssay = { _id: string; title: string; url: string; author: string };
+
+const PER_RING = 16;
+
+// One dot per essay published that day, spaced around the date (extra rings
+// past PER_RING). Hovering or focusing a dot shows the essay above it; clicking
+// opens it in a new tab. Desktop only: the dots are too small to tap.
+function EssayDots({ essays, col }: { essays: DotEssay[]; col: number }) {
+  const rings = Math.ceil(essays.length / PER_RING);
+  // Keep the pop-up inside the panel: left-aligned near the left edge, right-aligned near the right.
+  const align =
+    col < 2 ? "left-0" : col > 4 ? "right-0" : "left-1/2 -translate-x-1/2";
+  return (
+    <span className="max-md:hidden">
+      {essays.map((e, i) => {
+        const ring = Math.floor(i / PER_RING);
+        const inRing =
+          ring < rings - 1 ? PER_RING : essays.length - ring * PER_RING;
+        const angle = (((i % PER_RING) + 0.5 * ring) / inRing) * 2 * Math.PI;
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const gap = 6 + ring * 7;
+        return (
+          <a
+            key={e._id}
+            href={e.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            className="group/dot absolute z-10 cursor-pointer size-[5px] -translate-1/2 rounded-full bg-brass-light no-underline outline-none hover:z-20 focus-visible:z-20"
+            style={{
+              left: `calc(${(50 + 50 * sin).toFixed(2)}% + ${(gap * sin).toFixed(2)}px)`,
+              top: `calc(${(50 - 50 * cos).toFixed(2)}% - ${(gap * cos).toFixed(2)}px)`,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className={`absolute -inset-[2px] rounded-full ${ease} group-hover/dot:scale-150 group-hover/dot:bg-cream group-focus-visible/dot:scale-150 group-focus-visible/dot:bg-cream`}
+            />
+            <span
+              className={`pointer-events-none absolute bottom-[calc(100%+8px)] ${align} flex w-max max-w-[16em] flex-col rounded-md bg-cream px-3 py-2 text-left opacity-0 shadow-lg ${ease} group-hover/dot:opacity-100 group-focus-visible/dot:opacity-100`}
+            >
+              <span className="font-display text-[15px] leading-snug font-medium text-ink">
+                {e.title}
+              </span>
+              <span className="text-[12px] font-normal text-ink-muted">
+                {e.author.trim().split(/\s+/)[0]}
+              </span>
+            </span>
+          </a>
+        );
+      })}
+    </span>
+  );
+}
+
+/** `essays` maps a November date to the essays published that day (Pacific time). */
+export function Calendar({
+  essays,
+}: { essays?: Record<number, DotEssay[]> } = {}) {
   return (
     // Legend sits beside the grid when there's room, otherwise in two columns below it.
     <div className="group/cal @container relative mt-auto cursor-default select-none max-md:mt-3">
@@ -134,6 +192,9 @@ export function Calendar() {
                     >
                       {day.date}
                       {!day.outside && <TodayDot date={day.date} />}
+                      {!day.outside && essays?.[day.date] && (
+                        <EssayDots essays={essays[day.date]} col={i} />
+                      )}
                     </span>
                   </div>
                 ))}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Calendar } from "./calendar";
+import { CalendarWithEssays } from "./calendar-essays";
 import { Essays } from "./essays";
 import { InterestForm } from "./interest-form";
 import { Interested } from "./interested";
@@ -60,7 +61,9 @@ export function Landing() {
           </p>
           <div aria-hidden="true" className="h-11 md:hidden" />
         </div>
-        <Calendar />
+        <Suspense fallback={<Calendar />}>
+          <CalendarWithEssays />
+        </Suspense>
       </section>
 
       <section className="flex flex-col gap-[clamp(16px,2.8vh,36px)] px-[clamp(24px,5vw,72px)] py-[clamp(28px,4.5vh,56px)]">

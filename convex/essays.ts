@@ -324,6 +324,34 @@ export const board = query({
 });
 
 // Latest essays from everyone, newest first.
+// Every essay that isn't rejected, with when it was registered, for the
+// landing page calendar's dots. Public, like `recent`.
+export const published = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("essays").order("desc").take(500);
+    const names = new Map<string, string | null>();
+    const out = [];
+    for (const e of rows) {
+      if (e.review === "rejected") continue;
+      if (!names.has(e.memberId)) {
+        const m = await ctx.db.get(e.memberId);
+        names.set(e.memberId, m ? m.name : null);
+      }
+      const author = names.get(e.memberId);
+      if (author == null) continue;
+      out.push({
+        _id: e._id,
+        title: e.title,
+        url: e.url,
+        submittedAt: e.submittedAt,
+        author,
+      });
+    }
+    return out;
+  },
+});
+
 export const recent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
