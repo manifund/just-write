@@ -6,7 +6,13 @@ import { z } from "zod";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { buildCloud, essayText, readPage, TEXT_MAX } from "./lib/essayText";
+import {
+  buildCloud,
+  essayText,
+  notionText,
+  readPage,
+  TEXT_MAX,
+} from "./lib/essayText";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
 // Characters of essay text sent to the model in all, split evenly across essays.
@@ -67,6 +73,9 @@ const UA =
 
 // The essay's text, or null if the page couldn't be read.
 async function readEssay(url: string) {
+  // Notion pages are built by scripts too; their blocks come from Notion's page API.
+  const notion = await notionText(url).catch(() => null);
+  if (notion) return notion.slice(0, TEXT_MAX);
   // Public Google Docs have a plain-text export; their normal page is built by scripts.
   const doc = url.match(/^https:\/\/docs\.google\.com\/document\/d\/([\w-]+)/);
   const target = doc
