@@ -1,10 +1,11 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { usePortal } from "@/components/portal/context";
 import { hostOf } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
+import { errorMessage } from "@/lib/convex";
 
 const fmt = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -130,6 +131,8 @@ export function Admin() {
 function Overview() {
   const rows = useQuery(api.admin.overview);
   const review = useMutation(api.admin.setEssayReview);
+  const recount = useAction(api.essays.recount);
+  const [recounting, setRecounting] = useState<string | null>(null);
   const [filter, setFilter] = useState<
     "all" | "committed" | "signed" | "interested" | "reader"
   >("all");
@@ -247,7 +250,20 @@ function Overview() {
                         {e.wordCount
                           ? ` · ~${e.wordCount.toLocaleString()} words`
                           : ""}
-                      </span>
+                      </span>{" "}
+                      <button
+                        type="button"
+                        disabled={recounting !== null}
+                        className="cursor-pointer text-ink-muted underline disabled:cursor-wait disabled:opacity-60"
+                        onClick={() => {
+                          setRecounting(e._id);
+                          recount({ essayId: e._id })
+                            .catch((err) => alert(errorMessage(err)))
+                            .finally(() => setRecounting(null));
+                        }}
+                      >
+                        {recounting === e._id ? "Counting…" : "Recount"}
+                      </button>
                     </td>
                     <td colSpan={2} className="py-1.5">
                       <select

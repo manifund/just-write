@@ -23,6 +23,12 @@ export type Slot = {
 export const canCountFor = (week: number, submittedAt: number) =>
   week >= 1 && week <= DEADLINES.length && submittedAt <= DEADLINES[week - 1];
 
+// Until when a writer can recount an essay's words themselves: the first deadline after
+// they registered it, so words added later can't make an earlier week count. Null for
+// essays registered after the last deadline, which fill no week.
+export const recountUntil = (submittedAt: number) =>
+  DEADLINES.find((d) => submittedAt <= d) ?? null;
+
 // Fills the 4 weekly slots. Essays the writer put toward a week go there first (a week
 // can hold several, e.g. two short posts). The rest go in submission order to the
 // earliest slot whose deadline they beat that is empty or still short of MIN_WORDS (by
