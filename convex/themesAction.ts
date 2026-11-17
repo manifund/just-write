@@ -6,7 +6,7 @@ import { z } from "zod";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction } from "./_generated/server";
-import { buildCloud, essayText, TEXT_MAX } from "./lib/essayText";
+import { buildCloud, essayText, readPage, TEXT_MAX } from "./lib/essayText";
 
 const MODEL = "anthropic/claude-sonnet-5.5";
 // Characters of essay text sent to the model in all, split evenly across essays.
@@ -80,7 +80,8 @@ async function readEssay(url: string) {
     });
     if (!res.ok) return null;
     const type = res.headers.get("content-type") ?? "";
-    const body = (await res.text()).slice(0, 2_000_000);
+    const body = await readPage(res);
+    if (!body) return null;
     if (type.includes("html")) return essayText(body);
     if (type.startsWith("text/plain")) {
       const text = body.trim();

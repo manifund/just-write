@@ -109,6 +109,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 - It's also in the portal sidebar, after Ideas.
 - Opening the page asks for an update (`themes.request`) when the set of essays changed, at most once an hour for everyone.
 - `themesAction.compute` reads each essay's page once into `essayTexts` (`convex/lib/essayText.ts#essayText`; public Google Docs through their text export) and retries pages with no readable text after 12h.
+- Essay pages (here and the word count in `essays.preview`) are read with `essayText.ts#readPage`, which unpacks the gzipped bytes LessWrong sends without a Content-Encoding header.
 - The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
 - Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
 
