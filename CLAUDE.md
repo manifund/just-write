@@ -45,6 +45,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 1. `/` — `app/(site)/actions.ts#submitInterest` calls `members.expressInterest`. The public "Interested" list (`app/(site)/interested.tsx`) is a `"use cache"` function tagged `interest`; anything that changes who appears there must invalidate that tag (`updateTag` in server actions, `revalidateTag(..., { expire: 0 })` in route handlers).
    The landing page also scrolls the latest essays (`app/(site)/essays.tsx`, from the public `essays.recent`, cached a few minutes) above those names; each opens in a new tab.
+   In the two-column layout (1120px and up) the strip sits in the left column, under the headline, instead.
    The strip starts at a random point on each page load (an inline script sets a negative `animation-delay`, since the page is cached).
    On desktop, the landing calendar puts a dot around each November date for every essay registered that day (Pacific time, from the public `essays.published`); hovering one shows the essay, clicking opens it.
 2. `/commit` — requires sign-in. `app/(site)/commit/actions.ts#startCommitment` records the signature on the viewer's row (`members.signTerms`, status `signed`) and redirects to Stripe Checkout with the Convex member id as `client_reference_id`.

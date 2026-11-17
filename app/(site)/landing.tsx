@@ -61,6 +61,13 @@ export function Landing() {
           </p>
           <div aria-hidden="true" className="h-11 md:hidden" />
         </div>
+        {/* In two columns the essays scroll here, under the headline; in one
+            column they stay above the names on the right. */}
+        <div className="relative hidden @min-[1120px]:block">
+          <Suspense fallback={null}>
+            <Essays dark />
+          </Suspense>
+        </div>
         <Suspense fallback={<Calendar />}>
           <CalendarWithEssays />
         </Suspense>
@@ -94,9 +101,11 @@ export function Landing() {
                 </p>
                 {i === RULES.length - 1 && (
                   <div className="mt-[clamp(6px,1.2vh,12px)] flex flex-col gap-[clamp(8px,1.6vh,14px)]">
-                    <Suspense fallback={null}>
-                      <Essays />
-                    </Suspense>
+                    <div className="@min-[1120px]:hidden">
+                      <Suspense fallback={null}>
+                        <Essays />
+                      </Suspense>
+                    </div>
                     <Suspense fallback={null}>
                       <Interested />
                     </Suspense>

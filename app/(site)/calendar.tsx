@@ -85,7 +85,8 @@ const dayStyle = (day: Day) =>
       : "text-cream group-hover/day:bg-cream/10";
 
 const row = "grid grid-cols-7";
-const circle = "size-[clamp(32px,4.6vh,38px)]";
+const circle =
+  "size-[clamp(32px,4.6vh,38px)] md:size-[clamp(36px,5.4vh,46px)]";
 const ease = "transition duration-150 motion-reduce:transition-none";
 
 export type DotEssay = { _id: string; title: string; url: string; author: string };
@@ -115,14 +116,14 @@ function EssayDots({ essays, col }: { essays: DotEssay[]; col: number }) {
         const angle = off * STEP;
         const x = side * Math.cos(angle);
         const y = -Math.sin(angle) * SQUASH;
-        const gap = 6 + ring * 7;
+        const gap = 7 + ring * 8;
         return (
           <a
             key={e._id}
             href={e.url}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
-            className="group/dot absolute z-10 cursor-pointer size-[5px] -translate-1/2 rounded-full bg-brass-light no-underline outline-none hover:z-20 focus-visible:z-20"
+            className="group/dot absolute z-10 cursor-pointer size-[6px] -translate-1/2 rounded-full bg-brass-light no-underline outline-none hover:z-20 focus-visible:z-20"
             style={{
               left: `calc(${(50 + 50 * x).toFixed(2)}% + ${(gap * x).toFixed(2)}px)`,
               top: `calc(${(50 + 50 * y).toFixed(2)}% + ${(gap * y).toFixed(2)}px)`,
@@ -157,7 +158,7 @@ export function Calendar({
     // Legend sits beside the grid when there's room, otherwise in two columns below it.
     <div className="group/cal @container relative mt-auto cursor-default select-none max-md:mt-3">
       <div className="flex flex-col gap-6 @min-[580px]:flex-row @min-[580px]:items-end @min-[580px]:gap-[clamp(28px,3.5vw,48px)]">
-        <div className="flex w-full flex-col md:max-w-[370px]">
+        <div className="flex w-full flex-col md:max-w-[460px]">
           <h2 className="mb-[clamp(14px,2.4vh,22px)] flex items-baseline gap-3 font-display leading-none">
             <span className="text-[clamp(32px,4.6vh,42px)] font-semibold tracking-[-0.015em] text-cream">
               November
@@ -171,7 +172,7 @@ export function Calendar({
           >
             <div
               role="row"
-              className={`${row} justify-items-center pb-2 text-xs text-wash-light/80`}
+              className={`${row} justify-items-center pb-2 text-xs text-wash-light/80 md:text-sm`}
             >
               {WEEKDAYS.map((d, i) => (
                 <span role="columnheader" key={i}>
@@ -191,10 +192,10 @@ export function Calendar({
                     role="gridcell"
                     key={i}
                     data-event={day.event}
-                    className="group/day flex justify-center py-[clamp(2px,0.6vh,6px)]"
+                    className="group/day flex justify-center py-[clamp(2px,0.6vh,6px)] md:py-[clamp(3px,0.8vh,8px)]"
                   >
                     <span
-                      className={`relative flex ${circle} items-center justify-center rounded-full text-base ${ease} ${dayStyle(day)}`}
+                      className={`relative flex ${circle} items-center justify-center rounded-full text-base md:text-lg ${ease} ${dayStyle(day)}`}
                     >
                       {day.date}
                       {!day.outside && <TodayDot date={day.date} />}
