@@ -62,7 +62,7 @@ const mark: Record<Event, string> = {
 
 const swatch: Record<Event, string> = {
   kickoff: "bg-brass",
-  essay: "border border-brass md:border-2 md:border-dotted",
+  essay: "border border-brass md:border-2 md:border-dashed",
   circle: "bg-wash/40",
   wrap: "bg-cream",
 };
@@ -82,7 +82,7 @@ const dayLit: Record<Event, string> = {
   wrap: "group-has-[[data-legend=wrap]:hover]/cal:ring-2",
 };
 
-// On desktop, a deadline day with essays swaps its solid ring for the dots.
+// On desktop, a deadline day with essays swaps its solid ring for the arcs.
 const dayStyle = (day: Day, dotted: boolean) =>
   (day.event === "essay" && dotted ? "md:border-transparent " : "") +
   (day.event
@@ -98,46 +98,51 @@ const ease = "transition duration-150 motion-reduce:transition-none";
 
 export type DotEssay = { _id: string; title: string; url: string; author: string };
 
-// Dot ring geometry, in px. Dots sit on the edge of the date's circle, so
-// together they draw its outline; past RING_CAP essays a second ring starts
-// just outside. Sizes are estimated at a typical desktop circle (~42px).
-const RADIUS = 22;
-const RING_GAP = 6;
-const MIN_PITCH = 5.5; // closest spacing along the ring before dots shrink
+// Arc geometry, in the SVG's units: the date's circle spans -50..50, so its
+// edge is at radius 50 (~42px across on desktop, so 1px is about 2.4 units).
+// Each essay is one arc of the circle's edge; together they draw its outline.
+// Past RING_CAP essays a second ring starts just outside.
+const RADIUS = 50;
+const RING_GAP = 11;
+const GAP = 9; // space between arcs, along the ring
+const MIN_PITCH = 17; // shortest arc plus gap before a second ring starts
 const RING_CAP = Math.floor((2 * Math.PI * RADIUS) / MIN_PITCH);
 
-type Dot = { x: number; y: number; gap: number; size: number };
+type Arc = { d: string; mx: number; my: number };
 
-// Spread n dots evenly around one ring (or two, split by circumference),
+// Split n essays into arcs around one ring (or two, split by circumference),
 // starting at the top and going clockwise; the outer ring is offset half a
-// step so its dots fall between the inner ones.
-function dotRing(n: number, base: number): Dot[] {
+// step so its gaps fall beside the inner ones'.
+function arcRing(n: number, width: number): Arc[] {
   const radii = n > RING_CAP ? [RADIUS, RADIUS + RING_GAP] : [RADIUS];
   const total = radii.reduce((a, r) => a + r, 0);
   const counts = radii.map((r) => Math.round((n * r) / total));
   counts[counts.length - 1] += n - counts.reduce((a, c) => a + c, 0);
+  const pt = (r: number, a: number) =>
+    `${(r * Math.cos(a)).toFixed(2)} ${(r * Math.sin(a)).toFixed(2)}`;
   return radii.flatMap((r, ring) => {
     const count = counts[ring];
-    const pitch = (2 * Math.PI * r) / count;
-    const size = Math.max(3, Math.min(base, pitch - 1.5));
+    const step = (2 * Math.PI) / count;
+    // Round caps reach past each end, so leave room for them in the gap.
+    const half = Math.max(0.01, (step - (GAP + width) / r) / 2);
     return Array.from({ length: count }, (_, i) => {
-      const angle = -Math.PI / 2 + ((i + ring / 2) / count) * 2 * Math.PI;
+      const mid = -Math.PI / 2 + (i + 0.5 + ring / 2) * step;
+      const large = half * 2 > Math.PI ? 1 : 0;
       return {
-        x: Math.cos(angle),
-        y: Math.sin(angle),
-        gap: 1 + ring * RING_GAP,
-        size,
+        d: `M ${pt(r, mid - half)} A ${r} ${r} 0 ${large} 1 ${pt(r, mid + half)}`,
+        mx: Math.cos(mid) * (r / 100) + 0.5,
+        my: Math.sin(mid) * (r / 100) + 0.5,
       };
     });
   });
 }
 
-// One dot per essay published that day, drawn as a dotted outline around the
-// date. Deadline days use larger coral dots so they stay the ones you notice;
-// other days use small lilac ones. Hovering or focusing a dot shows the essay
-// above it; clicking opens it in a new tab. Desktop only: the dots are too
-// small to tap.
-function EssayDots({
+// One arc per essay published that day, drawn as fragments of the date's
+// outline. Deadline days use thicker coral arcs in place of their solid ring,
+// so they stay the ones you notice; other days use thin lilac ones. Hovering
+// or focusing an arc shows the essay beside it; clicking opens it in a new
+// tab. Desktop only: the arcs are too small to tap.
+function EssayArcs({
   essays,
   col,
   deadline,
@@ -149,37 +154,62 @@ function EssayDots({
   // Keep the pop-up inside the panel: left-aligned near the left edge, right-aligned near the right.
   const align =
     col < 2 ? "left-0" : col > 4 ? "right-0" : "left-1/2 -translate-x-1/2";
-  const dots = dotRing(essays.length, deadline ? 6 : 4.5);
+  const width = deadline ? 6 : 4;
+  const arcs = arcRing(essays.length, width);
   return (
     <span className="max-md:hidden">
       {essays.map((e, i) => {
-        const { x, y, gap, size } = dots[i];
+        const { d, mx, my } = arcs[i];
+        // The link covers the whole circle but only its arc takes the pointer,
+        // so neighbouring arcs and the date underneath stay hoverable.
         return (
           <a
             key={e._id}
             href={e.url}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
-            className={`group/dot absolute z-10 -translate-1/2 cursor-pointer rounded-full no-underline outline-none hover:z-20 focus-visible:z-20 ${deadline ? "bg-brass-light" : "bg-wash-light/85"}`}
-            style={{
-              width: `${size.toFixed(2)}px`,
-              height: `${size.toFixed(2)}px`,
-              left: `calc(${(50 + 50 * x).toFixed(2)}% + ${(gap * x).toFixed(2)}px)`,
-              top: `calc(${(50 + 50 * y).toFixed(2)}% + ${(gap * y).toFixed(2)}px)`,
-            }}
+            aria-label={`${e.title}, by ${e.author}`}
+            className="group/dot pointer-events-none absolute inset-0 z-10 no-underline outline-none hover:z-20 focus-visible:z-20"
           >
+            <svg
+              aria-hidden="true"
+              viewBox="-50 -50 100 100"
+              className="absolute inset-0 size-full overflow-visible"
+            >
+              <path
+                d={d}
+                fill="none"
+                strokeLinecap="round"
+                strokeWidth={width}
+                className={`${ease} ${deadline ? "stroke-brass-light" : "stroke-wash-light/85"} group-hover/dot:stroke-cream group-hover/dot:[stroke-width:8] group-focus-visible/dot:stroke-cream group-focus-visible/dot:[stroke-width:8]`}
+                style={{ transitionProperty: "stroke, stroke-width" }}
+              />
+              <path
+                d={d}
+                fill="none"
+                strokeWidth={14}
+                stroke="transparent"
+                className="cursor-pointer"
+                style={{ pointerEvents: "stroke" }}
+              />
+            </svg>
             <span
               aria-hidden="true"
-              className={`absolute -inset-[2px] rounded-full ${ease} group-hover/dot:scale-150 group-hover/dot:bg-cream group-focus-visible/dot:scale-150 group-focus-visible/dot:bg-cream`}
-            />
-            <span
-              className={`pointer-events-none absolute bottom-[calc(100%+8px)] ${align} flex w-max max-w-[16em] flex-col rounded-md bg-cream px-3 py-2 text-left opacity-0 shadow-lg ${ease} group-hover/dot:opacity-100 group-focus-visible/dot:opacity-100`}
+              className="absolute size-0"
+              style={{
+                left: `${(mx * 100).toFixed(2)}%`,
+                top: `${(my * 100).toFixed(2)}%`,
+              }}
             >
-              <span className="font-display text-[15px] leading-snug font-medium text-ink">
-                {e.title}
-              </span>
-              <span className="text-[12px] font-normal text-ink-muted">
-                {e.author.trim().split(/\s+/)[0]}
+              <span
+                className={`pointer-events-none absolute bottom-2 ${align} flex w-max max-w-[16em] flex-col rounded-md bg-cream px-3 py-2 text-left opacity-0 shadow-lg ${ease} group-hover/dot:opacity-100 group-focus-visible/dot:opacity-100`}
+              >
+                <span className="font-display text-[15px] leading-snug font-medium text-ink">
+                  {e.title}
+                </span>
+                <span className="text-[12px] font-normal text-ink-muted">
+                  {e.author.trim().split(/\s+/)[0]}
+                </span>
               </span>
             </span>
           </a>
@@ -239,7 +269,7 @@ export function Calendar({
                       {day.date}
                       {inNovember(day) && <TodayDot date={day.date} />}
                       {inNovember(day) && essays?.[day.date] && (
-                        <EssayDots
+                        <EssayArcs
                           essays={essays[day.date]}
                           col={i}
                           deadline={day.event === "essay"}
@@ -253,7 +283,7 @@ export function Calendar({
           </div>
           {essays && Object.keys(essays).length > 0 && (
             <p className="mt-3 text-[13px] text-wash-light/70 max-md:hidden">
-              Each dot is an essay published that day.
+              Each mark is an essay published that day.
             </p>
           )}
         </div>
