@@ -8,7 +8,12 @@ import { usePortal } from "@/components/portal/context";
 import { confetti, hostOf, timeAgo, useNow } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { canCountFor, DEADLINES, DEADLINE_LABELS } from "@/convex/lib/program";
+import {
+  canCountFor,
+  DEADLINES,
+  DEADLINE_LABELS,
+  recountUntil,
+} from "@/convex/lib/program";
 import { errorMessage } from "@/lib/convex";
 
 const WEEKS = ["Week 1", "Week 2", "Week 3", "Week 4"];
@@ -377,10 +382,18 @@ function RegisterEssay({ now }: { now: number | null }) {
   );
 }
 
+// Writers can recount an essay until the deadline of the week they registered it in.
+function canRecount(submittedAt: number) {
+  const until = recountUntil(submittedAt);
+  return until === null || Date.now() <= until;
+}
+
 function MyEssays({ mine }: { mine: Mine }) {
   const { essays, slots } = mine;
   const remove = useMutation(api.essays.remove);
   const setWeek = useMutation(api.essays.setWeek);
+  const recount = useAction(api.essays.recount);
+  const [recounting, setRecounting] = useState<Id<"essays"> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const weekOf = (id: string) =>
     slots.find((s) => s.essayIds.includes(id))?.week;
@@ -413,6 +426,22 @@ function MyEssays({ mine }: { mine: Mine }) {
                   ? " · not counted"
                   : ""}
             </span>
+            {canRecount(e.submittedAt) && (
+              <button
+                type="button"
+                disabled={recounting !== null}
+                className="cursor-pointer text-[14px] text-ink-muted underline disabled:cursor-wait disabled:opacity-60"
+                onClick={() => {
+                  setError(null);
+                  setRecounting(e._id);
+                  recount({ essayId: e._id })
+                    .catch((err) => setError(errorMessage(err)))
+                    .finally(() => setRecounting(null));
+                }}
+              >
+                {recounting === e._id ? "Counting…" : "Recount words"}
+              </button>
+            )}
             {e.review !== "rejected" && (
               <select
                 aria-label={`Week for ${e.title}`}

@@ -1,13 +1,27 @@
 import { ConvexError, v } from "convex/values";
-import { api } from "./_generated/api";
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { notionText, readPage } from "./lib/essayText";
 import { emptyDoc } from "./lib/richtext";
-import { canCountFor, DEADLINES, fillSlots } from "./lib/program";
+import { canCountFor, DEADLINES, fillSlots, recountUntil } from "./lib/program";
 import { parseWebsite } from "./lib/util";
-import { publicMember, requireMember, requireWriter } from "./lib/viewer";
+import {
+  getViewer,
+  publicMember,
+  requireAdmin,
+  requireMember,
+  requireWriter,
+} from "./lib/viewer";
 
 // Fetches an essay URL to suggest a title and estimate its word count. Members only, so it
 // can't be used by anyone on the internet (or a chat task's sandbox) to fetch arbitrary URLs.
@@ -19,30 +33,84 @@ export const preview = action({
       throw new ConvexError("Only committed members can do that.");
     const url = parseWebsite(args.url);
     if (!url) return { url: null, title: null, wordCount: null };
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)",
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return { url, title: null, wordCount: null };
-      const html = await readPage(res);
-      if (!html) return { url, title: null, wordCount: null };
-      // Notion pages are built by scripts, so their text comes from Notion's page API.
-      const notion = await notionText(url).catch(() => null);
-      return {
-        url,
-        title: extractTitle(html),
-        wordCount: countWords(notion ?? html),
-      };
-    } catch {
-      return { url, title: null, wordCount: null };
-    }
+    return { url, ...(await readEssay(url)) };
   },
 });
+
+async function readEssay(
+  url: string,
+): Promise<{ title: string | null; wordCount: number | null }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { title: null, wordCount: null };
+    const html = await readPage(res);
+    if (!html) return { title: null, wordCount: null };
+    // Notion pages are built by scripts, so their text comes from Notion's page API.
+    const notion = await notionText(url).catch(() => null);
+    return { title: extractTitle(html), wordCount: countWords(notion ?? html) };
+  } catch {
+    return { title: null, wordCount: null };
+  }
+}
+
+// Reads one of the viewer's registered essays again and saves its new word count.
+export const recount = action({
+  args: { essayId: v.id("essays") },
+  handler: async (ctx, { essayId }): Promise<number | null> => {
+    const essay = await ctx.runQuery(internal.essays.ownedEssay, { essayId });
+    const { wordCount } = await readEssay(essay.url);
+    if (wordCount === null)
+      throw new ConvexError("Couldn’t read the words on that page.");
+    await ctx.runMutation(internal.essays.saveWordCount, {
+      essayId,
+      wordCount,
+    });
+    return wordCount;
+  },
+});
+
+export const ownedEssay = internalQuery({
+  args: { essayId: v.id("essays") },
+  handler: async (ctx, { essayId }) => {
+    const essay = await recountable(ctx, essayId);
+    return { url: essay.url };
+  },
+});
+
+export const saveWordCount = internalMutation({
+  args: { essayId: v.id("essays"), wordCount: v.number() },
+  handler: async (ctx, { essayId, wordCount }) => {
+    await recountable(ctx, essayId);
+    await ctx.db.patch(essayId, { wordCount });
+  },
+});
+
+// Admins can recount any essay. Writers can recount their own until the deadline of the
+// week they registered it in (`recountUntil`); after that it's up to an admin.
+async function recountable(ctx: QueryCtx | MutationCtx, essayId: Id<"essays">) {
+  const viewer = await getViewer(ctx);
+  const essay = await ctx.db.get(essayId);
+  if (!essay) throw new ConvexError("No such essay.");
+  if (viewer?.isAdmin) {
+    await requireAdmin(ctx);
+    return essay;
+  }
+  const { member } = await requireMember(ctx);
+  if (essay.memberId !== member._id) throw new ConvexError("Not your essay.");
+  const until = recountUntil(essay.submittedAt);
+  if (until !== null && Date.now() > until)
+    throw new ConvexError(
+      "That week’s deadline has passed, so an admin has to recount this one.",
+    );
+  return essay;
+}
 
 function decode(s: string) {
   return s
