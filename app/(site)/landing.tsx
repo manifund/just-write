@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { Calendar } from "./calendar";
+import { Essays } from "./essays";
 import { InterestForm } from "./interest-form";
 import { Interested } from "./interested";
 
@@ -89,7 +90,10 @@ export function Landing() {
                   {r.detail}
                 </p>
                 {i === RULES.length - 1 && (
-                  <div className="mt-[clamp(6px,1.2vh,12px)]">
+                  <div className="mt-[clamp(6px,1.2vh,12px)] flex flex-col gap-[clamp(8px,1.6vh,14px)]">
+                    <Suspense fallback={null}>
+                      <Essays />
+                    </Suspense>
                     <Suspense fallback={null}>
                       <Interested />
                     </Suspense>

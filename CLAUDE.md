@@ -44,6 +44,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 **Flow:**
 
 1. `/` — `app/(site)/actions.ts#submitInterest` calls `members.expressInterest`. The public "Interested" list (`app/(site)/interested.tsx`) is a `"use cache"` function tagged `interest`; anything that changes who appears there must invalidate that tag (`updateTag` in server actions, `revalidateTag(..., { expire: 0 })` in route handlers).
+   The landing page also scrolls the latest essays (`app/(site)/essays.tsx`, from the public `essays.recent`, cached a few minutes) above those names; each opens in a new tab.
 2. `/commit` — requires sign-in. `app/(site)/commit/actions.ts#startCommitment` records the signature on the viewer's row (`members.signTerms`, status `signed`) and redirects to Stripe Checkout with the Convex member id as `client_reference_id`.
 3. `app/api/stripe/webhook/route.ts` — on `checkout.session.completed` / `async_payment_succeeded`, `markCommitted` (`lib/stripe.ts` → `server.markCommitted`) flips the row to `committed` (numeric references are pre-Convex Neon ids, matched via `legacyId`), then `sendSignedTerms` (`lib/email.ts`) emails the signed terms. Both are idempotent, and failures return 500 so Stripe retries. `/commit/thanks` only displays Stripe's session status; the webhook is the source of truth.
 4. Portal (`app/(portal)/`, client-rendered behind `PortalFrame`):
