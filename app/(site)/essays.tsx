@@ -49,13 +49,16 @@ function Item({ essay, hidden }: { essay: Essay; hidden?: boolean }) {
 
 // Recent essays scrolling sideways; hover or focus pauses it. The list is
 // rendered twice so the loop has no gap; the copy is hidden from screen readers.
-export async function Essays() {
+// `dark` is for the landing page's ink-colored left column.
+export async function Essays({ dark }: { dark?: boolean } = {}) {
   const essays = await getEssays();
   if (essays.length === 0) return null;
   const duration = Math.max(20, essays.length * 5);
   return (
     <div className="marquee-wrap flex flex-col gap-1.5">
-      <span className="text-[11px] tracking-[0.12em] text-ink-muted uppercase">
+      <span
+        className={`text-[11px] tracking-[0.12em] uppercase ${dark ? "text-wash-light/80" : "text-ink-muted"}`}
+      >
         Recent essays
       </span>
       <div className="overflow-hidden mask-x-from-90% mask-x-to-100%">
