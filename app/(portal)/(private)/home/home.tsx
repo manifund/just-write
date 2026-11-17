@@ -381,6 +381,8 @@ function MyEssays({ mine }: { mine: Mine }) {
   const { essays, slots } = mine;
   const remove = useMutation(api.essays.remove);
   const setWeek = useMutation(api.essays.setWeek);
+  const recount = useAction(api.essays.recount);
+  const [recounting, setRecounting] = useState<Id<"essays"> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const weekOf = (id: string) =>
     slots.find((s) => s.essayIds.includes(id))?.week;
@@ -413,6 +415,20 @@ function MyEssays({ mine }: { mine: Mine }) {
                   ? " · not counted"
                   : ""}
             </span>
+            <button
+              type="button"
+              disabled={recounting !== null}
+              className="cursor-pointer text-[14px] text-ink-muted underline disabled:cursor-wait disabled:opacity-60"
+              onClick={() => {
+                setError(null);
+                setRecounting(e._id);
+                recount({ essayId: e._id })
+                  .catch((err) => setError(errorMessage(err)))
+                  .finally(() => setRecounting(null));
+              }}
+            >
+              {recounting === e._id ? "Counting…" : "Recount words"}
+            </button>
             {e.review !== "rejected" && (
               <select
                 aria-label={`Week for ${e.title}`}

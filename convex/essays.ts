@@ -1,6 +1,12 @@
 import { ConvexError, v } from "convex/values";
-import { api } from "./_generated/api";
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import { api, internal } from "./_generated/api";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { notionText, readPage } from "./lib/essayText";
@@ -19,28 +25,68 @@ export const preview = action({
       throw new ConvexError("Only committed members can do that.");
     const url = parseWebsite(args.url);
     if (!url) return { url: null, title: null, wordCount: null };
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)",
-        },
-        redirect: "follow",
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return { url, title: null, wordCount: null };
-      const html = await readPage(res);
-      if (!html) return { url, title: null, wordCount: null };
-      // Notion pages are built by scripts, so their text comes from Notion's page API.
-      const notion = await notionText(url).catch(() => null);
-      return {
-        url,
-        title: extractTitle(html),
-        wordCount: countWords(notion ?? html),
-      };
-    } catch {
-      return { url, title: null, wordCount: null };
-    }
+    return { url, ...(await readEssay(url)) };
+  },
+});
+
+async function readEssay(
+  url: string,
+): Promise<{ title: string | null; wordCount: number | null }> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; JustWriteBot/1.0; +https://justwrite.club)",
+      },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return { title: null, wordCount: null };
+    const html = await readPage(res);
+    if (!html) return { title: null, wordCount: null };
+    // Notion pages are built by scripts, so their text comes from Notion's page API.
+    const notion = await notionText(url).catch(() => null);
+    return { title: extractTitle(html), wordCount: countWords(notion ?? html) };
+  } catch {
+    return { title: null, wordCount: null };
+  }
+}
+
+// Reads one of the viewer's registered essays again and saves its new word count.
+export const recount = action({
+  args: { essayId: v.id("essays") },
+  handler: async (ctx, { essayId }): Promise<number | null> => {
+    const essay = await ctx.runQuery(internal.essays.ownedEssay, { essayId });
+    const { wordCount } = await readEssay(essay.url);
+    if (wordCount === null)
+      throw new ConvexError("Couldn’t read the words on that page.");
+    await ctx.runMutation(internal.essays.saveWordCount, {
+      essayId,
+      wordCount,
+    });
+    return wordCount;
+  },
+});
+
+export const ownedEssay = internalQuery({
+  args: { essayId: v.id("essays") },
+  handler: async (ctx, { essayId }) => {
+    const { member } = await requireMember(ctx);
+    const essay = await ctx.db.get(essayId);
+    if (!essay || essay.memberId !== member._id)
+      throw new ConvexError("Not your essay.");
+    return { url: essay.url };
+  },
+});
+
+export const saveWordCount = internalMutation({
+  args: { essayId: v.id("essays"), wordCount: v.number() },
+  handler: async (ctx, { essayId, wordCount }) => {
+    const { member } = await requireMember(ctx);
+    const essay = await ctx.db.get(essayId);
+    if (!essay || essay.memberId !== member._id)
+      throw new ConvexError("Not your essay.");
+    await ctx.db.patch(essayId, { wordCount });
   },
 });
 

@@ -57,6 +57,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 
 **Essay deadlines** are in `convex/lib/program.ts` (Mondays 9pm PT, Nov 9–30). `fillSlots` assigns registered essays to the earliest open slot they beat; admins can mark essays rejected so they don't count. Registering an essay posts it to `#published`.
 An essay without a week also joins an earlier slot whose essays' word counts add up to under 1,000 (`MIN_WORDS`); an essay with no count fills its slot.
+A writer can re-read one of their essays' word counts with "Recount words" in their essay list on `/home` (`essays.recount`).
 
 **Calendar** (`/calendar`, public; `app/(portal)/calendar`, `convex/events.ts`):
 
