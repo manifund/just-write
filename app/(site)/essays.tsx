@@ -52,6 +52,7 @@ function Item({ essay, hidden }: { essay: Essay; hidden?: boolean }) {
 export async function Essays() {
   const essays = await getEssays();
   if (essays.length === 0) return null;
+  const duration = Math.max(20, essays.length * 5);
   return (
     <div className="marquee-wrap flex flex-col gap-1.5">
       <span className="text-[11px] tracking-[0.12em] text-ink-muted uppercase">
@@ -62,7 +63,7 @@ export async function Essays() {
           className="marquee flex w-max"
           style={
             {
-              "--marquee-duration": `${Math.max(20, essays.length * 5)}s`,
+              "--marquee-duration": `${duration}s`,
             } as React.CSSProperties
           }
         >
@@ -73,6 +74,13 @@ export async function Essays() {
             <Item key={`${e._id}-copy`} essay={e} hidden />
           ))}
         </ul>
+        {/* The page is cached, so pick a random starting point in the
+            browser, before first paint, with a negative animation delay. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.currentScript.previousElementSibling.style.animationDelay="-"+(Math.random()*${duration}).toFixed(1)+"s"`,
+          }}
+        />
       </div>
     </div>
   );
