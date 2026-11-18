@@ -30,6 +30,7 @@ import {
   CHAT_POST_CHANNELS,
 } from "../convex/lib/improve";
 import { agentSession, runAgent, whoStopped } from "./improve-runner/agent";
+import { installBrowser } from "./improve-runner/browser";
 import { checks } from "./improve-runner/checks";
 import {
   AGENT_DIR,
@@ -167,6 +168,7 @@ async function main(): Promise<RunnerResult> {
   await step("Installing dependencies");
   if (!sh("bun install --frozen-lockfile").ok) must("bun install");
   sh("bunx next typegen"); // the typecheck needs Next's generated route types
+  installBrowser(); // in the background, for scripts/screenshot.ts
 
   // Picking up a failed follow-up on a PR in its saved sandbox: keep its edits if the branch
   // hasn't moved on GitHub since. (Without a PR the branch is only local; checkout -B below
