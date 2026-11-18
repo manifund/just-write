@@ -364,6 +364,32 @@ export function Composer({
                 chain().deleteRange(range).sinkListItem("listItem").run();
               },
             }),
+            // "- ", "* ", or "1. " right after a Shift+Enter line break starts a list,
+            // as it does at the start of the message: the line break becomes a new
+            // paragraph, which is then wrapped in the list.
+            new InputRule({
+              find: /(?:([-+*])|(\d+)\.)\s$/,
+              handler: ({ state, range, match, chain }) => {
+                const $start = state.doc.resolve(range.from);
+                if (
+                  $start.nodeBefore?.type.name !== "hardBreak" ||
+                  $start.parent.type.name !== "paragraph" ||
+                  $start.node(-1).type.name !== "doc"
+                )
+                  return null;
+                const c = chain()
+                  .deleteRange({ from: range.from - 1, to: range.to })
+                  .splitBlock();
+                if (match[1]) {
+                  c.toggleBulletList().run();
+                  return;
+                }
+                const start = Number(match[2]);
+                c.toggleOrderedList();
+                if (start !== 1) c.updateAttributes("orderedList", { start });
+                c.run();
+              },
+            }),
           ];
         },
       }),
