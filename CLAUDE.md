@@ -187,6 +187,9 @@ Secrets and the sandbox:
 - The route runs the runner from the deployed commit (copied to `/tmp/improve-runner`), not the clone's copy.
 - `RUNNER_FILES` in the route lists what gets copied: `scripts/improve-runner.ts` (the entry), `scripts/improve-runner/`, and `convex/lib/improve.ts`. Runner modules import each other with relative paths, and only dependency-free files.
 - Runner modules: `context.ts` (brief, env), `report.ts` (steps, log, heartbeat to Convex), `shell.ts`, `prompt.ts` (rules, prompt, result), `agent.ts` (SDK session, follow-ups, Stop, images), `git.ts` (`mergeMain`, changed files), `checks.ts`.
+- `browser.ts` installs headless Chromium (system libraries, then Playwright's headless shell) in the background after `bun install`, so code runs can look at their work with `bun scripts/screenshot.ts <url or file>`, which waits for that install.
+- The agent is told it can run `bun dev` signed out against the live backend (`NEXT_PUBLIC_CONVEX_URL=$CONVEX_URL`) to screenshot public pages, and to screenshot HTML mockups for portal UI.
+- `next dev` writes an `AGENTS.md` when an agent runs it; it's gitignored so it stays out of PRs.
 
 Hangs and timeouts:
 

@@ -11,7 +11,8 @@ export const RULES = `You are Claude, working in the codebase of the Just Write 
 
 How this run works:
 - You're in a fresh clone of github.com/${REPO} on branch ${brief.branch}. When you finish, the harness typechecks, lints, commits, and pushes your work, then opens a PR or merges it, depending on the site's policy. Don't commit, push, or open PRs yourself.
-- There's no dev server, browser, or local Convex backend here. Before you finish, run \`bun check\` (typecheck) and \`bun lint\` and fix anything they report.
+- There's no local Convex backend here. Before you finish, run \`bun check\` (typecheck) and \`bun lint\` and fix anything they report.
+- To see what you build, \`bun scripts/screenshot.ts <url or .html file> /tmp/shot.png\` (options: \`--width\`, \`--height\`, \`--full\`, \`--wait <ms>\`) takes a screenshot in headless Chromium, which you can then Read to look at; it waits if Chromium is still installing. For site pages, start \`NEXT_PUBLIC_CONVEX_URL=$CONVEX_URL bun dev\` in the background and screenshot http://localhost:3000. It's signed out against the live backend, so only public pages show real data; for portal UI, screenshot a small standalone HTML mockup instead. Look at your UI changes this way at desktop and phone widths before finishing.
 - Never run \`bun convex\`, \`convex dev\`, \`convex deploy\`, \`convex run\`, or anything else that touches the live Convex deployment, which real members use. Don't edit env files or secrets.
 - Before each step, write one short, plain sentence about what you're doing, e.g. "Looking at how the chat composer works." or "Adding a word count under the message box." Members see these sentences live as a checklist, so write them for people, not programmers, and keep them under 80 characters.
 - Keep the change focused on what was asked, and follow CLAUDE.md and the site's existing patterns, design tokens, and plain copy style.
