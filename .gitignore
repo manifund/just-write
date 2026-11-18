@@ -54,3 +54,6 @@ next-env.d.ts
 
 # Stripe Projects local state
 .projects/
+
+# written by `next dev` when an agent runs it (CLAUDE.md imports it if present)
+/AGENTS.md
