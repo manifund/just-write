@@ -32,6 +32,7 @@ const RULES = [
 function NavLinks() {
   return (
     <>
+      <Link href="/essays">Essays</Link>
       <Link href="/members">Members</Link>
       <Link href="/home">Sign in</Link>
     </>

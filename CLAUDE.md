@@ -47,6 +47,7 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
    The landing page also scrolls the latest essays (`app/(site)/essays.tsx`, from the public `essays.recent`, cached a few minutes) above those names; each opens in a new tab.
    In the two-column layout (1120px and up) the strip sits in the left column, under the headline, instead.
    The strip starts at a random point on each page load (an inline script sets a negative `animation-delay`, since the page is cached).
+   `/essays` (`app/(site)/essays/`, linked from the landing nav) lists every essay newest first as feed posts, from the public `essays.feed`: Claude's one-sentence summary (`themes.summaries`), the link card's image, word count, and Substack likes (`likes.ts`, Substack's public post API, cached for hours).
    On desktop, the landing calendar puts an arc on the edge of each November date's circle for every essay registered that day (Pacific time, from the public `essays.published`); hovering one shows the essay, clicking opens it.
    The arcs split the circle's edge evenly, with small gaps, so together they draw its outline (a second ring past ~18); deadline days use thicker coral arcs in place of their solid ring, other days thin lilac ones.
 2. `/commit` — requires sign-in. `app/(site)/commit/actions.ts#startCommitment` records the signature on the viewer's row (`members.signTerms`, status `signed`) and redirects to Stripe Checkout with the Convex member id as `client_reference_id`.
