@@ -53,6 +53,7 @@ export function Directory({ initial }: { initial: Row[] }) {
                 <span className="flex items-center gap-2 text-[13px] text-ink-muted">
                   <Pips
                     filled={m.weeksDone}
+                    titles={m.weekTitles ?? []}
                     label={`${Math.min(m.weeksDone, GOAL)} of ${GOAL} weeks done`}
                   />
                   {m.link && <span className="truncate">{hostOf(m.link)}</span>}
@@ -66,15 +67,37 @@ export function Directory({ initial }: { initial: Row[] }) {
   );
 }
 
-function Pips({ filled, label }: { filled: number; label: string }) {
+function Pips({
+  filled,
+  titles,
+  label,
+}: {
+  filled: number;
+  titles: { week: number; titles: string[] }[];
+  label: string;
+}) {
   return (
     <span className="flex shrink-0 gap-[3px]" role="img" aria-label={label}>
-      {Array.from({ length: GOAL }, (_, i) => (
-        <span
-          key={i}
-          className={`size-2.5 ${i < filled ? "bg-brass" : "border border-ink/25"}`}
-        />
-      ))}
+      {Array.from({ length: GOAL }, (_, i) => {
+        const week = titles[i];
+        const names = week?.titles.filter(Boolean) ?? [];
+        return (
+          <span key={i} className="group/pip relative">
+            <span
+              className={`block size-2.5 ${i < filled ? "bg-brass" : "border border-ink/25"}`}
+            />
+            {names.length > 0 && (
+              // Desktop hover label: which essay (or essays) counted for that week.
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-max max-w-[18em] -translate-x-1/2 flex-col rounded-md bg-ink px-2.5 py-1.5 text-[13px] leading-snug text-cream opacity-0 shadow-lg transition-opacity duration-150 group-hover/pip:opacity-100 md:flex">
+                <span className="text-[11px] text-cream/60">Week {week.week}</span>
+                {names.map((n, j) => (
+                  <span key={j}>{n}</span>
+                ))}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </span>
   );
 }

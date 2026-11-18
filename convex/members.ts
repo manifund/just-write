@@ -232,11 +232,20 @@ export const directory = query({
           .collect();
         const visible = essays.filter((e) => e.review !== "rejected");
         const latest = visible.sort((a, b) => b.submittedAt - a.submittedAt)[0];
+        const slots = fillSlots(visible);
+        const title = new Map(visible.map((e) => [e._id as string, e.title]));
         return {
           ...publicMember(m),
           essayCount: visible.length,
           // Weeks covered, so several short posts toward one week count once.
-          weeksDone: fillSlots(visible).filter((s) => s.essayId).length,
+          weeksDone: slots.filter((s) => s.essayId).length,
+          // Titles of the essays that count for each week, for the squares' labels.
+          weekTitles: slots
+            .filter((s) => s.essayId)
+            .map((s) => ({
+              week: s.week,
+              titles: s.essayIds.map((id) => title.get(id) ?? ""),
+            })),
           latestEssay: latest ? { title: latest.title, url: latest.url } : null,
         };
       }),
