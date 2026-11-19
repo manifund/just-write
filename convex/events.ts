@@ -641,17 +641,33 @@ export const portalMemberIds = internalQuery({
     (await portalMembers(ctx)).filter((m) => !m.bot).map((m) => m._id),
 });
 
-// The iCal feed (convex/http.ts): everything on the calendar, for one member's secret token.
+// The iCal feed (convex/http.ts) for one member's secret token: everything on the calendar, or
+// with `mine`, only the deadlines and sessions they host or RSVP'd yes or maybe to.
 export const feed = internalQuery({
-  args: { token: v.string() },
-  handler: async (ctx, { token }) => {
+  args: { token: v.string(), mine: v.optional(v.boolean()) },
+  handler: async (ctx, { token, mine }) => {
     if (!token) return null;
     const m = await ctx.db
       .query("members")
       .withIndex("by_icsToken", (q) => q.eq("icsToken", token))
       .unique();
     if (!m || !canEnter(m, false)) return null;
-    const events = await ctx.db.query("events").withIndex("by_start").collect();
+    let events = await ctx.db.query("events").withIndex("by_start").collect();
+    if (mine) {
+      const keep = await Promise.all(
+        events.map(async (e) => {
+          if (e.kind === "deadline" || isHost(e, m._id)) return true;
+          const r = await ctx.db
+            .query("rsvps")
+            .withIndex("by_event_member", (q) =>
+              q.eq("eventId", e._id).eq("memberId", m._id),
+            )
+            .unique();
+          return r?.response === "yes" || r?.response === "maybe";
+        }),
+      );
+      events = events.filter((_, i) => keep[i]);
+    }
     return await Promise.all(events.map((e) => exportable(ctx, e)));
   },
 });
