@@ -5,14 +5,16 @@ import { useState } from "react";
 import { api } from "@/convex/_generated/api";
 import { errorText, PanelHeader } from "./event-panel";
 
-// How members get every session into their own calendar app.
+// How members get the calendar (every session, or only their own) into their calendar app.
 export function Subscribe({ onClose }: { onClose: () => void }) {
   const info = useQuery(api.events.calendarInfo);
   const makeFeed = useMutation(api.events.makeFeed);
   const [feed, setFeed] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mine, setMine] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const url = feed ?? info?.feedUrl ?? null;
+  const base = feed ?? info?.feedUrl ?? null;
+  const url = base && mine ? `${base}&only=mine` : base;
   const h3 = "font-display text-[21px] font-[430]";
 
   return (
@@ -25,8 +27,13 @@ export function Subscribe({ onClose }: { onClose: () => void }) {
             <>
               <p className="text-[16px] leading-[1.5]">
                 {info.sharedWith.length
-                  ? `Shared with ${info.sharedWith.join(" and ")}. Updates within a minute.`
-                  : "Updates within a minute."}
+                  ? `Shared with ${info.sharedWith.join(" and ")}. `
+                  : ""}
+                Shows every session and updates within a minute.
+              </p>
+              <p className="text-[15px] leading-[1.5] text-ink-muted">
+                To see only your own sessions, hide this calendar and add the
+                “Only mine” link below under Other calendars → From URL.
               </p>
               <a
                 href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(info.googleCalendarId)}`}
@@ -51,6 +58,37 @@ export function Subscribe({ onClose }: { onClose: () => void }) {
           <p className="text-[16px] leading-[1.5]">
             Subscribe with your personal link. It updates about hourly. Keep it
             private, since it includes addresses.
+          </p>
+          <div
+            role="radiogroup"
+            aria-label="Which sessions"
+            className="flex self-start border border-ink/25 text-[15px]"
+          >
+            {[
+              { value: false, label: "Everything" },
+              { value: true, label: "Only mine" },
+            ].map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                role="radio"
+                aria-checked={mine === o.value}
+                onClick={() => {
+                  setMine(o.value);
+                  setCopied(false);
+                }}
+                className={`cursor-pointer px-4 py-2 ${
+                  mine === o.value ? "bg-ink text-cream" : "hover:bg-ink/5"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[15px] leading-[1.5] text-ink-muted">
+            {mine
+              ? "Essay deadlines and the sessions you host or RSVP yes or maybe to."
+              : "Every session on the calendar, and the essay deadlines."}
           </p>
           {url ? (
             <div className="flex flex-col gap-2">
