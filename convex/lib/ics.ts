@@ -34,7 +34,7 @@ function fold(line: string) {
   return out.join("\r\n");
 }
 
-export function buildIcs(events: IcsEvent[]) {
+export function buildIcs(events: IcsEvent[], name = "Just Write") {
   const now = stamp(Date.now());
   const lines = [
     "BEGIN:VCALENDAR",
@@ -42,7 +42,7 @@ export function buildIcs(events: IcsEvent[]) {
     "PRODID:-//Just Write//Calendar//EN",
     "CALSCALE:GREGORIAN",
     "METHOD:PUBLISH",
-    "X-WR-CALNAME:Just Write",
+    `X-WR-CALNAME:${escape(name)}`,
     "X-PUBLISHED-TTL:PT1H",
     "REFRESH-INTERVAL;VALUE=DURATION:PT1H",
   ];
