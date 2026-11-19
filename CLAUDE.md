@@ -78,6 +78,7 @@ After that, only admins can recount it ("Recount" on `/admin`).
 - Google Calendar: `convex/gcal.ts` mirrors every event into one shared Google calendar through a service account (Convex env `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_CALENDAR_ID`; no-ops while unset).
 - It shares that calendar with each member's emails when they commit (`gcal:shareAll` backfills).
 - Other apps use a per-member iCal feed served at `<convex site>/calendar.ics?token=` (`convex/http.ts`).
+- Adding `&only=mine` to that feed ("Only mine" in the calendar's subscribe panel) keeps just the deadlines and the sessions that member hosts or RSVP'd yes or maybe to; the shared Google calendar always has everything.
 - Seed with `bunx convex run events:seed '{"hostEmail": "..."}'`.
 
 **Chat messages** are Tiptap JSON. `convex/lib/richtext.ts#cleanBody` whitelists node and mark types on the server; `components/portal/rich-text.tsx` renders them to React (no raw HTML). The composer is `components/portal/composer.tsx` (Enter sends, @mentions). Switching channels and opening threads change the URL through `lib/chat-url.ts` (the browser's own History methods, read back with `useChatUrl`), never `history.pushState` or the router: Next.js turns pushState into a cache-only restore that can hang for good.
