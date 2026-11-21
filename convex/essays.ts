@@ -8,7 +8,9 @@ import {
   query,
 } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
+import { themesRow } from "./lib/essayCard";
+import { previewableUrl } from "./lib/linkMeta";
 import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { notionText, readPage } from "./lib/essayText";
@@ -377,5 +379,49 @@ export const recent = query({
         }),
     );
     return out.filter((e) => e !== null);
+  },
+});
+
+// Every essay that isn't rejected, newest first, for the public /essays page: author,
+// word count, Claude's one-sentence summary (from /themes), and the link card's image.
+export const feed = query({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("essays").order("desc").take(500);
+    const themes = await themesRow(ctx);
+    const summaries = new Map(
+      (themes?.summaries ?? []).map((s) => [s.essayId as string, s.summary]),
+    );
+    const authors = new Map<string, Doc<"members"> | null>();
+    const out = [];
+    for (const e of rows) {
+      if (e.review === "rejected") continue;
+      if (!authors.has(e.memberId))
+        authors.set(e.memberId, await ctx.db.get(e.memberId));
+      const m = authors.get(e.memberId);
+      if (!m || m.bot) continue;
+      const cardUrl = previewableUrl(e.url);
+      const card = cardUrl
+        ? await ctx.db
+            .query("linkPreviews")
+            .withIndex("by_url", (q) => q.eq("url", cardUrl))
+            .first()
+        : null;
+      out.push({
+        _id: e._id,
+        title: e.title,
+        url: e.url,
+        wordCount: e.wordCount ?? null,
+        submittedAt: e.submittedAt,
+        summary: summaries.get(e._id) ?? null,
+        image: card?.ok ? (card.image ?? null) : null,
+        author: {
+          name: m.name,
+          handle: m.handle ?? null,
+          image: m.image ?? null,
+        },
+      });
+    }
+    return out;
   },
 });
