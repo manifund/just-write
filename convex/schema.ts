@@ -427,6 +427,10 @@ export default defineSchema({
     summaries: v.optional(
       v.array(v.object({ essayId: v.id("essays"), summary: v.string() })),
     ),
+    // One sentence or two quoted word for word from each essay, for /essays.
+    quotes: v.optional(
+      v.array(v.object({ essayId: v.id("essays"), quote: v.string() })),
+    ),
     read: v.number(), // essays whose text could be read
     inputHash: v.string(), // the essays the themes were made from
     computedAt: v.number(),

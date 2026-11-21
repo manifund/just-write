@@ -59,7 +59,7 @@ function host(url: string) {
 
 function Heart() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-[18px]">
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-[15px]">
       <path
         fill="none"
         stroke="currentColor"
@@ -75,115 +75,123 @@ function Post({ essay }: { essay: FeedEssay & { likes: number | null } }) {
   const profile = essay.author.handle
     ? `/members/${essay.author.handle}`
     : null;
-  const name = (
-    <span className="font-semibold text-ink">{essay.author.name}</span>
-  );
   return (
-    <article className="flex gap-3 border-b border-ink/10 px-4 py-4 sm:px-5">
-      {profile ? (
-        <Link href={profile} className="shrink-0">
-          <Avatar member={essay.author} size={44} />
-        </Link>
-      ) : (
-        <Avatar member={essay.author} size={44} />
+    <article className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink/10 bg-paper transition-[border-color,box-shadow] hover:border-ink/25 hover:shadow-[0_6px_24px_-12px_rgb(56_33_63/0.35)]">
+      {essay.image && (
+        // eslint-disable-next-line @next/next/no-img-element -- remote cover images, any host
+        <img
+          src={essay.image}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="aspect-[1.91/1] w-full border-b border-ink/10 bg-cream-deep object-cover"
+        />
       )}
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex flex-wrap items-baseline gap-x-1.5 text-[15px] leading-tight">
+      <div className="flex flex-1 flex-col gap-3 px-5 pt-4 pb-5">
+        <span className="text-[13px] text-ink-muted">
+          {host(essay.url)}
+        </span>
+        <h2 className="font-display text-[21px] leading-[1.2] font-medium tracking-[-0.01em] text-balance text-ink">
+          {/* The title's link covers the whole card; the author link sits above it. */}
+          <a
+            href={essay.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            className="no-underline after:absolute after:inset-0 after:content-[''] group-hover:underline"
+          >
+            {essay.title}
+          </a>
+        </h2>
+        {essay.quote && (
+          <blockquote className="border-l-2 border-brass pl-3.5 font-display text-[16px] leading-[1.5] text-pretty text-ink-muted italic">
+            {essay.quote}
+          </blockquote>
+        )}
+        <div className="mt-auto flex items-center gap-2.5 pt-2 text-[13px]">
           {profile ? (
-            <Link href={profile} className="no-underline hover:underline">
-              {name}
+            <Link
+              href={profile}
+              className="relative z-10 flex min-w-0 items-center gap-2 no-underline hover:underline"
+            >
+              <Avatar member={essay.author} size={28} />
+              <span className="truncate font-semibold text-ink">
+                {essay.author.name}
+              </span>
             </Link>
           ) : (
-            name
+            <span className="flex min-w-0 items-center gap-2">
+              <Avatar member={essay.author} size={28} />
+              <span className="truncate font-semibold text-ink">
+                {essay.author.name}
+              </span>
+            </span>
           )}
-          {essay.author.handle && (
-            <span className="text-ink-muted">@{essay.author.handle}</span>
-          )}
-          <span className="text-ink-muted" aria-hidden="true">
-            ·
-          </span>
           <time
             dateTime={new Date(essay.submittedAt).toISOString()}
             title={fullFormat.format(essay.submittedAt)}
-            className="text-ink-muted"
+            className="shrink-0 text-ink-muted"
           >
             {dateFormat.format(essay.submittedAt)}
           </time>
-        </div>
-        {essay.summary && (
-          <p className="text-[15px] leading-[1.45] text-pretty text-ink">
-            {essay.summary}
-          </p>
-        )}
-        <a
-          href={essay.url}
-          target="_blank"
-          rel="noopener noreferrer nofollow ugc"
-          className="block overflow-hidden rounded-2xl border border-ink/15 no-underline transition-colors hover:bg-cream-deep"
-        >
-          {essay.image && (
-            // eslint-disable-next-line @next/next/no-img-element -- remote cover images, any host
-            <img
-              src={essay.image}
-              alt=""
-              loading="lazy"
-              referrerPolicy="no-referrer"
-              className="aspect-[1.91/1] w-full border-b border-ink/10 object-cover"
-            />
-          )}
-          <div className="flex flex-col gap-0.5 px-3.5 py-2.5">
-            <span className="text-[13px] text-ink-muted">
-              {host(essay.url)}
-            </span>
-            <span className="font-display text-[17px] leading-snug text-ink">
-              {essay.title}
-            </span>
-          </div>
-        </a>
-        <div className="flex items-center gap-5 text-[13px] text-ink-muted">
-          {essay.likes !== null && (
-            <span
-              className="flex items-center gap-1.5"
-              title={`${essay.likes} ${essay.likes === 1 ? "like" : "likes"} on Substack`}
-            >
-              <Heart />
-              {essay.likes.toLocaleString("en-US")}
-            </span>
-          )}
-          {essay.wordCount !== null && (
-            <span>{essay.wordCount.toLocaleString("en-US")} words</span>
-          )}
+          <span className="ml-auto flex shrink-0 items-center gap-3.5 text-ink-muted">
+            {essay.wordCount !== null && (
+              <span>{essay.wordCount.toLocaleString("en-US")} words</span>
+            )}
+            {essay.likes !== null && (
+              <span
+                className="flex items-center gap-1"
+                title={`${essay.likes} ${essay.likes === 1 ? "like" : "likes"} on Substack`}
+              >
+                <Heart />
+                {essay.likes.toLocaleString("en-US")}
+              </span>
+            )}
+          </span>
         </div>
       </div>
     </article>
   );
 }
 
-// Every essay as a post in a feed, newest first.
+// Every essay as a card, newest first: one column on phones, up to three on desktop.
 export default async function EssaysPage() {
   const essays = await getFeed();
+  const writers = new Set(essays.map((e) => e.author.name)).size;
   return (
     <main className="min-h-dvh bg-cream text-ink">
-      <div className="mx-auto max-w-[600px] border-x border-ink/10 bg-paper">
-        <header className="sticky top-0 z-10 flex items-baseline justify-between gap-4 border-b border-ink/10 bg-paper/90 px-4 py-3 backdrop-blur sm:px-5">
-          <div className="flex flex-col">
-            <h1 className="font-display text-[22px] font-medium">Essays</h1>
-            <span className="text-[13px] text-ink-muted">
-              {essays.length} {essays.length === 1 ? "essay" : "essays"},
-              newest first
-            </span>
+      <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-[clamp(16px,4vw,48px)] pt-6 pb-16 sm:gap-10 sm:pt-8">
+        <header className="flex flex-col gap-6 sm:gap-10">
+          <div className="flex items-baseline justify-between gap-4">
+            <Link
+              href="/"
+              className="font-display text-[22px] font-medium tracking-[-0.01em] text-ink no-underline"
+            >
+              Just <span className="text-brass">Write</span>
+            </Link>
+            <nav className="flex gap-5 text-[14px]">
+              <Link href="/members">Members</Link>
+              <Link href="/home">Sign in</Link>
+            </nav>
           </div>
-          <nav className="flex gap-4 text-[14px]">
-            <Link href="/">Just Write</Link>
-            <Link href="/members">Members</Link>
-          </nav>
+          <div className="flex flex-col gap-2">
+            <h1 className="font-display text-[clamp(36px,6vw,56px)] leading-none font-medium tracking-[-0.02em]">
+              Essays
+            </h1>
+            <p className="text-[15px] text-ink-muted">
+              {essays.length} {essays.length === 1 ? "essay" : "essays"} by{" "}
+              {writers} {writers === 1 ? "writer" : "writers"} in November 2026,
+              newest first.
+            </p>
+          </div>
         </header>
         {essays.length === 0 ? (
-          <p className="px-5 py-10 text-center text-ink-muted">
-            No essays yet.
-          </p>
+          <p className="py-10 text-center text-ink-muted">No essays yet.</p>
         ) : (
-          essays.map((e) => <Post key={e._id} essay={e} />)
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {essays.map((e) => (
+              <Post key={e._id} essay={e} />
+            ))}
+          </div>
         )}
       </div>
     </main>

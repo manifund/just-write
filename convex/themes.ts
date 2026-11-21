@@ -35,9 +35,12 @@ async function counted(ctx: QueryCtx) {
   });
 }
 
+// Bump to redo themes for the same essays once, when the model's output changes (v2: quotes).
+const OUTPUT_VERSION = "v2";
+
 // Cheap fingerprint of which essays there are, so a new one triggers an update.
 function hash(ids: string[]) {
-  const s = [...ids].sort().join(",");
+  const s = OUTPUT_VERSION + ":" + [...ids].sort().join(",");
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
@@ -197,6 +200,9 @@ export const save = internalMutation({
         ),
         summaries: v.optional(
           v.array(v.object({ essayId: v.id("essays"), summary: v.string() })),
+        ),
+        quotes: v.optional(
+          v.array(v.object({ essayId: v.id("essays"), quote: v.string() })),
         ),
         inputHash: v.string(),
       }),
