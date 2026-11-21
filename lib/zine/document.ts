@@ -142,6 +142,32 @@ function fontsUrl(t: Tweaks) {
   return `https://fonts.googleapis.com/css2?${[...new Set(fams)].join("&")}&display=block`;
 }
 
+// The cover page's styles, shared by the preview's first page and the printed cover spread.
+function coverCss(t: Tweaks) {
+  const trim = TRIMS[t.trim];
+  const m = margins(t);
+  return `/* Cover */
+.cover { page: cover; break-after: page; position: relative;
+  width: ${trim.w + (t.bleed ? 2 * BLEED : 0)}in; height: ${trim.h + (t.bleed ? 2 * BLEED : 0)}in;
+  ${t.bleed ? `margin: -${BLEED}in;` : ""}
+  background: var(--cover); color: var(--cover-ink); overflow: hidden; display: flex; flex-direction: column; }
+.cover-inner { position: relative; flex: 1; display: flex; flex-direction: column;
+  padding: ${m.top + (t.bleed ? BLEED : 0)}in ${m.outside + (t.bleed ? BLEED : 0)}in ${m.bottom + (t.bleed ? BLEED : 0)}in ${m.inside - 0.1 + (t.bleed ? BLEED : 0)}in; }
+.cover-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover-art + .cover-inner { background: linear-gradient(to bottom, transparent 40%, color-mix(in srgb, var(--cover) 85%, transparent)); }
+.masthead { font-family: var(--display); font-weight: 400; font-size: ${trim.w * 0.19}in; line-height: .86;
+  letter-spacing: -.035em; margin: 0; }
+.masthead em { font-style: italic; color: color-mix(in srgb, var(--cover-ink) 60%, var(--accent)); }
+.cover-meta { display: flex; justify-content: space-between; font-size: 8.5pt; letter-spacing: .14em;
+  text-transform: uppercase; margin-top: .9em; padding-top: .7em; border-top: .6pt solid currentColor; }
+.cover-names { position: absolute; left: ${m.inside - 0.1 + (t.bleed ? BLEED : 0)}in; right: ${m.outside + (t.bleed ? BLEED : 0)}in;
+  font-family: var(--display); line-height: 1.32;
+  display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; column-gap: .3in; }
+.cover-names span { display: block; }
+
+`;
+}
+
 function css(t: Tweaks) {
   const trim = TRIMS[t.trim];
   const m = margins(t);
@@ -200,26 +226,7 @@ body { margin: 0; }
 * { box-sizing: border-box; }
 a { color: inherit; text-decoration: none; }
 
-/* Cover */
-.cover { page: cover; break-after: page; position: relative;
-  width: ${trim.w + (t.bleed ? 2 * BLEED : 0)}in; height: ${trim.h + (t.bleed ? 2 * BLEED : 0)}in;
-  ${t.bleed ? `margin: -${BLEED}in;` : ""}
-  background: var(--cover); color: var(--cover-ink); overflow: hidden; display: flex; flex-direction: column; }
-.cover-inner { position: relative; flex: 1; display: flex; flex-direction: column;
-  padding: ${m.top + (t.bleed ? BLEED : 0)}in ${m.outside + (t.bleed ? BLEED : 0)}in ${m.bottom + (t.bleed ? BLEED : 0)}in ${m.inside - 0.1 + (t.bleed ? BLEED : 0)}in; }
-.cover-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.cover-art + .cover-inner { background: linear-gradient(to bottom, transparent 40%, color-mix(in srgb, var(--cover) 85%, transparent)); }
-.masthead { font-family: var(--display); font-weight: 400; font-size: ${trim.w * 0.19}in; line-height: .86;
-  letter-spacing: -.035em; margin: 0; }
-.masthead em { font-style: italic; color: color-mix(in srgb, var(--cover-ink) 60%, var(--accent)); }
-.cover-meta { display: flex; justify-content: space-between; font-size: 8.5pt; letter-spacing: .14em;
-  text-transform: uppercase; margin-top: .9em; padding-top: .7em; border-top: .6pt solid currentColor; }
-.cover-names { position: absolute; left: ${m.inside - 0.1 + (t.bleed ? BLEED : 0)}in; right: ${m.outside + (t.bleed ? BLEED : 0)}in;
-  font-family: var(--display); line-height: 1.32;
-  display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; column-gap: .3in; }
-.cover-names span { display: block; }
-
-/* Contents */
+${coverCss(t)}/* Contents */
 .front { page: front; break-after: page; }
 .contents h2 { font-family: var(--display); font-weight: 400; font-size: 26pt; line-height: 1; margin: .2in 0 .35in;
   letter-spacing: -.02em; }
@@ -513,6 +520,81 @@ ${essays.map((e) => essay(e, issue, t, art, !!opts.preview)).join("\n")}
   <p>Issue ${issue.week} collects ${essays.length} essays by ${names.size} writers, published in the week ending ${esc(DEADLINE_LABELS[issue.week - 1] ?? "")}, 2026. Each essay first appeared online.</p>
   <p>Set in ${esc(body)}${display !== body ? ` and ${esc(display)}` : ""}. justwrite.club</p>
 </section>
+</body>
+</html>`;
+}
+
+// The printed cover as one sheet, back | spine | front, at the size Lulu gives for the
+// product and page count (lib/lulu.ts#coverDimensions; bleed included). The front is the
+// same as the preview's first page. The back lists the essays; the spine carries the title
+// when it's wide enough to print on (Lulu: about 0.25in, so 80+ pages). Laid out by Chrome
+// directly, without Paged.js (scripts/zine-print.ts).
+export function coverDocument(
+  issue: ZineIssue,
+  art: ZineArt,
+  tweaks: Tweaks,
+  size: { widthIn: number; heightIn: number },
+) {
+  const t: Tweaks = { ...tweaks, bleed: true };
+  const trim = TRIMS[t.trim];
+  const m = margins(t);
+  const essays = issueEssays(issue, t);
+  const body = BODY_FONTS[t.bodyFont];
+  const display = DISPLAY_FONTS[t.displayFont].name || body.name;
+  const p = PALETTES[t.palette];
+  const spine = Math.max(0, size.widthIn - 2 * trim.w - 2 * BLEED);
+  const label = DEADLINE_LABELS[issue.week - 1] ?? "";
+  const back = `<section class="back">
+  <div class="back-k">Just Write · Issue ${issue.week}</div>
+  <ol>${essays
+    .map((e) => `<li><span class="t">${esc(cleanTitle(e))}</span> <span class="a">${esc(e.author.name)}</span></li>`)
+    .join("")}</ol>
+  <p class="back-about">Just Write is an online writing club. Each writer publishes four essays in November 2026; this issue collects the ones from the week ending ${esc(label)}.</p>
+  <p class="back-url">justwrite.club</p>
+</section>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Just Write · Issue ${issue.week} · cover</title>
+<link rel="stylesheet" href="${fontsUrl(t)}">
+<style>
+:root {
+  --ink: ${p.ink}; --accent: ${p.accent}; --cover: ${p.cover}; --cover-ink: ${p.coverInk};
+  --body: "${body.name}", Georgia, serif; --display: "${display}", Georgia, serif;
+}
+@page { size: ${size.widthIn}in ${size.heightIn}in; margin: 0; }
+html, body { margin: 0; background: var(--cover); color: var(--cover-ink); font-family: var(--body);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+* { box-sizing: border-box; }
+.sheet { position: relative; width: ${size.widthIn}in; height: ${size.heightIn}in; overflow: hidden; background: var(--cover); }
+${coverCss(t)}
+.front-panel { position: absolute; top: 0; left: ${(trim.w + spine).toFixed(4)}in; margin: 0; break-after: auto;
+  clip-path: inset(0 0 0 ${BLEED}in); }
+.back { position: absolute; top: 0; left: 0; width: ${trim.w + BLEED}in; height: ${size.heightIn}in;
+  padding: ${m.top + BLEED}in ${m.inside}in ${m.bottom + BLEED}in ${m.outside + BLEED}in;
+  display: flex; flex-direction: column; font-size: 9pt; line-height: 1.35; }
+.back-k { font-size: 8.5pt; letter-spacing: .14em; text-transform: uppercase; padding-bottom: .7em;
+  border-bottom: .6pt solid currentColor; margin-bottom: 1.4em; }
+.back ol { list-style: none; margin: 0; padding: 0; columns: ${essays.length > 18 ? 2 : 1}; column-gap: .3in;
+  font-size: ${essays.length > 40 ? 7.5 : essays.length > 18 ? 8.5 : 10}pt; }
+.back li { break-inside: avoid; margin: 0 0 .5em; }
+.back .t { font-family: var(--display); }
+.back .a { display: block; font-size: .78em; letter-spacing: .1em; text-transform: uppercase; opacity: .75; }
+.back-about { margin: auto 0 .6em; max-width: 4.2in; }
+.back-url { margin: 0; letter-spacing: .14em; text-transform: uppercase; font-size: 8.5pt; }
+.spine { position: absolute; top: 0; left: ${(trim.w + BLEED).toFixed(4)}in; width: ${spine.toFixed(4)}in; height: ${size.heightIn}in;
+  display: flex; align-items: center; justify-content: center; }
+.spine span { writing-mode: vertical-rl; white-space: nowrap; font-family: var(--display);
+  font-size: ${Math.min(11, spine * 72 * 0.5).toFixed(1)}pt; letter-spacing: .06em; }
+</style>
+</head>
+<body>
+<div class="sheet">
+${back}
+${spine >= 0.25 ? `<div class="spine"><span>Just Write · Issue ${issue.week} · ${esc(label)}, 2026</span></div>` : ""}
+${cover(issue, essays, art, t, false).replace('<section class="cover">', '<section class="cover front-panel">')}
+</div>
 </body>
 </html>`;
 }

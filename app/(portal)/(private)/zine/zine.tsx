@@ -29,12 +29,15 @@ import {
   type Tweaks,
 } from "@/lib/zine/tweaks";
 import type { ZineArt, ZineDefaults, ZineIssue } from "@/lib/zine/types";
+import { OrderPanel } from "./order";
 
 const STORAGE = "zine:tweaks";
 
 type Doc = { key: number; html: string; saved: boolean };
 
-// /zine: the magazine laid out by Paged.js in an iframe, with design controls beside it.
+// /zine: the magazine laid out by Paged.js in an iframe. It opens on the latest issue in the
+// current design; Customize opens the design controls beside it, and Order opens the Order
+// panel (./order.tsx), which prints whatever design is on screen.
 // Each change typesets the issue again in a hidden iframe and swaps it in when done, so
 // the old pages stay up while the new ones are set. The iframe isn't sandboxed: Paged.js
 // stalls in an opaque origin, and the essays' HTML is rebuilt from a tag whitelist with no
@@ -52,7 +55,8 @@ export function Zine({
   art: ZineArt;
   defaults: ZineDefaults;
 }) {
-  const [week, setWeek] = useState(issues[0]?.week ?? 1);
+  const [week, setWeek] = useState(issues.at(-1)?.week ?? 1);
+  const [mode, setMode] = useState<"view" | "customize" | "order">("view");
   const issue = issues.find((i) => i.week === week);
   const [tweaks, setTweaks] = useState<Tweaks>(DEFAULT_TWEAKS);
   const [loaded, setLoaded] = useState(false);
@@ -76,6 +80,8 @@ export function Zine({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- read once after hydration
       if (saved) setTweaks(readTweaks(JSON.parse(saved)));
     } catch {}
+    // Back from a canceled checkout: reopen the Order panel.
+    if (new URLSearchParams(location.search).get("order")) setMode("order");
     setLoaded(true);
   }, []);
   useEffect(() => {
@@ -213,6 +219,11 @@ export function Zine({
     [issue, tweaks],
   );
   const words = essays.reduce((n, e) => n + e.words, 0);
+  const custom = useMemo(
+    () => JSON.stringify(tweaks) !== JSON.stringify(DEFAULT_TWEAKS),
+    [tweaks],
+  );
+  const toggle = (m: "customize" | "order") => setMode((x) => (x === m ? "view" : m));
 
   const pdfCommand = useMemo(() => {
     const diff = Object.fromEntries(
@@ -265,40 +276,79 @@ export function Zine({
                 ? `${pages} pages · ${essays.length} essays · ${words.toLocaleString("en-US")} words · spine ≈ ${spineInches(pages).toFixed(2)} in`
                 : "Typesetting…"}
           </span>
-          <div className="ml-auto flex items-center gap-1">
-            <ToolButton onClick={() => setZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))} label="Zoom out">
-              −
-            </ToolButton>
-            <span className="w-11 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
-            <ToolButton onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))} label="Zoom in">
-              +
-            </ToolButton>
-            <ToolButton active={spreads} onClick={() => setSpreads((s) => !s)} label="Show facing pages">
-              Spreads
-            </ToolButton>
-            <ToolButton active={guides} onClick={() => setGuides((g) => !g)} label="Show text area and bleed">
-              Guides
-            </ToolButton>
-            <ToolButton
-              onClick={() =>
-                shown !== null &&
-                frames.current.get(shown)?.contentWindow?.postMessage({ type: "zine:print" }, "*")
-              }
-              label="Print or save as PDF from the browser"
+          {custom && (
+            <span className="flex items-center gap-2 text-ink-muted">
+              <span className="border border-ink/20 px-1.5 py-0.5 text-[12px]">Your design</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setTweaks({ ...DEFAULT_TWEAKS, exclude: [], limit: DEFAULT_TWEAKS.limit })
+                }
+                className="cursor-pointer text-[13px] underline"
+              >
+                Use the standard design
+              </button>
+            </span>
+          )}
+          <div className="ml-auto flex flex-wrap items-center gap-1">
+            <span className="hidden items-center gap-1 sm:flex">
+              <ToolButton onClick={() => setZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(2)))} label="Zoom out">
+                −
+              </ToolButton>
+              <span className="w-11 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+              <ToolButton onClick={() => setZoom((z) => Math.min(2, +(z + 0.1).toFixed(2)))} label="Zoom in">
+                +
+              </ToolButton>
+              <ToolButton active={spreads} onClick={() => setSpreads((s) => !s)} label="Show facing pages">
+                Spreads
+              </ToolButton>
+            </span>
+            {mode === "customize" && (
+              <>
+                <ToolButton active={guides} onClick={() => setGuides((g) => !g)} label="Show text area and bleed">
+                  Guides
+                </ToolButton>
+                <ToolButton
+                  onClick={() =>
+                    shown !== null &&
+                    frames.current.get(shown)?.contentWindow?.postMessage({ type: "zine:print" }, "*")
+                  }
+                  label="Print or save as PDF from the browser"
+                >
+                  Print
+                </ToolButton>
+                <ToolButton
+                  onClick={() => {
+                    navigator.clipboard.writeText(pdfCommand).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    });
+                  }}
+                  label={pdfCommand}
+                >
+                  {copied ? "Copied" : "Copy PDF command"}
+                </ToolButton>
+              </>
+            )}
+            <span className="mx-1 hidden h-5 w-px bg-ink/15 sm:block" aria-hidden />
+            <button
+              type="button"
+              aria-pressed={mode === "customize"}
+              onClick={() => toggle("customize")}
+              className={`cursor-pointer border px-3 py-1 leading-none ${
+                mode === "customize" ? "border-ink bg-ink/10" : "border-ink/30 hover:bg-cream-hover"
+              }`}
             >
-              Print
-            </ToolButton>
-            <ToolButton
-              onClick={() => {
-                navigator.clipboard.writeText(pdfCommand).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                });
-              }}
-              label={pdfCommand}
+              Customize
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === "order"}
+              onClick={() => toggle("order")}
+              className="cursor-pointer border border-ink bg-ink px-3 py-1 leading-none text-cream hover:opacity-90"
             >
-              {copied ? "Copied" : "Copy PDF command"}
-            </ToolButton>
+              Order a copy
+            </button>
           </div>
         </div>
         <div className="relative min-h-0 flex-1 bg-[#e6e2dc]">
@@ -325,13 +375,25 @@ export function Zine({
           )}
         </div>
       </section>
-      <Panel
-        tweaks={tweaks}
-        set={set}
-        setTweaks={setTweaks}
-        issue={issue}
-        essays={essays}
-      />
+      {mode === "customize" && (
+        <Panel
+          tweaks={tweaks}
+          set={set}
+          setTweaks={setTweaks}
+          issue={issue}
+          essays={essays}
+          onClose={() => setMode("view")}
+        />
+      )}
+      {mode === "order" && (
+        <OrderPanel
+          week={week}
+          tweaks={tweaks}
+          previewPages={busy ? null : pages}
+          custom={custom}
+          onClose={() => setMode("view")}
+        />
+      )}
     </div>
   );
 }
@@ -373,12 +435,14 @@ function Panel({
   setTweaks,
   issue,
   essays,
+  onClose,
 }: {
   tweaks: Tweaks;
   set: Setter;
   setTweaks: (t: Tweaks) => void;
   issue: ZineIssue;
   essays: ZineIssue["essays"];
+  onClose: () => void;
 }) {
   const failed = issue.essays.filter((e) => e.error);
   // Listed in the Order setting's order, so "first 10" reads top to bottom.
@@ -396,6 +460,15 @@ function Panel({
     });
   return (
     <aside className="flex max-h-none shrink-0 flex-col gap-6 overflow-y-auto border-t border-ink/10 bg-paper px-5 py-5 text-[14px] lg:max-h-full lg:w-[320px] lg:border-t-0 lg:border-l">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="font-display text-[24px] leading-tight font-[400]">Customize</h2>
+          <p className="mt-1 text-ink-muted">Changes are saved in this browser. Order prints what you see.</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Close" className="cursor-pointer px-1 text-[20px] leading-none text-ink-muted hover:text-ink">
+          ×
+        </button>
+      </header>
       <Group title="Presets">
         <div className="flex flex-wrap gap-1.5">
           {PRESETS.map((p) => (
