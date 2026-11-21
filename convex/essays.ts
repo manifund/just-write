@@ -383,14 +383,15 @@ export const recent = query({
 });
 
 // Every essay that isn't rejected, newest first, for the public /essays page: author,
-// word count, Claude's one-sentence summary (from /themes), and the link card's image.
+// word count, a quote from the essay (picked by Claude in /themes, checked word for word
+// against its text), and the link card's image.
 export const feed = query({
   args: {},
   handler: async (ctx) => {
     const rows = await ctx.db.query("essays").order("desc").take(500);
     const themes = await themesRow(ctx);
-    const summaries = new Map(
-      (themes?.summaries ?? []).map((s) => [s.essayId as string, s.summary]),
+    const quotes = new Map(
+      (themes?.quotes ?? []).map((q) => [q.essayId as string, q.quote]),
     );
     const authors = new Map<string, Doc<"members"> | null>();
     const out = [];
@@ -413,7 +414,7 @@ export const feed = query({
         url: e.url,
         wordCount: e.wordCount ?? null,
         submittedAt: e.submittedAt,
-        summary: summaries.get(e._id) ?? null,
+        quote: quotes.get(e._id) ?? null,
         image: card?.ok ? (card.image ?? null) : null,
         author: {
           name: m.name,

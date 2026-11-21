@@ -50,7 +50,12 @@ export const compute = internalAction({
       if (essays.length === 0 || !process.env.OPENROUTER_API_KEY) {
         if (!process.env.OPENROUTER_API_KEY)
           console.warn("OPENROUTER_API_KEY is not set; skipping essay themes");
-        themes = { overview: undefined, themes: [], summaries: [] };
+        themes = {
+          overview: undefined,
+          themes: [],
+          summaries: [],
+          quotes: [],
+        };
       } else {
         try {
           themes = await findThemes(essays);
@@ -166,6 +171,18 @@ async function findThemes(essays: Essay[]) {
             }),
           )
           .describe("One for every essay that has text"),
+        quotes: z
+          .array(
+            z.object({
+              essay: z.string().describe("The essay's id, e.g. “e3”"),
+              quote: z
+                .string()
+                .describe(
+                  "One or two consecutive sentences copied exactly from the essay's text, 10 to 50 words",
+                ),
+            }),
+          )
+          .describe("One for every essay that has text"),
       }),
     }),
     system:
@@ -173,6 +190,7 @@ async function findThemes(essays: Essay[]) {
       "Make 4 to 8 themes. Put each essay in the one or two themes it fits best, and every essay in at least one. " +
       "Name themes in plain words a member would use, not clever phrases. Describe what the essays actually say, specifically. " +
       "Also write one plain sentence on what each essay with text is about, shown on its card in the club chat. " +
+      "Also pick a quote from each essay with text: one or two sentences in a row, copied character for character, that show what the essay says and read well on their own (not a heading, caption, or subscribe prompt). " +
       "Write in a neutral, simple style: no praise for the essays or writers, no flowery words. Never invent anything that isn't in the text. " +
       "Some essays are cut off partway; a few may only have a title.",
     prompt: `${essays.length} essays:\n\n${prompt}`,
@@ -196,5 +214,53 @@ async function findThemes(essays: Essay[]) {
       const summary = s.summary.trim().slice(0, 300);
       return essayId && summary ? [{ essayId, summary }] : [];
     }),
+    quotes: (output?.quotes ?? []).flatMap((q) => {
+      const essay = essays.find((e) => e.id === byKey.get(q.essay.trim()));
+      const quote = essay?.text && exactQuote(q.quote, essay.text);
+      return essay && quote ? [{ essayId: essay.id, quote }] : [];
+    }),
   };
+}
+
+// Straight quotes, plain dashes, and single spaces, so typography doesn't break a match.
+const loose = (s: string) =>
+  s
+    .replace(/[\u2018\u2019\u201b\u2032]/g, "'")
+    .replace(/[\u201c\u201d\u201f\u2033]/g, '"')
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\s+/g, " ")
+    .trim();
+
+// The quote as the essay writes it, or null if the model's text isn't in the essay word
+// for word. The text above may be cut off, so this checks the essay's whole saved text.
+function exactQuote(quote: string, text: string): string | null {
+  const q = loose(quote).replace(/^["']|["']$/g, "").trim();
+  if (q.length < 20 || q.length > 400) return null;
+  // Map each character of the loosened text back to where it starts in the original.
+  let flat = "";
+  const at: number[] = [];
+  let space = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (/\s/.test(c)) {
+      if (!space && flat) {
+        flat += " ";
+        at.push(i);
+      }
+      space = true;
+      continue;
+    }
+    space = false;
+    const l = loose(c) || c;
+    for (const ch of l) {
+      flat += ch;
+      at.push(i);
+    }
+  }
+  const start = flat.indexOf(q);
+  if (start < 0) return null;
+  const from = at[start];
+  const to = at[start + q.length - 1] + 1;
+  return text.slice(from, to).replace(/\s+/g, " ").trim();
 }
