@@ -47,7 +47,8 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
    The landing page also scrolls the latest essays (`app/(site)/essays.tsx`, from the public `essays.recent`, cached a few minutes) above those names; each opens in a new tab.
    In the two-column layout (1120px and up) the strip sits in the left column, under the headline, instead.
    The strip starts at a random point on each page load (an inline script sets a negative `animation-delay`, since the page is cached).
-   `/essays` (`app/(site)/essays/`, linked from the landing nav) lists every essay newest first as feed posts, from the public `essays.feed`: Claude's one-sentence summary (`themes.summaries`), the link card's image, word count, and Substack likes (`likes.ts`, Substack's public post API, cached for hours).
+   `/essays` (`app/(site)/essays/`, linked from the landing nav) lists every essay newest first as cards (up to three columns on desktop), from the public `essays.feed`: a quote from the essay (`themes.quotes`), the link card's image, word count, and Substack likes (`likes.ts`, Substack's public post API, cached for hours).
+   The quotes come from the same `themesAction.compute` call as the themes; `exactQuote` keeps one only if it's in the essay's saved text word for word (ignoring curly quotes, dashes, and spacing).
    On desktop, the landing calendar puts an arc on the edge of each November date's circle for every essay registered that day (Pacific time, from the public `essays.published`); hovering one shows the essay, clicking opens it.
    The arcs split the circle's edge evenly, with small gaps, so together they draw its outline (a second ring past ~18); deadline days use thicker coral arcs in place of their solid ring, other days thin lilac ones.
 2. `/commit` — requires sign-in. `app/(site)/commit/actions.ts#startCommitment` records the signature on the viewer's row (`members.signTerms`, status `signed`) and redirects to Stripe Checkout with the Convex member id as `client_reference_id`.
@@ -122,6 +123,7 @@ After that, only admins can recount it ("Recount" on `/admin`).
 - Essay pages (here and the word count in `essays.preview`) are read with `essayText.ts#readPage`, which unpacks the gzipped bytes LessWrong sends without a Content-Encoding header.
 - Public Notion pages are built by scripts, so both read their text from Notion's own page API on the same host instead (`essayText.ts#notionText`).
 - The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
+- Bumping `OUTPUT_VERSION` in `convex/themes.ts` makes the next request redo themes, summaries, and quotes for the same essays (how new output fields get backfilled).
 - Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
 
 **Zine** (`/zine`, members only; `docs/magazine.md`): the weekly print magazine.
