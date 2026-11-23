@@ -491,30 +491,66 @@ const MAX_IMAGES = 10;
 
 // Message search for the "Jump to" palette: the best text matches across every channel
 // and thread. #check-ins posts the viewer can't read yet are left out, so a match can't
-// give away what's behind the gate. With `from` (the palette's "from:name"), only that
-// member's messages; with `from` and no words, their newest ones.
+// give away what's behind the gate. The palette's Slack-style filters arrive as args:
+// `from` (one member), `channel`, `after`/`before` (ms), `has` (link or image), and
+// `thread` (replies only). With no words, `from` or `channel` lists the newest messages.
 const SEARCH_SCAN = 40;
+const SEARCH_SCAN_FILTERED = 120; // filters checked after reading need more to pick from
 const SEARCH_RESULTS = 8;
 const SNIPPET_CHARS = 140;
+const END_OF_TIME = 8.64e15;
 export const search = query({
-  args: { q: v.string(), from: v.optional(v.id("members")) },
+  args: {
+    q: v.string(),
+    from: v.optional(v.id("members")),
+    channel: v.optional(v.id("channels")),
+    after: v.optional(v.number()),
+    before: v.optional(v.number()),
+    has: v.optional(v.union(v.literal("link"), v.literal("image"))),
+    thread: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
     const q = args.q.trim().slice(0, 100);
-    const from = args.from;
-    if (q.length < 2 && !(from && !q)) return [];
-    const rows = q
-      ? await ctx.db
-          .query("messages")
-          .withSearchIndex("search_text", (s) =>
-            from ? s.search("text", q).eq("authorId", from) : s.search("text", q),
-          )
-          .take(SEARCH_SCAN)
-      : await ctx.db
-          .query("messages")
-          .withIndex("by_author", (i) => i.eq("authorId", from!))
-          .order("desc")
-          .take(SEARCH_SCAN);
+    const { from, channel, has, thread } = args;
+    const after = args.after ?? 0;
+    const before = args.before ?? END_OF_TIME;
+    if (q ? q.length < 2 : !from && !channel) return [];
+    const filtered =
+      args.after !== undefined || args.before !== undefined || !!has || !!thread;
+    const scan = filtered ? SEARCH_SCAN_FILTERED : SEARCH_SCAN;
+    let rows: Doc<"messages">[];
+    if (q)
+      rows = await ctx.db
+        .query("messages")
+        .withSearchIndex("search_text", (s) => {
+          let f = s.search("text", q);
+          if (from) f = f.eq("authorId", from);
+          if (channel) f = f.eq("channelId", channel);
+          return f;
+        })
+        .take(scan);
+    else if (from)
+      rows = await ctx.db
+        .query("messages")
+        .withIndex("by_author", (i) =>
+          i.eq("authorId", from).gte("_creationTime", after).lt("_creationTime", before),
+        )
+        .order("desc")
+        .take(scan);
+    else if (thread) return []; // replies sit under their posts, so no newest-first list
+    else
+      rows = await ctx.db
+        .query("messages")
+        .withIndex("by_channel_parent", (i) =>
+          i
+            .eq("channelId", channel!)
+            .eq("parentId", undefined)
+            .gte("_creationTime", after)
+            .lt("_creationTime", before),
+        )
+        .order("desc")
+        .take(scan);
     const channels = new Map<
       Id<"channels">,
       { c: Doc<"channels">; gate: Gate | null } | null
@@ -525,6 +561,10 @@ export const search = query({
     for (const m of rows) {
       if (out.length >= SEARCH_RESULTS) break;
       if (!m.text.trim()) continue;
+      if (m._creationTime < after || m._creationTime >= before) continue;
+      if (channel && m.channelId !== channel) continue;
+      if (thread && !m.parentId) continue;
+      if (has && !hasContent(m, has)) continue;
       if (!channels.has(m.channelId)) {
         const c = await ctx.db.get(m.channelId);
         channels.set(
@@ -557,6 +597,12 @@ export const search = query({
     return out;
   },
 });
+
+// For search's has: filter. Bodies are Tiptap JSON, so look for the node or mark type.
+function hasContent(m: Doc<"messages">, has: "link" | "image") {
+  if (has === "image") return m.body.includes('"type":"image"');
+  return m.body.includes('"type":"link"') || /https?:\/\//.test(m.text);
+}
 
 // A short piece of the text around the first word of the search that appears in it.
 function snippet(text: string, words: string[]) {

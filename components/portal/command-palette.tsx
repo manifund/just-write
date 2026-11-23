@@ -12,9 +12,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { pushChatUrl, useChatUrl } from "@/lib/chat-url";
-import type { PublicMember } from "@/convex/lib/viewer";
 import { usePortal } from "./context";
+import { fillToken, readQuery, resolveFilters } from "./search-filters";
 import { profilePath, timeAgo, useNow } from "./util";
 
 // The numbered sections of the portal, in sidebar order. Cmd/Ctrl+1–9 go to them.
@@ -59,21 +60,6 @@ type Item = {
   detail?: string; // a second line, for message matches
   fill?: string; // picking it puts this in the box instead of opening href
 };
-
-// "from:name" (or "from: name") anywhere in the box limits message search to one
-// person. Returns the name typed after it and the rest of the query, or null.
-const FROM = /(^|\s)from:\s*@?(\S*)/i;
-function readFrom(q: string) {
-  const m = FROM.exec(q);
-  if (!m) return null;
-  const rest = (q.slice(0, m.index) + m[1] + q.slice(m.index + m[0].length))
-    .replace(/\s+/g, " ")
-    .trim();
-  return { name: m[2].toLowerCase(), rest };
-}
-// What "from:" takes for a member: their handle, or their name without spaces.
-const fromToken = (m: PublicMember) =>
-  (m.handle ?? m.name.replace(/\s+/g, "")).toLowerCase();
 
 // Opens with Cmd/Ctrl+K (or the sidebar's "Jump to" button) and lists sections,
 // channels, and members, then messages whose text matches (chat.search). Also handles the portal's other shortcuts:
@@ -218,6 +204,7 @@ export function CommandPalette({
   return (
     <Dialog
       items={items}
+      channels={channels ?? []}
       onClose={() => setOpen(false)}
       onPick={(href) => {
         setOpen(false);
@@ -242,10 +229,12 @@ function score(item: Item, q: string): number | null {
 
 function Dialog({
   items,
+  channels,
   onClose,
   onPick,
 }: {
   items: Item[];
+  channels: { _id: Id<"channels">; name: string; slug: string }[];
   onClose: () => void;
   onPick: (href: string) => void;
 }) {
@@ -253,56 +242,61 @@ function Dialog({
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { roster } = usePortal();
+  const { roster, me } = usePortal();
   const now = useNow();
-  const q = query.trim().toLowerCase();
-  // "from:name": who it could mean, and who it means once there's one clear match.
+  const typed = query.trim();
+  const q = typed.toLowerCase();
+  // Slack-style filters (search-filters.ts): what they resolve to, and the first one
+  // that's still unclear, whose options are listed until one is picked.
   const filter = useMemo(() => {
-    const f = readFrom(q);
-    if (!f) return null;
-    const people = [...roster.values()]
-      .filter((m) => {
-        if (!f.name) return !m.bot;
-        const words = m.name.toLowerCase().split(/\s+/);
-        return (
-          fromToken(m).startsWith(f.name) ||
-          words.some((w) => w.startsWith(f.name))
-        );
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-    const exact = people.find((m) => fromToken(m) === f.name);
-    const who = exact ?? (people.length === 1 && f.name ? people[0] : null);
-    return { ...f, people, who };
-  }, [q, roster]);
+    const { tokens, rest } = readQuery(typed);
+    if (!tokens.length) return null;
+    return {
+      rest,
+      ...resolveFilters(tokens, {
+        roster,
+        channels,
+        meId: me._id,
+        now: now ?? 0,
+      }),
+    };
+  }, [typed, roster, channels, me._id, now]);
+  const wanted = useMemo(() => {
+    if (!filter) return q.length >= 2 ? { q } : null;
+    if (filter.pick || filter.problem) return null;
+    const { rest, filters } = filter;
+    if (rest ? rest.length < 2 : !filters.from && !filters.channel) return null;
+    return { q: rest, ...filters };
+  }, [filter, q]);
   // Message search waits for a pause in typing.
-  const [searchFor, setSearchFor] = useState("");
+  const wantedKey = wanted ? JSON.stringify(wanted) : "";
+  const [searchKey, setSearchKey] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setSearchFor(q), 200);
+    const t = setTimeout(() => setSearchKey(wantedKey), 200);
     return () => clearTimeout(t);
-  }, [q]);
-  const args = useMemo(() => {
-    if (!filter) return searchFor.length >= 2 ? { q: searchFor } : null;
-    if (!filter.who) return null;
-    const rest = readFrom(searchFor)?.rest;
-    if (rest === undefined || (rest.length > 0 && rest.length < 2)) return null;
-    return { q: rest, from: filter.who._id };
-  }, [filter, searchFor]);
+  }, [wantedKey]);
+  const args = useMemo(
+    () => (searchKey ? (JSON.parse(searchKey) as NonNullable<typeof wanted>) : null),
+    [searchKey],
+  );
   const found = useQuery(api.chat.search, args ?? "skip");
-  const searching = !!args && (searchFor !== q || found === undefined);
+  const settled = searchKey === wantedKey;
+  const searching = !!wanted && (!settled || found === undefined);
   const shown = useMemo(() => {
     const list: Item[] = [];
     if (filter) {
-      // Until it's clear who, list the people it could be; picking one fills it in.
-      if (!filter.who)
-        for (const m of filter.people.slice(0, 8))
+      // Until a filter is clear, list what it could be; picking one fills it in.
+      const pick = filter.pick;
+      if (pick)
+        for (const o of pick.options.slice(0, 8))
           list.push({
-            key: `from:${m._id}`,
+            key: `pick:${pick.token.key}:${o.value}:${o.label}`,
             href: "",
-            label: m.name,
-            icon: "◎",
-            kind: `from:${fromToken(m)}`,
+            label: o.label,
+            icon: pick.token.key === "from" ? "◎" : pick.token.key === "in" ? "#" : "⌕",
+            kind: o.value ? `${pick.token.key}:${o.value}` : "",
             search: "",
-            fill: `${filter.rest ? `${filter.rest} ` : ""}from:${fromToken(m)} `,
+            fill: fillToken(typed, pick.token, o.value),
           });
     } else
       list.push(
@@ -312,7 +306,7 @@ function Dialog({
           .sort((a, b) => a.s! - b.s! || a.i - b.i)
           .map((x) => x.item),
       );
-    if (!args || searchFor !== q) return list;
+    if (!wanted || !settled) return list;
     for (const m of found ?? [])
       list.push({
         key: `msg:${m._id}`,
@@ -329,7 +323,7 @@ function Dialog({
         ),
       });
     return list;
-  }, [items, q, filter, args, searchFor, found, roster, now]);
+  }, [items, q, typed, filter, wanted, settled, found, roster, now]);
   const current = Math.min(active, Math.max(0, shown.length - 1));
 
   // Put focus back where it was when the palette closes.
@@ -418,11 +412,13 @@ function Dialog({
             <li className="px-4 py-3 text-[15px] text-ink-muted">
               {searching
                 ? "Searching messages…"
-                : filter?.who && args
-                  ? `No messages from ${filter.who.name} match.`
-                  : filter && !filter.who && !filter.people.length
-                    ? "No one by that name."
-                    : "Nothing matches."}
+                : filter?.problem
+                  ? filter.problem
+                  : filter?.names.length && wanted
+                    ? `No messages ${filter.names.join(" ")} match.`
+                    : filter && !wanted
+                      ? "Add words to search for."
+                      : "Nothing matches."}
             </li>
           )}
           {shown.map((item, i) => (
@@ -477,7 +473,8 @@ function Dialog({
         <p className="hidden border-t border-ink/15 px-4 py-2 text-[13px] text-ink-muted sm:block">
           ↑↓ to move, Enter to open. Anywhere: {mac ? "⌘" : "Ctrl+"}1–9 for
           sections, {mac ? "⌥" : "Alt+"}↑↓ for channels, {mac ? "⌥⇧" : "Alt+Shift+"}↑↓
-          for unread ones. Type from:name to search one person’s messages.
+          for unread ones. Filter messages with from:name, in:#channel,
+          before:, after:, or on: a date, has:link, has:image, and is:thread.
         </p>
       </div>
     </div>,
