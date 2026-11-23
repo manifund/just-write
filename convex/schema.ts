@@ -149,7 +149,8 @@ export default defineSchema({
   })
     .index("by_channel_parent", ["channelId", "parentId"])
     .index("by_channel_parent_author", ["channelId", "parentId", "authorId"])
-    .searchIndex("search_text", { searchField: "text" }) // message search in "Jump to"
+    .searchIndex("search_text", { searchField: "text", filterFields: ["authorId", "channelId"] }) // message search in "Jump to"
+    .index("by_author", ["authorId"]) // "from:" search with no other words
     .index("by_parent", ["parentId"]),
 
   reactions: defineTable({

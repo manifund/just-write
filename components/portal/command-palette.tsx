@@ -12,8 +12,10 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
 import { pushChatUrl, useChatUrl } from "@/lib/chat-url";
 import { usePortal } from "./context";
+import { fillToken, readQuery, resolveFilters } from "./search-filters";
 import { profilePath, timeAgo, useNow } from "./util";
 
 // The numbered sections of the portal, in sidebar order. Cmd/Ctrl+1–9 go to them.
@@ -56,6 +58,7 @@ type Item = {
   search: string; // lowercase text to match
   unread?: boolean;
   detail?: string; // a second line, for message matches
+  fill?: string; // picking it puts this in the box instead of opening href
 };
 
 // Opens with Cmd/Ctrl+K (or the sidebar's "Jump to" button) and lists sections,
@@ -201,6 +204,7 @@ export function CommandPalette({
   return (
     <Dialog
       items={items}
+      channels={channels ?? []}
       onClose={() => setOpen(false)}
       onPick={(href) => {
         setOpen(false);
@@ -225,37 +229,84 @@ function score(item: Item, q: string): number | null {
 
 function Dialog({
   items,
+  channels,
   onClose,
   onPick,
 }: {
   items: Item[];
+  channels: { _id: Id<"channels">; name: string; slug: string }[];
   onClose: () => void;
   onPick: (href: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
-  const { roster } = usePortal();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { roster, me } = usePortal();
   const now = useNow();
-  const q = query.trim().toLowerCase();
+  const typed = query.trim();
+  const q = typed.toLowerCase();
+  // Slack-style filters (search-filters.ts): what they resolve to, and the first one
+  // that's still unclear, whose options are listed until one is picked.
+  const filter = useMemo(() => {
+    const { tokens, rest } = readQuery(typed);
+    if (!tokens.length) return null;
+    return {
+      rest,
+      ...resolveFilters(tokens, {
+        roster,
+        channels,
+        meId: me._id,
+        now: now ?? 0,
+      }),
+    };
+  }, [typed, roster, channels, me._id, now]);
+  const wanted = useMemo(() => {
+    if (!filter) return q.length >= 2 ? { q } : null;
+    if (filter.pick || filter.problem) return null;
+    const { rest, filters } = filter;
+    if (rest ? rest.length < 2 : !filters.from && !filters.channel) return null;
+    return { q: rest, ...filters };
+  }, [filter, q]);
   // Message search waits for a pause in typing.
-  const [searchFor, setSearchFor] = useState("");
+  const wantedKey = wanted ? JSON.stringify(wanted) : "";
+  const [searchKey, setSearchKey] = useState("");
   useEffect(() => {
-    const t = setTimeout(() => setSearchFor(q), 200);
+    const t = setTimeout(() => setSearchKey(wantedKey), 200);
     return () => clearTimeout(t);
-  }, [q]);
-  const found = useQuery(
-    api.chat.search,
-    searchFor.length >= 2 ? { q: searchFor } : "skip",
+  }, [wantedKey]);
+  const args = useMemo(
+    () => (searchKey ? (JSON.parse(searchKey) as NonNullable<typeof wanted>) : null),
+    [searchKey],
   );
-  const searching = q.length >= 2 && (searchFor !== q || found === undefined);
+  const found = useQuery(api.chat.search, args ?? "skip");
+  const settled = searchKey === wantedKey;
+  const searching = !!wanted && (!settled || found === undefined);
   const shown = useMemo(() => {
-    const list = items
-      .map((item, i) => ({ item, i, s: score(item, q) }))
-      .filter((x) => x.s !== null)
-      .sort((a, b) => a.s! - b.s! || a.i - b.i)
-      .map((x) => x.item);
-    if (q.length < 2 || searchFor !== q) return list;
+    const list: Item[] = [];
+    if (filter) {
+      // Until a filter is clear, list what it could be; picking one fills it in.
+      const pick = filter.pick;
+      if (pick)
+        for (const o of pick.options.slice(0, 8))
+          list.push({
+            key: `pick:${pick.token.key}:${o.value}:${o.label}`,
+            href: "",
+            label: o.label,
+            icon: pick.token.key === "from" ? "◎" : pick.token.key === "in" ? "#" : "⌕",
+            kind: o.value ? `${pick.token.key}:${o.value}` : "",
+            search: "",
+            fill: fillToken(typed, pick.token, o.value),
+          });
+    } else
+      list.push(
+        ...items
+          .map((item, i) => ({ item, i, s: score(item, q) }))
+          .filter((x) => x.s !== null)
+          .sort((a, b) => a.s! - b.s! || a.i - b.i)
+          .map((x) => x.item),
+      );
+    if (!wanted || !settled) return list;
     for (const m of found ?? [])
       list.push({
         key: `msg:${m._id}`,
@@ -272,7 +323,7 @@ function Dialog({
         ),
       });
     return list;
-  }, [items, q, searchFor, found, roster, now]);
+  }, [items, q, typed, filter, wanted, settled, found, roster, now]);
   const current = Math.min(active, Math.max(0, shown.length - 1));
 
   // Put focus back where it was when the palette closes.
@@ -288,6 +339,14 @@ function Dialog({
       ?.querySelector(`[data-index="${current}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [current]);
+
+  const pick = (item: Item) => {
+    if (item.fill !== undefined) {
+      setQuery(item.fill);
+      setActive(0);
+      inputRef.current?.focus();
+    } else onPick(item.href);
+  };
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return;
@@ -305,7 +364,7 @@ function Dialog({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const item = shown[current];
-      if (item) onPick(item.href);
+      if (item) pick(item);
     }
   };
 
@@ -325,6 +384,7 @@ function Dialog({
         className="flex max-h-[70vh] w-full max-w-[34rem] flex-col border border-ink/20 bg-cream text-ink shadow-[0_8px_24px_-8px_rgb(56_33_63/0.35)]"
       >
         <input
+          ref={inputRef}
           autoFocus
           value={query}
           onChange={(e) => {
@@ -350,7 +410,15 @@ function Dialog({
         >
           {shown.length === 0 && (
             <li className="px-4 py-3 text-[15px] text-ink-muted">
-              {searching ? "Searching messages…" : "Nothing matches."}
+              {searching
+                ? "Searching messages…"
+                : filter?.problem
+                  ? filter.problem
+                  : filter?.names.length && wanted
+                    ? `No messages ${filter.names.join(" ")} match.`
+                    : filter && !wanted
+                      ? "Add words to search for."
+                      : "Nothing matches."}
             </li>
           )}
           {shown.map((item, i) => (
@@ -361,7 +429,7 @@ function Dialog({
               role="option"
               aria-selected={i === current}
               onMouseMove={() => i !== current && setActive(i)}
-              onClick={() => onPick(item.href)}
+              onClick={() => pick(item)}
               className={`flex cursor-pointer items-center gap-2.5 px-4 py-1.5 text-[16px] ${
                 i === current ? "bg-ink/8" : ""
               }`}
@@ -405,7 +473,8 @@ function Dialog({
         <p className="hidden border-t border-ink/15 px-4 py-2 text-[13px] text-ink-muted sm:block">
           ↑↓ to move, Enter to open. Anywhere: {mac ? "⌘" : "Ctrl+"}1–9 for
           sections, {mac ? "⌥" : "Alt+"}↑↓ for channels, {mac ? "⌥⇧" : "Alt+Shift+"}↑↓
-          for unread ones.
+          for unread ones. Filter messages with from:name, in:#channel,
+          before:, after:, or on: a date, has:link, has:image, and is:thread.
         </p>
       </div>
     </div>,
