@@ -13,6 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { api } from "@/convex/_generated/api";
 import { pushChatUrl, useChatUrl } from "@/lib/chat-url";
+import type { PublicMember } from "@/convex/lib/viewer";
 import { usePortal } from "./context";
 import { profilePath, timeAgo, useNow } from "./util";
 
@@ -56,7 +57,23 @@ type Item = {
   search: string; // lowercase text to match
   unread?: boolean;
   detail?: string; // a second line, for message matches
+  fill?: string; // picking it puts this in the box instead of opening href
 };
+
+// "from:name" (or "from: name") anywhere in the box limits message search to one
+// person. Returns the name typed after it and the rest of the query, or null.
+const FROM = /(^|\s)from:\s*@?(\S*)/i;
+function readFrom(q: string) {
+  const m = FROM.exec(q);
+  if (!m) return null;
+  const rest = (q.slice(0, m.index) + m[1] + q.slice(m.index + m[0].length))
+    .replace(/\s+/g, " ")
+    .trim();
+  return { name: m[2].toLowerCase(), rest };
+}
+// What "from:" takes for a member: their handle, or their name without spaces.
+const fromToken = (m: PublicMember) =>
+  (m.handle ?? m.name.replace(/\s+/g, "")).toLowerCase();
 
 // Opens with Cmd/Ctrl+K (or the sidebar's "Jump to" button) and lists sections,
 // channels, and members, then messages whose text matches (chat.search). Also handles the portal's other shortcuts:
@@ -235,27 +252,67 @@ function Dialog({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { roster } = usePortal();
   const now = useNow();
   const q = query.trim().toLowerCase();
+  // "from:name": who it could mean, and who it means once there's one clear match.
+  const filter = useMemo(() => {
+    const f = readFrom(q);
+    if (!f) return null;
+    const people = [...roster.values()]
+      .filter((m) => {
+        if (!f.name) return !m.bot;
+        const words = m.name.toLowerCase().split(/\s+/);
+        return (
+          fromToken(m).startsWith(f.name) ||
+          words.some((w) => w.startsWith(f.name))
+        );
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const exact = people.find((m) => fromToken(m) === f.name);
+    const who = exact ?? (people.length === 1 && f.name ? people[0] : null);
+    return { ...f, people, who };
+  }, [q, roster]);
   // Message search waits for a pause in typing.
   const [searchFor, setSearchFor] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setSearchFor(q), 200);
     return () => clearTimeout(t);
   }, [q]);
-  const found = useQuery(
-    api.chat.search,
-    searchFor.length >= 2 ? { q: searchFor } : "skip",
-  );
-  const searching = q.length >= 2 && (searchFor !== q || found === undefined);
+  const args = useMemo(() => {
+    if (!filter) return searchFor.length >= 2 ? { q: searchFor } : null;
+    if (!filter.who) return null;
+    const rest = readFrom(searchFor)?.rest;
+    if (rest === undefined || (rest.length > 0 && rest.length < 2)) return null;
+    return { q: rest, from: filter.who._id };
+  }, [filter, searchFor]);
+  const found = useQuery(api.chat.search, args ?? "skip");
+  const searching = !!args && (searchFor !== q || found === undefined);
   const shown = useMemo(() => {
-    const list = items
-      .map((item, i) => ({ item, i, s: score(item, q) }))
-      .filter((x) => x.s !== null)
-      .sort((a, b) => a.s! - b.s! || a.i - b.i)
-      .map((x) => x.item);
-    if (q.length < 2 || searchFor !== q) return list;
+    const list: Item[] = [];
+    if (filter) {
+      // Until it's clear who, list the people it could be; picking one fills it in.
+      if (!filter.who)
+        for (const m of filter.people.slice(0, 8))
+          list.push({
+            key: `from:${m._id}`,
+            href: "",
+            label: m.name,
+            icon: "◎",
+            kind: `from:${fromToken(m)}`,
+            search: "",
+            fill: `${filter.rest ? `${filter.rest} ` : ""}from:${fromToken(m)} `,
+          });
+    } else
+      list.push(
+        ...items
+          .map((item, i) => ({ item, i, s: score(item, q) }))
+          .filter((x) => x.s !== null)
+          .sort((a, b) => a.s! - b.s! || a.i - b.i)
+          .map((x) => x.item),
+      );
+    if (!args || searchFor !== q) return list;
     for (const m of found ?? [])
       list.push({
         key: `msg:${m._id}`,
@@ -272,7 +329,7 @@ function Dialog({
         ),
       });
     return list;
-  }, [items, q, searchFor, found, roster, now]);
+  }, [items, q, filter, args, searchFor, found, roster, now]);
   const current = Math.min(active, Math.max(0, shown.length - 1));
 
   // Put focus back where it was when the palette closes.
@@ -288,6 +345,14 @@ function Dialog({
       ?.querySelector(`[data-index="${current}"]`)
       ?.scrollIntoView({ block: "nearest" });
   }, [current]);
+
+  const pick = (item: Item) => {
+    if (item.fill !== undefined) {
+      setQuery(item.fill);
+      setActive(0);
+      inputRef.current?.focus();
+    } else onPick(item.href);
+  };
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return;
@@ -305,7 +370,7 @@ function Dialog({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const item = shown[current];
-      if (item) onPick(item.href);
+      if (item) pick(item);
     }
   };
 
@@ -325,6 +390,7 @@ function Dialog({
         className="flex max-h-[70vh] w-full max-w-[34rem] flex-col border border-ink/20 bg-cream text-ink shadow-[0_8px_24px_-8px_rgb(56_33_63/0.35)]"
       >
         <input
+          ref={inputRef}
           autoFocus
           value={query}
           onChange={(e) => {
@@ -350,7 +416,13 @@ function Dialog({
         >
           {shown.length === 0 && (
             <li className="px-4 py-3 text-[15px] text-ink-muted">
-              {searching ? "Searching messages…" : "Nothing matches."}
+              {searching
+                ? "Searching messages…"
+                : filter?.who && args
+                  ? `No messages from ${filter.who.name} match.`
+                  : filter && !filter.who && !filter.people.length
+                    ? "No one by that name."
+                    : "Nothing matches."}
             </li>
           )}
           {shown.map((item, i) => (
@@ -361,7 +433,7 @@ function Dialog({
               role="option"
               aria-selected={i === current}
               onMouseMove={() => i !== current && setActive(i)}
-              onClick={() => onPick(item.href)}
+              onClick={() => pick(item)}
               className={`flex cursor-pointer items-center gap-2.5 px-4 py-1.5 text-[16px] ${
                 i === current ? "bg-ink/8" : ""
               }`}
@@ -405,7 +477,7 @@ function Dialog({
         <p className="hidden border-t border-ink/15 px-4 py-2 text-[13px] text-ink-muted sm:block">
           ↑↓ to move, Enter to open. Anywhere: {mac ? "⌘" : "Ctrl+"}1–9 for
           sections, {mac ? "⌥" : "Alt+"}↑↓ for channels, {mac ? "⌥⇧" : "Alt+Shift+"}↑↓
-          for unread ones.
+          for unread ones. Type from:name to search one person’s messages.
         </p>
       </div>
     </div>,

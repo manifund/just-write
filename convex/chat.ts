@@ -491,20 +491,30 @@ const MAX_IMAGES = 10;
 
 // Message search for the "Jump to" palette: the best text matches across every channel
 // and thread. #check-ins posts the viewer can't read yet are left out, so a match can't
-// give away what's behind the gate.
+// give away what's behind the gate. With `from` (the palette's "from:name"), only that
+// member's messages; with `from` and no words, their newest ones.
 const SEARCH_SCAN = 40;
 const SEARCH_RESULTS = 8;
 const SNIPPET_CHARS = 140;
 export const search = query({
-  args: { q: v.string() },
+  args: { q: v.string(), from: v.optional(v.id("members")) },
   handler: async (ctx, args) => {
     const { member } = await requireMember(ctx);
     const q = args.q.trim().slice(0, 100);
-    if (q.length < 2) return [];
-    const rows = await ctx.db
-      .query("messages")
-      .withSearchIndex("search_text", (s) => s.search("text", q))
-      .take(SEARCH_SCAN);
+    const from = args.from;
+    if (q.length < 2 && !(from && !q)) return [];
+    const rows = q
+      ? await ctx.db
+          .query("messages")
+          .withSearchIndex("search_text", (s) =>
+            from ? s.search("text", q).eq("authorId", from) : s.search("text", q),
+          )
+          .take(SEARCH_SCAN)
+      : await ctx.db
+          .query("messages")
+          .withIndex("by_author", (i) => i.eq("authorId", from!))
+          .order("desc")
+          .take(SEARCH_SCAN);
     const channels = new Map<
       Id<"channels">,
       { c: Doc<"channels">; gate: Gate | null } | null
