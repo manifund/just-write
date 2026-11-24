@@ -18,6 +18,7 @@ import { emptyDoc } from "./lib/richtext";
 import {
   DEADLINES,
   fillSlots,
+  MIN_WORDS,
   recountUntil,
   weekAllowed,
 } from "./lib/program";
@@ -325,11 +326,25 @@ export const board = query({
             .map((e) => ({ title: e.title, url: e.url })),
           slots: slots.map((s) => {
             const es = s.essayIds.flatMap((id) => byId.get(id) ?? []);
+            // The square takes essays until they reach MIN_WORDS (so short posts
+            // share it); further essays in that week show as dots after it.
+            let words = 0;
+            const square = es.filter((e) => {
+              if (words >= MIN_WORDS) return false;
+              words += e.wordCount ?? MIN_WORDS;
+              return true;
+            });
             return {
               week: s.week,
-              essay: es[0]
-                ? { title: es.map((e) => e.title).join(" + "), url: es[0].url }
+              essay: square[0]
+                ? {
+                    title: square.map((e) => e.title).join(" + "),
+                    url: square[0].url,
+                  }
                 : null,
+              extras: es
+                .slice(square.length)
+                .map((e) => ({ title: e.title, url: e.url })),
             };
           }),
         };
