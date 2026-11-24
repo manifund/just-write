@@ -15,7 +15,12 @@ import { forgetActivity } from "./lib/activity";
 import { postMessage } from "./lib/messages";
 import { notionText, readPage } from "./lib/essayText";
 import { emptyDoc } from "./lib/richtext";
-import { canCountFor, DEADLINES, fillSlots, recountUntil } from "./lib/program";
+import {
+  DEADLINES,
+  fillSlots,
+  recountUntil,
+  weekAllowed,
+} from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import {
   getViewer,
@@ -165,7 +170,7 @@ export const submit = mutation({
   handler: async (ctx, args) => {
     const { member } = await requireWriter(ctx);
     const submittedAt = Date.now();
-    if (args.week !== undefined && !canCountFor(args.week, submittedAt))
+    if (args.week !== undefined && !weekAllowed(args.week, submittedAt))
       throw new ConvexError("That week’s deadline has passed.");
     const url = parseWebsite(args.url);
     if (!url) throw new ConvexError("That link doesn’t look right.");
@@ -206,7 +211,8 @@ export const submit = mutation({
   },
 });
 
-// Puts one of the viewer's essays toward a week, or back to the earliest open week (null).
+// Puts one of the viewer's essays toward a week, marks it extra (EXTRA_WEEK), or puts it
+// back to the earliest open week (null).
 export const setWeek = mutation({
   args: { essayId: v.id("essays"), week: v.union(v.number(), v.null()) },
   handler: async (ctx, { essayId, week }) => {
@@ -214,7 +220,7 @@ export const setWeek = mutation({
     const essay = await ctx.db.get(essayId);
     if (!essay || essay.memberId !== member._id)
       throw new ConvexError("Not your essay.");
-    if (week !== null && !canCountFor(week, essay.submittedAt))
+    if (week !== null && !weekAllowed(week, essay.submittedAt))
       throw new ConvexError("That essay came in after that week’s deadline.");
     await ctx.db.patch(essayId, { week: week ?? undefined });
   },

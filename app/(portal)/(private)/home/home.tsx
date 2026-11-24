@@ -12,6 +12,7 @@ import {
   canCountFor,
   DEADLINES,
   DEADLINE_LABELS,
+  EXTRA_WEEK,
   recountUntil,
 } from "@/convex/lib/program";
 import { errorMessage } from "@/lib/convex";
@@ -269,7 +270,7 @@ function RegisterEssay({ now }: { now: number | null }) {
         url,
         title,
         wordCount: words,
-        week: week ? Number(week) : undefined,
+        week: week === "" ? undefined : Number(week),
       });
       confetti(buttonRef.current);
       setUrl("");
@@ -345,10 +346,12 @@ function RegisterEssay({ now }: { now: number | null }) {
                   </option>
                 ) : null,
               )}
+            <option value={EXTRA_WEEK}>An extra essay (no week)</option>
           </select>
           <span className="text-[14px] text-ink-muted">
             Pick a week to put this essay with others in that week, like two
-            500-word posts.
+            500-word posts, or mark it extra so it shows as a dot after your
+            four.
           </span>
         </label>
       </div>
@@ -446,13 +449,17 @@ function MyEssays({ mine }: { mine: Mine }) {
               <select
                 aria-label={`Week for ${e.title}`}
                 value={
-                  e.week && canCountFor(e.week, e.submittedAt) ? e.week : ""
+                  e.week === EXTRA_WEEK ||
+                  (e.week && canCountFor(e.week, e.submittedAt))
+                    ? e.week
+                    : ""
                 }
                 onChange={(ev) => {
                   setError(null);
                   setWeek({
                     essayId: e._id,
-                    week: ev.target.value ? Number(ev.target.value) : null,
+                    week:
+                      ev.target.value === "" ? null : Number(ev.target.value),
                   }).catch((err) => setError(errorMessage(err)));
                 }}
                 className="ml-auto cursor-pointer border border-ink/20 bg-cream px-1.5 py-0.5 text-[14px]"
@@ -472,6 +479,7 @@ function MyEssays({ mine }: { mine: Mine }) {
                     </option>
                   ) : null,
                 )}
+                <option value={EXTRA_WEEK}>Extra</option>
               </select>
             )}
             {confirming === e._id ? (
