@@ -70,6 +70,7 @@ A writer can re-read one of their essays' word counts with "Recount words" in th
 After that, only admins can recount it ("Recount" on `/admin`).
 A writer can mark an essay "Extra" in its week picker on `/home` (`week: EXTRA_WEEK`, 0); `fillSlots` skips it, so it shows as a small ring after the four squares on the progress board, past a thin divider.
 On the progress board, essays beyond what a week needs show as tiny dots under that week's square.
+The picker also has "Extra, under Week n" for any week, whatever the deadline (`week: -n`); it counts for nothing and shows as a tiny dot under that week's square.
 
 **Calendar** (`/calendar`, public; `app/(portal)/calendar`, `convex/events.ts`):
 
