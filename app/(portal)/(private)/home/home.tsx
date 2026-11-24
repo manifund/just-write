@@ -684,7 +684,7 @@ function Board() {
                   ) : (
                     <span className="size-3.5 border border-ink/25" />
                   )}
-                  <span className="absolute top-full left-1/2 flex -translate-x-1/2">
+                  <span className="absolute inset-x-0 top-full flex justify-center">
                     {s.extras.map((e, i) => (
                       <BoardMark
                         key={i}
@@ -744,7 +744,9 @@ function BoardMark({
       <span
         className={`block transition-transform group-hover/mark:scale-125 ${className}`}
       />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-max max-w-[18em] -translate-x-1/2 flex-col rounded-md bg-ink px-2.5 py-1.5 text-left text-[13px] leading-snug text-cream opacity-0 shadow-lg transition-opacity duration-150 group-hover/mark:opacity-100 md:flex">
+      <span
+        className={`pointer-events-none absolute bottom-full left-1/2 z-10 ${small ? "mb-5" : "mb-2"} hidden w-max max-w-[18em] -translate-x-1/2 flex-col rounded-md bg-ink px-2.5 py-1.5 text-left text-[13px] leading-snug text-cream opacity-0 shadow-lg transition-opacity duration-150 group-hover/mark:opacity-100 md:flex`}
+      >
         <span className="text-[11px] text-cream/60">{label}</span>
         <span>{essay.title}</span>
         <span className="text-[11px] text-cream/60">{hostOf(essay.url)}</span>
