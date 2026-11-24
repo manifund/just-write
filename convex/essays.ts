@@ -308,9 +308,16 @@ export const board = query({
           .withIndex("by_member", (q) => q.eq("memberId", m._id))
           .collect();
         const byId = new Map(essays.map((e) => [e._id as string, e]));
+        const slots = fillSlots(essays);
+        const slotted = new Set<string>(slots.flatMap((s) => s.essayIds));
         return {
           member: publicMember(m),
-          slots: fillSlots(essays).map((s) => {
+          // Essays past the four that count, shown as small dots.
+          extras: essays
+            .filter((e) => e.review !== "rejected" && !slotted.has(e._id))
+            .sort((a, b) => a.submittedAt - b.submittedAt)
+            .map((e) => ({ title: e.title, url: e.url })),
+          slots: slots.map((s) => {
             const es = s.essayIds.flatMap((id) => byId.get(id) ?? []);
             return {
               week: s.week,

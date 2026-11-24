@@ -654,18 +654,16 @@ function Board() {
               {r.member.name}
             </Link>
             <span
-              className="flex gap-1"
-              aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays`}
+              className="flex items-center gap-1"
+              aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays${r.extras.length ? `, plus ${r.extras.length} extra` : ""}`}
             >
               {r.slots.map((s) =>
                 s.essay ? (
-                  <a
+                  <BoardMark
                     key={s.week}
-                    href={s.essay.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={s.essay.title}
-                    className="size-3.5 bg-brass transition-transform hover:scale-125"
+                    essay={s.essay}
+                    label={`Week ${s.week}`}
+                    className="size-3.5 bg-brass"
                   />
                 ) : (
                   <span
@@ -674,10 +672,48 @@ function Board() {
                   />
                 ),
               )}
+              {r.extras.map((e, i) => (
+                <BoardMark
+                  key={i}
+                  essay={e}
+                  label={`Extra essay ${i + 1}`}
+                  className="size-2 rounded-full bg-brass"
+                />
+              ))}
             </span>
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+// A filled square (or extra dot) on the progress board; hovering shows the essay.
+function BoardMark({
+  essay,
+  label,
+  className,
+}: {
+  essay: { title: string; url: string };
+  label: string;
+  className: string;
+}) {
+  return (
+    <a
+      href={essay.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`${label}: ${essay.title}`}
+      className="group/mark relative flex size-3.5 items-center justify-center"
+    >
+      <span
+        className={`block transition-transform group-hover/mark:scale-125 ${className}`}
+      />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-max max-w-[18em] -translate-x-1/2 flex-col rounded-md bg-ink px-2.5 py-1.5 text-left text-[13px] leading-snug text-cream opacity-0 shadow-lg transition-opacity duration-150 group-hover/mark:opacity-100 md:flex">
+        <span className="text-[11px] text-cream/60">{label}</span>
+        <span>{essay.title}</span>
+        <span className="text-[11px] text-cream/60">{hostOf(essay.url)}</span>
+      </span>
+    </a>
   );
 }
