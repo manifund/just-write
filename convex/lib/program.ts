@@ -32,8 +32,19 @@ export const recountUntil = (submittedAt: number) =>
 // `week: EXTRA_WEEK` means the writer marked the essay as extra: it fills no week and
 // shows as a dot past the four squares on the progress board.
 export const EXTRA_WEEK = 0;
+// `week: -n` is also extra (fills no week) but shows as a dot under week n's square.
+// Since it doesn't count, any week is allowed, whatever the deadline.
+export const extraUnder = (week: number | undefined) =>
+  week !== undefined &&
+  Number.isInteger(week) &&
+  week < 0 &&
+  -week <= DEADLINES.length
+    ? -week
+    : null;
+export const isExtra = (week: number | undefined) =>
+  week === EXTRA_WEEK || extraUnder(week) !== null;
 export const weekAllowed = (week: number, submittedAt: number) =>
-  week === EXTRA_WEEK || canCountFor(week, submittedAt);
+  isExtra(week) || canCountFor(week, submittedAt);
 
 // Fills the 4 weekly slots. Essays the writer put toward a week go there first (a week
 // can hold several, e.g. two short posts). The rest go in submission order to the
@@ -73,7 +84,7 @@ export function fillSlots<
     if (pinned(e)) add(e.week! - 1, e);
   }
   for (const e of counted) {
-    if (pinned(e) || e.week === EXTRA_WEEK) continue;
+    if (pinned(e) || isExtra(e.week)) continue;
     const i = slots.findIndex(
       (s, i) => words[i] < MIN_WORDS && e.submittedAt <= s.deadline,
     );

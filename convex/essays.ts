@@ -21,6 +21,7 @@ import {
   MIN_WORDS,
   recountUntil,
   weekAllowed,
+  extraUnder,
 } from "./lib/program";
 import { parseWebsite } from "./lib/util";
 import {
@@ -212,7 +213,8 @@ export const submit = mutation({
   },
 });
 
-// Puts one of the viewer's essays toward a week, marks it extra (EXTRA_WEEK), or puts it
+// Puts one of the viewer's essays toward a week, marks it extra (EXTRA_WEEK, or -n to
+// show it under week n), or puts it
 // back to the earliest open week (null).
 export const setWeek = mutation({
   args: { essayId: v.id("essays"), week: v.union(v.number(), v.null()) },
@@ -317,12 +319,19 @@ export const board = query({
         const byId = new Map(essays.map((e) => [e._id as string, e]));
         const slots = fillSlots(essays);
         const slotted = new Set<string>(slots.flatMap((s) => s.essayIds));
+        const live = essays
+          .filter((e) => e.review !== "rejected" && !slotted.has(e._id))
+          .sort((a, b) => a.submittedAt - b.submittedAt);
+        // Extras the writer filed under a week show under that week's square.
+        const under = (week: number) =>
+          live
+            .filter((e) => extraUnder(e.week) === week)
+            .map((e) => ({ title: e.title, url: e.url }));
         return {
           member: publicMember(m),
           // Essays past the four that count, shown as small dots.
-          extras: essays
-            .filter((e) => e.review !== "rejected" && !slotted.has(e._id))
-            .sort((a, b) => a.submittedAt - b.submittedAt)
+          extras: live
+            .filter((e) => extraUnder(e.week) === null)
             .map((e) => ({ title: e.title, url: e.url })),
           slots: slots.map((s) => {
             const es = s.essayIds.flatMap((id) => byId.get(id) ?? []);
@@ -342,9 +351,12 @@ export const board = query({
                     url: square[0].url,
                   }
                 : null,
-              extras: es
-                .slice(square.length)
-                .map((e) => ({ title: e.title, url: e.url })),
+              extras: [
+                ...es
+                  .slice(square.length)
+                  .map((e) => ({ title: e.title, url: e.url })),
+                ...under(s.week),
+              ],
             };
           }),
         };
