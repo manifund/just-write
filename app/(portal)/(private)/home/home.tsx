@@ -13,6 +13,7 @@ import {
   DEADLINES,
   DEADLINE_LABELS,
   EXTRA_WEEK,
+  isExtra,
   recountUntil,
 } from "@/convex/lib/program";
 import { errorMessage } from "@/lib/convex";
@@ -449,7 +450,7 @@ function MyEssays({ mine }: { mine: Mine }) {
               <select
                 aria-label={`Week for ${e.title}`}
                 value={
-                  e.week === EXTRA_WEEK ||
+                  isExtra(e.week) ||
                   (e.week && canCountFor(e.week, e.submittedAt))
                     ? e.week
                     : ""
@@ -480,6 +481,11 @@ function MyEssays({ mine }: { mine: Mine }) {
                   ) : null,
                 )}
                 <option value={EXTRA_WEEK}>Extra</option>
+                {WEEKS.map((w, i) => (
+                  <option key={w} value={-(i + 1)}>
+                    Extra, under {w}
+                  </option>
+                ))}
               </select>
             )}
             {confirming === e._id ? (
@@ -693,10 +699,7 @@ function Board() {
               ))}
               {r.extras.length > 0 && (
                 <>
-                  <span
-                    aria-hidden
-                    className="mx-0.5 h-3.5 w-px bg-ink/20"
-                  />
+                  <span aria-hidden className="mx-0.5 h-3.5 w-px bg-ink/20" />
                   <span className="flex items-center">
                     {r.extras.map((e, i) => (
                       <BoardMark
