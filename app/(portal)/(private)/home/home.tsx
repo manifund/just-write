@@ -2,7 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { confetti, hostOf, timeAgo, useNow } from "@/components/portal/util";
@@ -632,6 +632,8 @@ function RecentEssays({ now }: { now: number | null }) {
 function Board() {
   const rows = useQuery(api.essays.board);
   if (!rows || rows.length === 0) return null;
+  const extraCount = (r: (typeof rows)[number]) =>
+    r.extras.length + r.slots.reduce((n, s) => n + s.extras.length, 0);
   const sorted = [...rows].sort(
     (a, b) =>
       b.slots.filter((s) => s.essay).length -
@@ -663,23 +665,29 @@ function Board() {
             </Link>
             <span
               className="flex items-center gap-1"
-              aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays${r.extras.length ? `, plus ${r.extras.length} extra` : ""}`}
+              aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays${extraCount(r) ? `, plus ${extraCount(r)} extra` : ""}`}
             >
-              {r.slots.map((s) =>
-                s.essay ? (
-                  <BoardMark
-                    key={s.week}
-                    essay={s.essay}
-                    label={`Week ${s.week}`}
-                    className="size-3.5 bg-brass"
-                  />
-                ) : (
-                  <span
-                    key={s.week}
-                    className="size-3.5 border border-ink/25"
-                  />
-                ),
-              )}
+              {r.slots.map((s) => (
+                <Fragment key={s.week}>
+                  {s.essay ? (
+                    <BoardMark
+                      essay={s.essay}
+                      label={`Week ${s.week}`}
+                      className="size-3.5 bg-brass"
+                    />
+                  ) : (
+                    <span className="size-3.5 border border-ink/25" />
+                  )}
+                  {s.extras.map((e, i) => (
+                    <BoardMark
+                      key={i}
+                      essay={e}
+                      label={`Week ${s.week}, extra essay`}
+                      className="size-2 rounded-full bg-brass"
+                    />
+                  ))}
+                </Fragment>
+              ))}
               {r.extras.map((e, i) => (
                 <BoardMark
                   key={i}
