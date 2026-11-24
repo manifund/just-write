@@ -14,7 +14,12 @@ import { REACTIONS } from "@/convex/lib/reactions";
 type Group = {
   name: string;
   slug: string;
-  emojis: { emoji: string; name: string; slug: string }[];
+  emojis: {
+    emoji: string;
+    name: string;
+    slug: string;
+    emoji_version: string;
+  }[];
 };
 
 // Loaded on first open so the emoji list isn't in every chat page's bundle.
@@ -23,10 +28,67 @@ async function loadGroups() {
   if (!cache) {
     const data = (await import("unicode-emoji-json/data-by-group.json"))
       .default as Group[];
-    // Skin tone swatches aren't useful as reactions.
-    cache = data.filter((g) => g.slug !== "component");
+    const max = newestSupported(data);
+    cache = data
+      // Skin tone swatches aren't useful as reactions.
+      .filter((g) => g.slug !== "component")
+      // Newer emoji than the device's font knows show up as blank boxes or
+      // as two emoji side by side, so leave them out.
+      .map((g) => ({
+        ...g,
+        emojis: g.emojis.filter((e) => Number(e.emoji_version) <= max),
+      }));
   }
   return cache;
+}
+
+// The newest emoji version this device can draw, found by drawing the first
+// emoji of each version from 11.0 up until one fails.
+function newestSupported(data: Group[]) {
+  const ctx = document.createElement("canvas").getContext("2d", {
+    willReadFrequently: true,
+  });
+  if (!ctx) return Infinity;
+  const first = new Map<number, string>();
+  for (const g of data)
+    for (const e of g.emojis) {
+      const v = Number(e.emoji_version);
+      if (!first.has(v)) first.set(v, e.emoji);
+    }
+  const base = drawsAsEmoji(ctx, "😀", 0);
+  // No color emoji font at all: nothing to compare against, show everything.
+  if (!base) return Infinity;
+  let max = 0;
+  for (const v of [...first.keys()].sort((a, b) => a - b)) {
+    if (v >= 11 && !drawsAsEmoji(ctx, first.get(v)!, base)) break;
+    max = v;
+  }
+  return max;
+}
+
+// Draws the emoji in black: a real emoji glyph comes out in color, a missing
+// one as a black box. A sequence the font doesn't know draws as several emoji,
+// so it's also wider than one. Returns the width, or 0 if it failed.
+function drawsAsEmoji(
+  ctx: CanvasRenderingContext2D,
+  emoji: string,
+  baseWidth: number,
+) {
+  const size = 24;
+  ctx.canvas.width = size * 3;
+  ctx.canvas.height = size * 1.5;
+  ctx.font = `${size}px sans-serif`;
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#000";
+  const width = ctx.measureText(emoji).width;
+  if (baseWidth && width > baseWidth * 1.5) return 0;
+  ctx.fillText(emoji, 0, 0);
+  const px = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+  for (let i = 0; i < px.length; i += 4) {
+    const [r, g, b, a] = [px[i], px[i + 1], px[i + 2], px[i + 3]];
+    if (a > 0 && (Math.abs(r - g) > 16 || Math.abs(g - b) > 16)) return width;
+  }
+  return 0;
 }
 
 const WIDTH = 312;
