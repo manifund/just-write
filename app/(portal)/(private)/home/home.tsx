@@ -2,7 +2,7 @@
 
 import { useAction, useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { usePortal } from "@/components/portal/context";
 import { confetti, hostOf, timeAgo, useNow } from "@/components/portal/util";
@@ -350,7 +350,7 @@ function RegisterEssay({ now }: { now: number | null }) {
           </select>
           <span className="text-[14px] text-ink-muted">
             Pick a week to put this essay with others in that week, like two
-            500-word posts, or mark it extra so it shows as a dot after your
+            500-word posts, or mark it extra so it shows as a ring after your
             four.
           </span>
         </label>
@@ -668,7 +668,7 @@ function Board() {
               aria-label={`${r.slots.filter((s) => s.essay).length} of 4 essays${extraCount(r) ? `, plus ${extraCount(r)} extra` : ""}`}
             >
               {r.slots.map((s) => (
-                <Fragment key={s.week}>
+                <span key={s.week} className="relative flex">
                   {s.essay ? (
                     <BoardMark
                       essay={s.essay}
@@ -678,24 +678,38 @@ function Board() {
                   ) : (
                     <span className="size-3.5 border border-ink/25" />
                   )}
-                  {s.extras.map((e, i) => (
-                    <BoardMark
-                      key={i}
-                      essay={e}
-                      label={`Week ${s.week}, extra essay`}
-                      className="size-2 rounded-full bg-brass"
-                    />
-                  ))}
-                </Fragment>
+                  <span className="absolute top-full left-1/2 flex -translate-x-1/2">
+                    {s.extras.map((e, i) => (
+                      <BoardMark
+                        key={i}
+                        essay={e}
+                        label={`Week ${s.week}, extra essay`}
+                        className="size-1 rounded-full bg-brass"
+                        small
+                      />
+                    ))}
+                  </span>
+                </span>
               ))}
-              {r.extras.map((e, i) => (
-                <BoardMark
-                  key={i}
-                  essay={e}
-                  label={`Extra essay ${i + 1}`}
-                  className="size-2 rounded-full bg-brass"
-                />
-              ))}
+              {r.extras.length > 0 && (
+                <>
+                  <span
+                    aria-hidden
+                    className="mx-0.5 h-3.5 w-px bg-ink/20"
+                  />
+                  <span className="flex items-center">
+                    {r.extras.map((e, i) => (
+                      <BoardMark
+                        key={i}
+                        essay={e}
+                        label={`Extra essay ${i + 1}`}
+                        className="size-1.5 rounded-full border border-brass"
+                        small
+                      />
+                    ))}
+                  </span>
+                </>
+              )}
             </span>
           </li>
         ))}
@@ -704,15 +718,17 @@ function Board() {
   );
 }
 
-// A filled square (or extra dot) on the progress board; hovering shows the essay.
+// A filled square (or tiny extra dot) on the progress board; hovering shows the essay.
 function BoardMark({
   essay,
   label,
   className,
+  small = false,
 }: {
   essay: { title: string; url: string };
   label: string;
   className: string;
+  small?: boolean;
 }) {
   return (
     <a
@@ -720,7 +736,7 @@ function BoardMark({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${label}: ${essay.title}`}
-      className="group/mark relative flex size-3.5 items-center justify-center"
+      className={`group/mark relative flex items-center justify-center ${small ? "size-2" : "size-3.5"}`}
     >
       <span
         className={`block transition-transform group-hover/mark:scale-125 ${className}`}
