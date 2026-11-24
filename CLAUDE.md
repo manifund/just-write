@@ -68,7 +68,8 @@ Use `bun` and `bunx` for everything, never `npm` or `npx`. There are no tests.
 An essay without a week also joins an earlier slot whose essays' word counts add up to under 1,000 (`MIN_WORDS`); an essay with no count fills its slot.
 A writer can re-read one of their essays' word counts with "Recount words" in their essay list on `/home` (`essays.recount`), until the first deadline after they registered it (`recountUntil`), so words added later can't make an earlier week count.
 After that, only admins can recount it ("Recount" on `/admin`).
-A writer can mark an essay "Extra" in its week picker on `/home` (`week: EXTRA_WEEK`, 0); `fillSlots` skips it, so it shows as a dot after the four squares on the progress board.
+A writer can mark an essay "Extra" in its week picker on `/home` (`week: EXTRA_WEEK`, 0); `fillSlots` skips it, so it shows as a small ring after the four squares on the progress board, past a thin divider.
+On the progress board, essays beyond what a week needs show as tiny dots under that week's square.
 
 **Calendar** (`/calendar`, public; `app/(portal)/calendar`, `convex/events.ts`):
 
