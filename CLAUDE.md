@@ -140,6 +140,23 @@ The picker also has "Extra, under Week n" for any week, whatever the deadline (`
 - `lib/zine/document.ts` builds one HTML document from an issue and the design settings in `lib/zine/tweaks.ts`; Paged.js (`public/zine/vendor/`) lays it out. `/zine` previews it in an iframe and `scripts/zine-pdf.ts` prints it to PDF, so both always match.
 - Paged.js's CSS parser rejects `:is()`; write the selectors out.
 - `scripts/zine-pages.ts` typesets each issue in the default design once (`public/zine/week-<n>/default-<hash>.html`, listed in `content/zine/defaults.json`); `/zine` opens those pages when its document's hash matches, else typesets in the browser. Rerun it after `zine-cache.ts` or any change to the layout code or default design.
+- `/zine` opens on the latest issue in the default design; Customize shows the design panel (saved in the browser), and Order shows the Order panel (`app/(portal)/(private)/zine/order.tsx`), which prints whatever design is on screen.
+
+**Zine orders** (printed copies through Lulu's Print API; `convex/zineOrders.ts`, `lib/zine/print.ts`, `lib/lulu.ts`, `lib/zine/fulfill.ts`):
+
+- The Order panel asks `actions.ts#quoteZine` for prices: Lulu's live quote (tax included) when `LULU_CLIENT_KEY`/`LULU_CLIENT_SECRET` are set, else rough estimates from `lib/zine/print.ts`.
+- For now members don't pay (`CHARGE_MEMBERS` off in `lib/zine/print.ts`): the panel shows Lulu's price, and `zineOrders.placeFree` saves the order as paid and starts printing, up to `WEEKLY_CAP_CENTS` ($100) per member over any 7 days (`convex/lib/zine.ts`).
+- With `CHARGE_MEMBERS` on, members pay Lulu's price plus Stripe's card fee plus `MARKUP_CENTS` (`withFees`) through Stripe Checkout (below). Prices are always worked out on the server, again when ordering.
+- The Order panel and `quoteZine` only call Convex functions that already exist on the shared deployment (`members.viewer`; `zineOrders.allowance` is optional), since preview builds don't push `convex/`.
+- Checkout is open only when `ZINE_ORDERS=on` and Lulu keys are set; until then the panel shows estimates and a disabled Pay button.
+- When charging, `checkoutZine` saves a `zineOrders` row (`status: "checkout"`) and opens Stripe Checkout with `metadata.kind = "zine"` and the order id as `client_reference_id`.
+- The Stripe webhook marks it paid (`zineOrders.markPaid`, which checks the amount) and, after answering, calls `fulfill.ts#startPrint`.
+- `startPrint` starts a Vercel Sandbox at the deployed commit that runs `scripts/zine-print.ts`: the interior PDF (the design without its cover page, with bleed), then the wraparound cover (`document.ts#coverDocument`) at the size Lulu's `/cover-dimensions/` gives for the page count.
+- The sandbox gets no secrets: the order's one-time key (hash in `printTokenHash`) and Convex upload URLs. It reports to `app/api/zine/print`, and the PDFs live in Convex storage, whose URLs Lulu downloads.
+- After the cover, `fulfill.ts#submit` creates the Lulu print job (paid with the card saved on the Lulu account) and the order becomes `printing`.
+- Lulu's webhook (`app/api/lulu/webhook`, HMAC with the client secret; register it with `bun scripts/lulu-webhook.ts <url>`) moves it to `shipped` with tracking, or `failed`.
+- `/zine/orders` lists a member's orders; admins also see everyone's and can retry failed ones.
+- Try the render without keys: `bun scripts/zine-print.ts --dry --week 1` (writes `out/zine/print/`).
 
 **@Claude improvements:** mentioning `@Claude` in chat asks an agent to change this site.
 
@@ -341,7 +358,7 @@ Images:
 
 **Styling:** design tokens (colors `ink`, `cream`, `brass*`; fonts `font-display`, `font-body`) are defined in `app/globals.css`. `/tweaks` is a design playground for fonts and palettes; `app/(site)/tweaks/options.ts` `DEFAULTS` mirrors what the live site uses. The email in `lib/email.ts` hardcodes the same hex colors inline.
 
-**Env vars (Vercel / `.env.local`):** `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, `CONVEX_SERVER_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (live Stripe keys are Production-only on Vercel), `RESEND_API_KEY`, `GITHUB_TOKEN` (repo contents + pull requests write, for @Claude), `OPENROUTER_API_KEY` (passed into the @Claude sandbox), optional `RESEND_FROM` (defaults to `austin@manifund.org`, verified in Manifund's Resend account). Stripe is Manifund's live account; deposits are donations to Manifund. `DATABASE_URL` (Neon) is only used by `scripts/import-neon.ts`.
+**Env vars (Vercel / `.env.local`):** `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_CONVEX_SITE_URL`, `CONVEX_SERVER_SECRET`, `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET` (live Stripe keys are Production-only on Vercel), `RESEND_API_KEY`, `GITHUB_TOKEN` (repo contents + pull requests write, for @Claude), `OPENROUTER_API_KEY` (passed into the @Claude sandbox), `LULU_CLIENT_KEY`/`LULU_CLIENT_SECRET` (zine orders; `LULU_ENV=sandbox` for Lulu's sandbox), `ZINE_ORDERS=on` (opens zine checkout), optional `LULU_CONTACT_EMAIL`, optional `RESEND_FROM` (defaults to `austin@manifund.org`, verified in Manifund's Resend account). Stripe is Manifund's live account; deposits are donations to Manifund. `DATABASE_URL` (Neon) is only used by `scripts/import-neon.ts`.
 
 **Env vars (Convex deployment, `bunx convex env set`):**
 

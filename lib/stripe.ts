@@ -36,3 +36,20 @@ export async function markCommitted(
     amountCents: session.amount_total,
   });
 }
+
+// Marks a /zine order paid once Stripe confirms payment. Returns its id the first time only.
+export async function markZinePaid(session: Stripe.Checkout.Session) {
+  if (session.payment_status === "unpaid" || !session.client_reference_id)
+    return null;
+  const paymentIntent =
+    typeof session.payment_intent === "string"
+      ? session.payment_intent
+      : (session.payment_intent?.id ?? null);
+  return await fetchMutation(api.zineOrders.markPaid, {
+    secret: serverSecret(),
+    id: session.client_reference_id,
+    sessionId: session.id,
+    paymentIntent,
+    amountCents: session.amount_total,
+  });
+}

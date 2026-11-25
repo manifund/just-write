@@ -53,6 +53,7 @@ import type * as similarAction from "../similarAction.js";
 import type * as themes from "../themes.js";
 import type * as themesAction from "../themesAction.js";
 import type * as untagged from "../untagged.js";
+import type * as zineOrders from "../zineOrders.js";
 
 import type {
   ApiFromModules,
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   themes: typeof themes;
   themesAction: typeof themesAction;
   untagged: typeof untagged;
+  zineOrders: typeof zineOrders;
 }>;
 
 /**
