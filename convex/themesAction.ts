@@ -18,6 +18,8 @@ const MODEL = "anthropic/claude-sonnet-5.5";
 // Characters of essay text sent to the model in all, split evenly across essays.
 const PROMPT_CHARS = 300_000;
 const PER_ESSAY_CHARS = 8_000;
+// For "Read together", each theme's essays are read again much more fully, in their own call.
+const PAIR_PROMPT_CHARS = 300_000;
 
 // Reads essays that haven't been read yet, then rebuilds the word cloud and, when the set
 // of essays changed, asks Claude for themes. Scheduled by themes.request.
@@ -59,6 +61,7 @@ export const compute = internalAction({
       } else {
         try {
           themes = await findThemes(essays);
+          themes = { ...themes, themes: await withPairs(themes.themes, essays) };
         } catch (err) {
           console.error("Essay themes failed", err);
         }
@@ -220,30 +223,6 @@ async function findThemes(essays: Essay[]) {
 
   const byKey = new Map(essays.map((e, i) => [`e${i + 1}`, e.id]));
   const authorOf = new Map(essays.map((e) => [e.id, e.authorId]));
-  // Keeps pairs of two essays from the theme by different writers, each essay used once.
-  const pairsIn = (
-    pairs: { essays: string[]; kind: "contrast" | "complement"; why: string }[],
-    inTheme: Id<"essays">[],
-  ) => {
-    const used = new Set<Id<"essays">>();
-    return pairs
-      .flatMap((p) => {
-        const ids = [
-          ...new Set(p.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
-        ];
-        const why = p.why.trim().slice(0, 300);
-        if (
-          ids.length !== 2 ||
-          !why ||
-          ids.some((id) => !inTheme.includes(id) || used.has(id)) ||
-          authorOf.get(ids[0]) === authorOf.get(ids[1])
-        )
-          return [];
-        ids.forEach((id) => used.add(id));
-        return [{ essayIds: ids, kind: p.kind, why }];
-      })
-      .slice(0, 2);
-  };
   return {
     overview: output?.overview.trim().slice(0, 600) || undefined,
     themes: (output?.themes ?? [])
@@ -255,7 +234,7 @@ async function findThemes(essays: Essay[]) {
           name: t.name.trim().slice(0, 60),
           summary: t.summary.trim().slice(0, 300),
           essayIds,
-          pairs: pairsIn(t.pairs ?? [], essayIds),
+          pairs: pairsIn(t.pairs ?? [], essayIds, byKey, authorOf),
         };
       })
       .filter((t) => t.name && t.essayIds.length > 0)
@@ -271,6 +250,123 @@ async function findThemes(essays: Essay[]) {
       return essay && quote ? [{ essayId: essay.id, quote }] : [];
     }),
   };
+}
+
+type Pair = { essays: string[]; kind: "contrast" | "complement"; why: string };
+
+// Keeps pairs of two essays from the theme by different writers, each essay used once.
+function pairsIn(
+  pairs: Pair[],
+  inTheme: Id<"essays">[],
+  byKey: Map<string, Id<"essays">>,
+  authorOf: Map<Id<"essays">, Id<"members">>,
+) {
+  const used = new Set<Id<"essays">>();
+  return pairs
+    .flatMap((p) => {
+      const ids = [
+        ...new Set(p.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
+      ];
+      const why = p.why.trim().slice(0, 300);
+      if (
+        ids.length !== 2 ||
+        !why ||
+        ids.some((id) => !inTheme.includes(id) || used.has(id)) ||
+        authorOf.get(ids[0]) === authorOf.get(ids[1])
+      )
+        return [];
+      ids.forEach((id) => used.add(id));
+      return [{ essayIds: ids, kind: p.kind, why }];
+    })
+    .slice(0, 2);
+}
+
+type Theme = Awaited<ReturnType<typeof findThemes>>["themes"][number];
+
+// Picks each theme's "Read together" pairs in a call of its own that reads the theme's
+// essays far more fully than the themes call can. A theme whose call fails keeps the
+// pairs from the themes call.
+async function withPairs(themes: Theme[], essays: Essay[]): Promise<Theme[]> {
+  const openrouter = createOpenRouter({
+    apiKey: process.env.OPENROUTER_API_KEY,
+  });
+  return Promise.all(
+    themes.map(async (theme) => {
+      const inTheme = theme.essayIds.flatMap(
+        (id) => essays.find((e) => e.id === id && e.text) ?? [],
+      );
+      if (new Set(inTheme.map((e) => e.authorId)).size < 2) return theme;
+      const per = Math.min(
+        TEXT_MAX,
+        Math.floor(PAIR_PROMPT_CHARS / inTheme.length),
+      );
+      const byKey = new Map(inTheme.map((e, i) => [`e${i + 1}`, e.id]));
+      const authorOf = new Map(inTheme.map((e) => [e.id, e.authorId]));
+      try {
+        const { output } = await generateText({
+          model: openrouter(MODEL),
+          abortSignal: AbortSignal.timeout(3 * 60_000),
+          output: Output.object({
+            schema: z.object({
+              notes: z
+                .array(
+                  z.object({
+                    essay: z.string().describe("The essay's id, e.g. “e3”"),
+                    argument: z
+                      .string()
+                      .describe(
+                        "Two or three plain sentences: the essay's central claim, how it argues for it, and what it concludes or leaves open",
+                      ),
+                  }),
+                )
+                .describe("One for every essay, written before picking pairs"),
+              pairs: z
+                .array(
+                  z.object({
+                    essays: z
+                      .array(z.string())
+                      .describe(
+                        "Ids of exactly two essays, by different writers",
+                      ),
+                    kind: z.enum(["contrast", "complement"]),
+                    why: z
+                      .string()
+                      .describe(
+                        "One plain sentence, under 30 words, naming the specific claim or idea in each essay that makes them disagree or fill each other in",
+                      ),
+                  }),
+                )
+                .max(2),
+            }),
+          }),
+          system:
+            "You read the essays in one theme of a small online writing club's essays, to pick pairs that are especially good to read together. " +
+            "Read every essay in full before choosing. First write notes on each essay's actual argument: what it claims, how it gets there, and where it ends up, not just its topic. " +
+            "Then pick two pairs, four different essays in all, each pair by two different writers. " +
+            "A pair contrasts when the essays take different sides, reach different conclusions, or answer the same question in opposing ways; it complements when one supplies what the other leaves out, such as evidence, a case, or a next step. " +
+            "Pick pairs for what the essays argue, not for sharing a topic or keywords; skip a pairing whose link only shows up in the titles or opening paragraphs. Prefer fewer pairs to a weak one. " +
+            "Write the reason in a neutral, simple style, naming the specific point in each essay. No praise, no flowery words, and never invent anything that isn't in the text. " +
+            "Some essays are cut off partway.",
+          prompt:
+            `Theme: ${theme.name}. ${theme.summary}\n\n${inTheme.length} essays:\n\n` +
+            inTheme
+              .map(
+                (e, i) =>
+                  `<essay id="e${i + 1}" title="${attr(e.title)}" author="${attr(e.author)}">\n${e.text!.slice(0, per)}\n</essay>`,
+              )
+              .join("\n\n"),
+        });
+        if (!output) return theme;
+        return {
+          ...theme,
+          pairs: pairsIn(output.pairs, theme.essayIds, byKey, authorOf),
+        };
+      } catch (err) {
+        console.error(`Read together pairs failed for ${theme.name}`, err);
+        return theme;
+      }
+    }),
+  );
 }
 
 // Straight quotes, plain dashes, and single spaces, so typography doesn't break a match.

@@ -131,6 +131,7 @@ The picker also has "Extra, under Week n" for any week, whatever the deadline (`
 - Bumping `OUTPUT_VERSION` in `convex/themes.ts` makes the next request redo themes, summaries, and quotes for the same essays (how new output fields get backfilled).
 - Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
 - Each theme card also has up to two "Read together" pairs from the same call (four different essays, each pair by two writers), marked contrast or complement with a one-sentence reason.
+- Those pairs are then picked again in one call per theme (`themesAction.ts#withPairs`) that reads the theme's essays far more fully (up to 20k characters each, 300k per call) and notes each essay's argument first; a theme whose call fails keeps the first call's pairs.
 
 **Zine** (`/zine`, members only; `docs/magazine.md`): the weekly print magazine.
 
