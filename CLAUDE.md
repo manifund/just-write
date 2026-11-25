@@ -130,6 +130,7 @@ The picker also has "Extra, under Week n" for any week, whatever the deadline (`
 - The cloud (`buildCloud`) leaves out common words, needs a word to be used by two writers, and adds the square root of each essay's count so one long essay can't take over.
 - Bumping `OUTPUT_VERSION` in `convex/themes.ts` makes the next request redo themes, summaries, and quotes for the same essays (how new output fields get backfilled).
 - Themes come from one OpenRouter call over the essays' text (300k characters in all, split evenly), saved in the single `themes` row; a failed call keeps the old themes.
+- Each theme card also has up to two "Read together" pairs from the same call (four different essays, each pair by two writers), marked contrast or complement with a one-sentence reason.
 
 **Zine** (`/zine`, members only; `docs/magazine.md`): the weekly print magazine.
 

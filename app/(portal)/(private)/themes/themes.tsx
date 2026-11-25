@@ -226,22 +226,47 @@ function ThemeCards({
             <p className="text-[16px] leading-[1.45] text-pretty text-ink-muted">
               {t.summary}
             </p>
-            <ul className="flex flex-col gap-1.5">
-              {t.essays.map((e) => (
-                <li key={e._id} className="flex items-center gap-2.5">
-                  <Avatar member={e.author} size={22} />
-                  <span className="min-w-0 flex-1 truncate text-[15px]">
-                    <a href={e.url} target="_blank" rel="noopener noreferrer">
-                      {e.title}
-                    </a>
-                    <span className="text-ink-muted"> · {e.author.name}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <EssayList essays={t.essays} />
+            {t.pairs.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-ink/10 pt-3">
+                <h4 className="text-[14px] text-ink-muted">Read together</h4>
+                {t.pairs.map((p) => (
+                  <div
+                    key={p.essays.map((e) => e._id).join()}
+                    className="flex flex-col gap-1.5"
+                  >
+                    <EssayList essays={p.essays} />
+                    <p className="text-[15px] leading-[1.45] text-pretty text-ink-muted">
+                      <span className="text-brass-text">
+                        {p.kind === "contrast" ? "Contrast" : "Complement"}:
+                      </span>{" "}
+                      {p.why}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+function EssayList({ essays }: { essays: Data["themes"][number]["essays"] }) {
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {essays.map((e) => (
+        <li key={e._id} className="flex items-center gap-2.5">
+          <Avatar member={e.author} size={22} />
+          <span className="min-w-0 flex-1 truncate text-[15px]">
+            <a href={e.url} target="_blank" rel="noopener noreferrer">
+              {e.title}
+            </a>
+            <span className="text-ink-muted"> · {e.author.name}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
