@@ -36,8 +36,8 @@ async function counted(ctx: QueryCtx) {
 }
 
 // Bump to redo themes for the same essays once, when the model's output changes
-// (v2: quotes, v3: pairs of essays in each theme, v5: phrases).
-const OUTPUT_VERSION = "v5";
+// (v2: quotes, v3: pairs of essays in each theme, v5: phrases, v6: writer pairs).
+const OUTPUT_VERSION = "v6";
 
 // Cheap fingerprint of which essays there are, so a new one triggers an update.
 function hash(ids: string[]) {
@@ -75,6 +75,12 @@ export const get = query({
           essays: p.essayIds.flatMap((id) => byId.get(id) ?? []),
         }))
         .filter((p) => p.essays.length >= 2),
+      writerPairs: (row?.writerPairs ?? [])
+        .map((p) => ({
+          why: p.why,
+          essays: p.essayIds.flatMap((id) => byId.get(id) ?? []),
+        }))
+        .filter((p) => p.essays.length === 2),
       themes: (row?.themes ?? [])
         .map((t) => ({
           name: t.name,
@@ -230,6 +236,11 @@ export const save = internalMutation({
         phrases: v.optional(
           v.array(
             v.object({ phrase: v.string(), essayIds: v.array(v.id("essays")) }),
+          ),
+        ),
+        writerPairs: v.optional(
+          v.array(
+            v.object({ essayIds: v.array(v.id("essays")), why: v.string() }),
           ),
         ),
         inputHash: v.string(),
