@@ -432,6 +432,13 @@ export default defineSchema({
     quotes: v.optional(
       v.array(v.object({ essayId: v.id("essays"), quote: v.string() })),
     ),
+    // Ideas and feelings that recur across essays, in Claude's words, shown in place
+    // of the word cloud.
+    phrases: v.optional(
+      v.array(
+        v.object({ phrase: v.string(), essayIds: v.array(v.id("essays")) }),
+      ),
+    ),
     read: v.number(), // essays whose text could be read
     inputHash: v.string(), // the essays the themes were made from
     computedAt: v.number(),

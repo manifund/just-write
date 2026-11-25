@@ -55,6 +55,7 @@ export const compute = internalAction({
           themes: [],
           summaries: [],
           quotes: [],
+          phrases: [],
         };
       } else {
         try {
@@ -180,6 +181,25 @@ async function findThemes(essays: Essay[]) {
             }),
           )
           .max(8),
+        phrases: z
+          .array(
+            z.object({
+              phrase: z
+                .string()
+                .describe(
+                  "3 to 8 plain words in your own words, e.g. “Writing is how I think”",
+                ),
+              essays: z
+                .array(z.string())
+                .describe(
+                  "Ids of the essays that express it, at least two by different writers",
+                ),
+            }),
+          )
+          .max(30)
+          .describe(
+            "Ideas, feelings, and claims that come up again and again across essays",
+          ),
         summaries: z
           .array(
             z.object({
@@ -211,6 +231,7 @@ async function findThemes(essays: Essay[]) {
       "Make 4 to 8 themes. Put each essay in the one or two themes it fits best, and every essay in at least one. " +
       "Name themes in plain words a member would use, not clever phrases. Describe what the essays actually say, specifically. " +
       "For each theme, also pick two pairs of its essays that are especially good to read together, four different essays in all, each pair by two different writers. A pair either contrasts (the essays take different sides or reach different conclusions on a shared question) or complements (one fills in what the other leaves out). Say which, and why, in one sentence that says what each essay argues. Give fewer pairs when the theme doesn't have four essays that fit. " +
+      "Also list 15 to 30 short phrases for the ideas, feelings, and claims that come up most across the essays, shown on the page in place of a word cloud. Paraphrase in your own plain words (not quotes, not topic labels like “Parenting”), each something a writer might say, e.g. “Writing is how I think” or “Ambition costs more than it looks”. Each must come up in at least two essays by different writers; list every essay that expresses it, most widely shared first. " +
       "Also write one plain sentence on what each essay with text is about, shown on its card in the club chat. " +
       "Also pick a quote from each essay with text: one or two sentences in a row, copied character for character, that show what the essay says and read well on their own (not a heading, caption, or subscribe prompt). " +
       "Write in a neutral, simple style: no praise for the essays or writers, no flowery words. Never invent anything that isn't in the text. " +
@@ -260,6 +281,19 @@ async function findThemes(essays: Essay[]) {
       })
       .filter((t) => t.name && t.essayIds.length > 0)
       .slice(0, 8),
+    phrases: (output?.phrases ?? [])
+      .flatMap((p) => {
+        const phrase = p.phrase
+          .trim()
+          .replace(/[.“”"]+$/g, "")
+          .slice(0, 80);
+        const essayIds = [
+          ...new Set(p.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
+        ];
+        const writers = new Set(essayIds.map((id) => authorOf.get(id)));
+        return phrase && writers.size >= 2 ? [{ phrase, essayIds }] : [];
+      })
+      .slice(0, 30),
     summaries: (output?.summaries ?? []).flatMap((s) => {
       const essayId = byKey.get(s.essay.trim());
       const summary = s.summary.trim().slice(0, 300);
@@ -286,7 +320,9 @@ const loose = (s: string) =>
 // The quote as the essay writes it, or null if the model's text isn't in the essay word
 // for word. The text above may be cut off, so this checks the essay's whole saved text.
 function exactQuote(quote: string, text: string): string | null {
-  const q = loose(quote).replace(/^["']|["']$/g, "").trim();
+  const q = loose(quote)
+    .replace(/^["']|["']$/g, "")
+    .trim();
   if (q.length < 20 || q.length > 400) return null;
   // Map each character of the loosened text back to where it starts in the original.
   let flat = "";
