@@ -111,6 +111,7 @@ type Essay = {
   id: Id<"essays">;
   title: string;
   author: string;
+  authorId: Id<"members">;
   text: string | null;
 };
 
@@ -156,6 +157,26 @@ async function findThemes(essays: Essay[]) {
               essays: z
                 .array(z.string())
                 .describe("Ids of the essays in this theme, e.g. “e3”"),
+              pairs: z
+                .array(
+                  z.object({
+                    essays: z
+                      .array(z.string())
+                      .describe(
+                        "Ids of exactly two essays in this theme, by different writers",
+                      ),
+                    kind: z.enum(["contrast", "complement"]),
+                    why: z
+                      .string()
+                      .describe(
+                        "One plain sentence, under 30 words, on how the two essays disagree or fill each other in",
+                      ),
+                  }),
+                )
+                .max(2)
+                .describe(
+                  "Two pairs of this theme's essays worth reading together, four different essays in all; fewer if the theme is too small",
+                ),
             }),
           )
           .max(8),
@@ -189,6 +210,7 @@ async function findThemes(essays: Essay[]) {
       "You read the essays published by members of a small online writing club (4 essays each in November) and sort them into themes, for a page that shows what the club is writing about. " +
       "Make 4 to 8 themes. Put each essay in the one or two themes it fits best, and every essay in at least one. " +
       "Name themes in plain words a member would use, not clever phrases. Describe what the essays actually say, specifically. " +
+      "For each theme, also pick two pairs of its essays that are especially good to read together, four different essays in all, each pair by two different writers. A pair either contrasts (the essays take different sides or reach different conclusions on a shared question) or complements (one fills in what the other leaves out). Say which, and why, in one sentence that says what each essay argues. Give fewer pairs when the theme doesn't have four essays that fit. " +
       "Also write one plain sentence on what each essay with text is about, shown on its card in the club chat. " +
       "Also pick a quote from each essay with text: one or two sentences in a row, copied character for character, that show what the essay says and read well on their own (not a heading, caption, or subscribe prompt). " +
       "Write in a neutral, simple style: no praise for the essays or writers, no flowery words. Never invent anything that isn't in the text. " +
@@ -197,16 +219,45 @@ async function findThemes(essays: Essay[]) {
   });
 
   const byKey = new Map(essays.map((e, i) => [`e${i + 1}`, e.id]));
+  const authorOf = new Map(essays.map((e) => [e.id, e.authorId]));
+  // Keeps pairs of two essays from the theme by different writers, each essay used once.
+  const pairsIn = (
+    pairs: { essays: string[]; kind: "contrast" | "complement"; why: string }[],
+    inTheme: Id<"essays">[],
+  ) => {
+    const used = new Set<Id<"essays">>();
+    return pairs
+      .flatMap((p) => {
+        const ids = [
+          ...new Set(p.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
+        ];
+        const why = p.why.trim().slice(0, 300);
+        if (
+          ids.length !== 2 ||
+          !why ||
+          ids.some((id) => !inTheme.includes(id) || used.has(id)) ||
+          authorOf.get(ids[0]) === authorOf.get(ids[1])
+        )
+          return [];
+        ids.forEach((id) => used.add(id));
+        return [{ essayIds: ids, kind: p.kind, why }];
+      })
+      .slice(0, 2);
+  };
   return {
     overview: output?.overview.trim().slice(0, 600) || undefined,
     themes: (output?.themes ?? [])
-      .map((t) => ({
-        name: t.name.trim().slice(0, 60),
-        summary: t.summary.trim().slice(0, 300),
-        essayIds: [
+      .map((t) => {
+        const essayIds = [
           ...new Set(t.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
-        ],
-      }))
+        ];
+        return {
+          name: t.name.trim().slice(0, 60),
+          summary: t.summary.trim().slice(0, 300),
+          essayIds,
+          pairs: pairsIn(t.pairs ?? [], essayIds),
+        };
+      })
       .filter((t) => t.name && t.essayIds.length > 0)
       .slice(0, 8),
     summaries: (output?.summaries ?? []).flatMap((s) => {
