@@ -9,6 +9,7 @@ import { api } from "@/convex/_generated/api";
 
 type Data = FunctionReturnType<typeof api.themes.get>;
 type Word = Data["cloud"][number];
+type Phrase = Data["phrases"][number];
 
 const h2 =
   "font-display text-[clamp(26px,3vw,32px)] leading-[1.1] font-[380] tracking-[-0.015em]";
@@ -37,7 +38,7 @@ export function Themes() {
           What we’re <em className="wonk text-brass-numeral">writing about</em>
         </h1>
         <p className="max-w-[36em] text-[clamp(17px,2.2vw,20px)] leading-[1.45] text-pretty text-ink-muted">
-          Claude reads every essay registered so far. Here are the words that
+          Claude reads every essay registered so far. Here are the ideas that
           come up across them and the themes they fall into.
         </p>
         {data && data.total > 0 && (
@@ -75,7 +76,11 @@ export function Themes() {
         )
       ) : (
         <>
-          {data.cloud.length > 0 && <Cloud words={data.cloud} />}
+          {data.phrases.length > 0 ? (
+            <Phrases phrases={data.phrases} />
+          ) : (
+            data.cloud.length > 0 && <Cloud words={data.cloud} />
+          )}
           {data.themes.length > 0 && (
             <ThemeCards
               themes={data.themes}
@@ -174,6 +179,80 @@ function Cloud({ words }: { words: Word[] }) {
   );
 }
 
+// Most widely shared first: by writers, then essays.
+const writersOf = (p: Phrase) =>
+  new Set(p.essays.map((e) => e.author._id)).size;
+
+function Phrases({ phrases }: { phrases: Phrase[] }) {
+  const sorted = [...phrases].sort(
+    (a, b) => writersOf(b) - writersOf(a) || b.essays.length - a.essays.length,
+  );
+  const [active, setActive] = useState<Phrase | null>(null);
+  const max = sorted[0].essays.length;
+  const min = sorted[sorted.length - 1].essays.length;
+  const scale = (n: number) =>
+    max === min ? 0.5 : Math.sqrt((n - min) / (max - min));
+  return (
+    <section aria-labelledby="phrases" className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 id="phrases" className={h2}>
+          Ideas that come up
+        </h2>
+        <p className="text-ink-muted">
+          Claude’s own words for what several writers say. Bigger ones come up
+          in more essays.
+        </p>
+      </div>
+      <ul
+        aria-label="Ideas that come up"
+        className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-2 bg-cream-deep px-[clamp(16px,4vw,48px)] py-[clamp(20px,4vw,40px)] text-center"
+      >
+        {sorted.map((p, rank) => {
+          const s = scale(p.essays.length);
+          return (
+            <li key={p.phrase} className="max-w-full">
+              <button
+                type="button"
+                aria-pressed={active === p}
+                onClick={() => setActive(active === p ? null : p)}
+                className={`cursor-pointer font-display leading-[1.2] text-balance transition-opacity outline-none focus-visible:underline ${
+                  rank < 5
+                    ? "text-brass-text"
+                    : rank < 15
+                      ? "text-ink"
+                      : "text-ink-muted"
+                } ${active && active !== p ? "opacity-45" : ""}`}
+                style={{
+                  fontSize: `min(${Math.round(16 + s * 20)}px, 7vw)`,
+                  fontWeight: Math.round(360 + s * 80),
+                }}
+              >
+                {p.phrase}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div aria-live="polite" className="flex min-h-[1.5em] flex-col gap-3">
+        {active ? (
+          <>
+            <p className="text-[15px] text-ink-muted">
+              “{active.phrase}” comes up in{" "}
+              {plural(active.essays.length, "essay")} by{" "}
+              {plural(writersOf(active), "writer")}:
+            </p>
+            <EssayList essays={active.essays} />
+          </>
+        ) : (
+          <p className="text-[15px] text-ink-muted">
+            Tap an idea to see the essays it comes from.
+          </p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function ThemeCards({
   themes,
   overview,
@@ -226,9 +305,8 @@ function ThemeCards({
             <p className="text-[16px] leading-[1.45] text-pretty text-ink-muted">
               {t.summary}
             </p>
-            <EssayList essays={t.essays} />
             {t.pairs.length > 0 && (
-              <div className="flex flex-col gap-3 border-t border-ink/10 pt-3">
+              <div className="flex flex-col gap-3 border-y border-ink/10 py-3">
                 <h4 className="text-[14px] text-ink-muted">Read together</h4>
                 {t.pairs.map((p) => (
                   <div
@@ -246,6 +324,10 @@ function ThemeCards({
                 ))}
               </div>
             )}
+            {t.pairs.length > 0 && (
+              <h4 className="-mb-1 text-[14px] text-ink-muted">All essays</h4>
+            )}
+            <EssayList essays={t.essays} />
           </li>
         ))}
       </ul>
