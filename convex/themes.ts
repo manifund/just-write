@@ -8,7 +8,7 @@ import {
   query,
   type QueryCtx,
 } from "./_generated/server";
-import { publicMember, requireMember } from "./lib/viewer";
+import { publicMember, requireAdmin, requireMember } from "./lib/viewer";
 
 // /themes: a word cloud of everyone's essays and the themes Claude finds reading them.
 // convex/themesAction.ts reads each essay's page once (essayTexts), then rebuilds the one
@@ -130,6 +130,36 @@ export const request = mutation({
         requestedAt: now,
       });
     await ctx.scheduler.runAfter(0, internal.themesAction.compute, {});
+  },
+});
+
+// Admins: re-read the essays now, skipping the hour wait, and redo themes even if
+// the essays haven't changed. Ignored while an update is already running.
+export const refresh = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+    const row = await ctx.db.query("themes").first();
+    const now = Date.now();
+    if (
+      row &&
+      row.requestedAt > row.computedAt &&
+      now - row.requestedAt < WORKING_MS
+    )
+      return;
+    if (row) await ctx.db.patch(row._id, { requestedAt: now });
+    else
+      await ctx.db.insert("themes", {
+        cloud: [],
+        themes: [],
+        read: 0,
+        inputHash: "",
+        computedAt: 0,
+        requestedAt: now,
+      });
+    await ctx.scheduler.runAfter(0, internal.themesAction.compute, {
+      force: true,
+    });
   },
 });
 
