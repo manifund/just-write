@@ -411,6 +411,17 @@ export default defineSchema({
         name: v.string(),
         summary: v.string(),
         essayIds: v.array(v.id("essays")),
+        // Up to two pairs of the theme's essays, each by two different writers, that
+        // contrast or complement each other especially well.
+        pairs: v.optional(
+          v.array(
+            v.object({
+              essayIds: v.array(v.id("essays")),
+              kind: v.union(v.literal("contrast"), v.literal("complement")),
+              why: v.string(),
+            }),
+          ),
+        ),
       }),
     ),
     // One plain sentence per essay, for its card in chat.
