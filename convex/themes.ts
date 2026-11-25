@@ -36,8 +36,8 @@ async function counted(ctx: QueryCtx) {
 }
 
 // Bump to redo themes for the same essays once, when the model's output changes
-// (v2: quotes, v3: pairs of essays in each theme).
-const OUTPUT_VERSION = "v3";
+// (v2: quotes, v3: pairs of essays in each theme, v4: pairs from a fuller read).
+const OUTPUT_VERSION = "v4";
 
 // Cheap fingerprint of which essays there are, so a new one triggers an update.
 function hash(ids: string[]) {
