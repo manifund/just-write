@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import type { FunctionReturnType } from "convex/server";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
+import { usePortal } from "@/components/portal/context";
 import { timeAgo, useNow } from "@/components/portal/util";
 import { api } from "@/convex/_generated/api";
 
@@ -20,6 +22,9 @@ const plural = (n: number, one: string, many = `${one}s`) =>
 export function Themes() {
   const data = useQuery(api.themes.get);
   const request = useMutation(api.themes.request);
+  const refresh = useMutation(api.themes.refresh);
+  const { viewer } = usePortal();
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const asked = useRef(false);
   const now = useNow(60_000);
 
@@ -53,6 +58,28 @@ export function Themes() {
               ? ` · updated ${timeAgo(data.computedAt, now)}`
               : ""}
             {data.working && data.computedAt ? " · reading new essays now" : ""}
+            {viewer.isAdmin && !data.working && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRefreshError(null);
+                    refresh().catch((err: unknown) =>
+                      setRefreshError(
+                        err instanceof ConvexError
+                          ? String(err.data)
+                          : "Couldn’t start a refresh.",
+                      ),
+                    );
+                  }}
+                  className="cursor-pointer underline decoration-ink-muted/40 underline-offset-2 hover:text-ink"
+                >
+                  Refresh now
+                </button>
+              </>
+            )}
+            {refreshError && ` · ${refreshError}`}
           </p>
         )}
       </header>

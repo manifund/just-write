@@ -2,6 +2,7 @@
 
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, Output } from "ai";
+import { v } from "convex/values";
 import { z } from "zod";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -22,8 +23,9 @@ const PER_ESSAY_CHARS = 8_000;
 // Reads essays that haven't been read yet, then rebuilds the word cloud and, when the set
 // of essays changed, asks Claude for themes. Scheduled by themes.request.
 export const compute = internalAction({
-  args: {},
-  handler: async (ctx) => {
+  // force: redo themes even if the essays haven't changed (admins' "Refresh now").
+  args: { force: v.optional(v.boolean()) },
+  handler: async (ctx, { force }) => {
     const pending = await ctx.runQuery(internal.themes.toFetch, {});
     for (let i = 0; i < pending.length; i += 4) {
       await Promise.all(
@@ -46,7 +48,7 @@ export const compute = internalAction({
       e.text ? [{ text: e.text, author: e.authorId as string }] : [],
     );
     let themes: Awaited<ReturnType<typeof findThemes>> | undefined;
-    if (hash !== previousHash) {
+    if (force || hash !== previousHash) {
       if (essays.length === 0 || !process.env.OPENROUTER_API_KEY) {
         if (!process.env.OPENROUTER_API_KEY)
           console.warn("OPENROUTER_API_KEY is not set; skipping essay themes");

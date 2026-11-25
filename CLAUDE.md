@@ -124,6 +124,7 @@ The picker also has "Extra, under Week n" for any week, whatever the deadline (`
 - A word cloud and Claude's themes across every essay that isn't rejected, linked from "Everyone's progress" on `/home`.
 - It's also in the portal sidebar, after Ideas.
 - Opening the page asks for an update (`themes.request`) when the set of essays changed, at most once an hour for everyone.
+- Admins also get "Refresh now" next to "updated …" (`themes.refresh`), which skips the hour wait and redoes themes even for the same essays (`themesAction.compute` with `force`).
 - `themesAction.compute` reads each essay's page once into `essayTexts` (`convex/lib/essayText.ts#essayText`; public Google Docs through their text export) and retries pages with no readable text after 12h.
 - Essay pages (here and the word count in `essays.preview`) are read with `essayText.ts#readPage`, which unpacks the gzipped bytes LessWrong sends without a Content-Encoding header.
 - Public Notion pages are built by scripts, so both read their text from Notion's own page API on the same host instead (`essayText.ts#notionText`).
