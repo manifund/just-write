@@ -56,6 +56,7 @@ export const compute = internalAction({
           summaries: [],
           quotes: [],
           phrases: [],
+          writerPairs: [],
         };
       } else {
         try {
@@ -200,6 +201,23 @@ async function findThemes(essays: Essay[]) {
           .describe(
             "Ideas, feelings, and claims that come up again and again across essays",
           ),
+        writerPairs: z
+          .array(
+            z.object({
+              essays: z
+                .array(z.string())
+                .describe(
+                  "Ids of exactly two essays, one by each writer, that best show why they should talk",
+                ),
+              why: z
+                .string()
+                .describe(
+                  "One or two plain sentences, under 50 words, on what the two writers share or push against in their subjects, tone, and ways of thinking",
+                ),
+            }),
+          )
+          .max(5)
+          .describe("Five pairs of writers who should talk to each other"),
         summaries: z
           .array(
             z.object({
@@ -232,6 +250,7 @@ async function findThemes(essays: Essay[]) {
       "Name themes in plain words a member would use, not clever phrases. Describe what the essays actually say, specifically. " +
       "For each theme, also pick two pairs of its essays that are especially good to read together, four different essays in all, each pair by two different writers. A pair either contrasts (the essays take different sides or reach different conclusions on a shared question) or complements (one fills in what the other leaves out). Say which, and why, in one sentence that says what each essay argues. Give fewer pairs when the theme doesn't have four essays that fit. " +
       "Also list 15 to 30 short phrases for the ideas, feelings, and claims that come up most across the essays, shown on the page in place of a word cloud. Paraphrase in your own plain words (not quotes, not topic labels like “Parenting”), each something a writer might say, e.g. “Writing is how I think” or “Ambition costs more than it looks”. Each must come up in at least two essays by different writers; list every essay that expresses it, most widely shared first. " +
+      "Also pick five pairs of writers who should talk to each other, judged on everything they've written here: not just their subjects, but their tone (wry, earnest, clinical, confessional) and how they think (from stories or from principles, hedging or certain, building systems or poking holes). Pair people whose minds would catch on each other, because they think alike about different things or differently about the same thing. Use ten different writers when there are enough. For each, give one essay by each writer that shows it best, and say why in plain words, naming the specific habits of mind or tone, not just the topic. " +
       "Also write one plain sentence on what each essay with text is about, shown on its card in the club chat. " +
       "Also pick a quote from each essay with text: one or two sentences in a row, copied character for character, that show what the essay says and read well on their own (not a heading, caption, or subscribe prompt). " +
       "Write in a neutral, simple style: no praise for the essays or writers, no flowery words. Never invent anything that isn't in the text. " +
@@ -265,6 +284,24 @@ async function findThemes(essays: Essay[]) {
       })
       .slice(0, 2);
   };
+  // Keeps pairs of two essays by different writers, each pair of writers once.
+  const writerPairsIn = (pairs: { essays: string[]; why: string }[]) => {
+    const seen = new Set<string>();
+    return pairs
+      .flatMap((p) => {
+        const ids = [
+          ...new Set(p.essays.flatMap((k) => byKey.get(k.trim()) ?? [])),
+        ];
+        const why = p.why.trim().slice(0, 400);
+        if (ids.length !== 2 || !why) return [];
+        const writers = ids.map((id) => authorOf.get(id) as string).sort();
+        const key = writers.join();
+        if (writers[0] === writers[1] || seen.has(key)) return [];
+        seen.add(key);
+        return [{ essayIds: ids, why }];
+      })
+      .slice(0, 5);
+  };
   return {
     overview: output?.overview.trim().slice(0, 600) || undefined,
     themes: (output?.themes ?? [])
@@ -294,6 +331,7 @@ async function findThemes(essays: Essay[]) {
         return phrase && writers.size >= 2 ? [{ phrase, essayIds }] : [];
       })
       .slice(0, 30),
+    writerPairs: writerPairsIn(output?.writerPairs ?? []),
     summaries: (output?.summaries ?? []).flatMap((s) => {
       const essayId = byKey.get(s.essay.trim());
       const summary = s.summary.trim().slice(0, 300);

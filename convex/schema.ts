@@ -450,6 +450,11 @@ export default defineSchema({
         v.object({ phrase: v.string(), essayIds: v.array(v.id("essays")) }),
       ),
     ),
+    // Up to five pairs of writers who should talk, judged on what they write about, their
+    // tone, and how they think; one essay from each writer that shows it best.
+    writerPairs: v.optional(
+      v.array(v.object({ essayIds: v.array(v.id("essays")), why: v.string() })),
+    ),
     read: v.number(), // essays whose text could be read
     inputHash: v.string(), // the essays the themes were made from
     computedAt: v.number(),

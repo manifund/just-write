@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/portal/avatar";
 import { timeAgo, useNow } from "@/components/portal/util";
@@ -80,6 +81,9 @@ export function Themes() {
             <Phrases phrases={data.phrases} />
           ) : (
             data.cloud.length > 0 && <Cloud words={data.cloud} />
+          )}
+          {data.writerPairs.length > 0 && (
+            <WriterPairs pairs={data.writerPairs} />
           )}
           {data.themes.length > 0 && (
             <ThemeCards
@@ -249,6 +253,62 @@ function Phrases({ phrases }: { phrases: Phrase[] }) {
           </p>
         )}
       </div>
+    </section>
+  );
+}
+
+function WriterPairs({ pairs }: { pairs: Data["writerPairs"] }) {
+  return (
+    <section aria-labelledby="talk" className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1">
+        <h2 id="talk" className={h2}>
+          These two people should talk
+        </h2>
+        <p className="text-ink-muted">
+          Claude’s picks from everything each writer has registered: what they
+          write about, their tone, and how they think.
+        </p>
+      </div>
+      <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {pairs.map((p) => (
+          <li
+            key={p.essays.map((e) => e._id).join()}
+            className="flex min-w-0 flex-col gap-3 bg-cream-deep p-5"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex shrink-0 -space-x-2">
+                {p.essays.map((e) => (
+                  <span
+                    key={e._id}
+                    className="rounded-full ring-2 ring-cream-deep"
+                  >
+                    <Avatar member={e.author} size={32} />
+                  </span>
+                ))}
+              </span>
+              <h3 className="min-w-0 font-display text-[21px] leading-tight font-[420] text-balance">
+                {p.essays.map((e, i) => (
+                  <span key={e._id}>
+                    {i > 0 && <span className="text-ink-muted"> & </span>}
+                    {e.author.handle ? (
+                      <Link href={`/members/${e.author.handle}`}>
+                        {e.author.name}
+                      </Link>
+                    ) : (
+                      e.author.name
+                    )}
+                  </span>
+                ))}
+              </h3>
+            </div>
+            <p className="text-[16px] leading-[1.45] text-pretty">{p.why}</p>
+            <div className="flex flex-col gap-1.5 border-t border-ink/10 pt-3">
+              <h4 className="text-[14px] text-ink-muted">Start with</h4>
+              <EssayList essays={p.essays} />
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
